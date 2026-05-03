@@ -35,7 +35,49 @@ interface VacantProperty {
   action: string;
 }
 
+type PresetKey = "today" | "this_week" | "this_month" | "last_month" | "custom";
+
+const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: "today", label: "오늘" },
+  { key: "this_week", label: "이번 주" },
+  { key: "this_month", label: "이번 달" },
+  { key: "last_month", label: "지난 달" },
+  { key: "custom", label: "직접 선택" },
+];
+
+function getPresetDates(key: PresetKey): { start: string; end: string } {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  switch (key) {
+    case "today":
+      return { start: fmt(now), end: fmt(now) };
+    case "this_week": {
+      const day = now.getDay();
+      const mon = new Date(now);
+      mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: fmt(mon), end: fmt(now) };
+    }
+    case "this_month":
+      return { start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, end: fmt(now) };
+    case "last_month": {
+      const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const m = now.getMonth() === 0 ? 12 : now.getMonth();
+      const last = new Date(y, m, 0);
+      return { start: `${y}-${String(m).padStart(2, "0")}-01`, end: fmt(last) };
+    }
+    default:
+      return { start: fmt(now), end: fmt(now) };
+  }
+}
+
 interface DashboardData {
+  period?: {
+    start_date: string;
+    end_date: string;
+    days: number;
+    label: string;
+    is_today: boolean;
+  };
   actions: Action[];
   revenue: {
     today_revenue: number;
@@ -74,6 +116,24 @@ interface DashboardData {
 
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(n);
 
+interface MarketingStats {
+  total_leads: number;
+  new_leads: number;
+  contacted_leads: number;
+  replied_leads: number;
+  contracted_leads: number;
+  today_contact_list: {
+    id: number;
+    name: string;
+    area: string;
+    property_type: string;
+    lead_score: number;
+    lead_grade: string;
+    next_action: string;
+    status: string;
+  }[];
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -82,24 +142,46 @@ export default function Dashboard() {
   const [dispatchAction, setDispatchAction] = useState<Action | null>(null);
   const [toast, setToast] = useState("");
   const [diagList, setDiagList] = useState<DiagItem[]>([]);
+  const [mktStats, setMktStats] = useState<MarketingStats | null>(null);
   const [showManual, setShowManual] = useState(false);
+
+  // 기간 필터 상태
+  const [preset, setPreset] = useState<PresetKey>("today");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  const getDateRange = () => {
+    if (preset === "custom" && customStart && customEnd) {
+      return { start: customStart, end: customEnd };
+    }
+    return getPresetDates(preset);
+  };
 
   const fetch_ = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${PUBLIC_API_URL}/dashboard/ceo`);
-      if (!res.ok) throw new Error();
-      setData(await res.json());
-      // 사업진단 데이터 로드
-      try {
-        const token = localStorage.getItem("token");
-        const diagRes = await fetch(`${API_URL}/diagnosis`, { headers: { Authorization: `Bearer ${token}` } });
-        if (diagRes.ok) {
-          const diagData = await diagRes.json();
-          setDiagList((diagData.results || []).slice(0, 5));
-        }
-      } catch { /* 진단 데이터 없어도 대시보드 정상 표시 */ }
+      const { start, end } = getDateRange();
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // 3개 API 병렬 호출
+      const [ceoRes, diagRes, mktRes] = await Promise.all([
+        fetch(`${PUBLIC_API_URL}/dashboard/ceo?start_date=${start}&end_date=${end}`),
+        fetch(`${API_URL}/diagnosis`, { headers }).catch(() => null),
+        fetch(`${API_URL}/marketing/dashboard`, { headers }).catch(() => null),
+      ]);
+
+      if (!ceoRes.ok) throw new Error();
+      setData(await ceoRes.json());
+
+      if (diagRes?.ok) {
+        const diagData = await diagRes.json();
+        setDiagList((diagData.results || []).slice(0, 5));
+      }
+      if (mktRes?.ok) {
+        setMktStats(await mktRes.json());
+      }
     } catch {
       setError("대시보드 데이터를 불러올 수 없습니다");
     } finally {
@@ -107,7 +189,11 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { fetch_(); }, []);
+  useEffect(() => {
+    // custom 모드에서 날짜 미입력 시 fetch 안 함
+    if (preset === "custom" && (!customStart || !customEnd)) return;
+    fetch_();
+  }, [preset, customStart, customEnd]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -149,25 +235,62 @@ export default function Dashboard() {
       )}
 
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">CEO Dashboard</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
-          </p>
+      <div className="mb-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">CEO Dashboard</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {data.period?.label || new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
+              {data.period && !data.period.is_today && ` (${data.period.days}일)`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+              운영 매뉴얼
+            </button>
+            <button onClick={fetch_} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+              새로고침
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-            운영 매뉴얼
-          </button>
-          <button onClick={fetch_} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-            새로고침
-          </button>
+
+        {/* 기간 프리셋 */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPreset(p.key)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                preset === p.key
+                  ? "bg-gray-900 text-white"
+                  : "border border-gray-300 text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          {preset === "custom" && (
+            <div className="flex items-center gap-1.5 ml-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+              />
+              <span className="text-xs text-gray-400">~</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 🔥 P0: 오늘 해야 할 액션 — 클릭하면 dispatch */}
-      {data.actions.length > 0 && (
+      {/* 🔥 P0: 오늘 해야 할 액션 — 오늘 모드에서만 표시 */}
+      {data.period?.is_today !== false && data.actions.length > 0 && (
         <div className="mb-6 rounded-lg border-2 border-red-300 bg-red-50 p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-red-800 uppercase tracking-wider">오늘 해야 할 액션</h2>
@@ -392,6 +515,85 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* 🤖 Marketing Agent Team */}
+      {mktStats && (
+        <div className="mt-5 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Marketing Agent Team</h2>
+              <p className="text-xs text-gray-400">위탁운영 리드 발굴 → 상담 → 계약 파이프라인</p>
+            </div>
+            <button
+              onClick={() => navigate("/leads")}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+            >
+              전체 보기
+            </button>
+          </div>
+
+          {/* Pipeline funnel */}
+          <div className="mb-4 grid grid-cols-5 gap-2">
+            {[
+              { label: "전체 리드", value: mktStats.total_leads, color: "bg-gray-50 border-gray-200" },
+              { label: "신규", value: mktStats.new_leads, color: "bg-blue-50 border-blue-200" },
+              { label: "연락완료", value: mktStats.contacted_leads, color: "bg-yellow-50 border-yellow-200" },
+              { label: "답장받음", value: mktStats.replied_leads, color: "bg-green-50 border-green-200" },
+              { label: "계약완료", value: mktStats.contracted_leads, color: "bg-red-50 border-red-200" },
+            ].map((s) => (
+              <div key={s.label} className={`rounded-md border p-3 text-center ${s.color}`}>
+                <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                <p className="text-xs text-gray-500">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 오늘 연락할 리드 */}
+          {mktStats.today_contact_list && mktStats.today_contact_list.length > 0 ? (
+            <div>
+              <p className="mb-2 text-xs font-medium text-gray-500 uppercase">오늘 연락할 리드 (점수 높은 순)</p>
+              <div className="max-h-48 overflow-y-auto space-y-1.5">
+                {mktStats.today_contact_list.slice(0, 10).map((lead) => (
+                  <div
+                    key={lead.id}
+                    onClick={() => navigate(`/leads/${lead.id}`)}
+                    className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 px-3 py-2 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                        lead.lead_grade === "A" ? "bg-red-100 text-red-800" :
+                        lead.lead_grade === "B" ? "bg-orange-100 text-orange-800" :
+                        lead.lead_grade === "C" ? "bg-yellow-100 text-yellow-800" :
+                        "bg-gray-100 text-gray-800"
+                      }`}>
+                        {lead.lead_grade}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{lead.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{lead.area} · {lead.property_type}</p>
+                      </div>
+                    </div>
+                    <div className="ml-3 shrink-0 text-right">
+                      <p className="text-sm font-bold text-gray-900">{lead.lead_score}점</p>
+                      <p className="text-xs text-gray-400 max-w-[120px] truncate">{lead.next_action}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md bg-slate-50 p-4 text-center">
+              <p className="text-sm text-gray-500">등록된 리드가 없습니다</p>
+              <button
+                onClick={() => navigate("/leads")}
+                className="mt-2 rounded-md bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+              >
+                리드 추가하기
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 🏥 숙소 사업 진단 */}
       {diagList.length > 0 && (

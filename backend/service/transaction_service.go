@@ -185,6 +185,136 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 	return results, nil
 }
 
+// SettlementQuery — 기간 기반 정산 조회
+type SettlementQuery struct {
+	StartDate string `form:"start_date"` // 2026-04-01
+	EndDate   string `form:"end_date"`   // 2026-04-30
+}
+
+// SettlementResult — 정산 결과
+type SettlementResult struct {
+	StartDate  string           `json:"start_date"`
+	EndDate    string           `json:"end_date"`
+	Properties []MonthlySummary `json:"properties"`
+	Total      MonthlySummary   `json:"total"`
+}
+
+// GetSettlement — 기간 기반 정산 (숙소별 수입/비용/이익)
+func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementResult, error) {
+	if query.StartDate == "" || query.EndDate == "" {
+		// 기본값: 이번 달
+		now := time.Now()
+		query.StartDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+		query.EndDate = now.Format("2006-01-02")
+	}
+
+	type row struct {
+		PropertyID   *uint
+		PropertyName string
+		Category     string
+		Type         string
+		Total        int64
+	}
+	var rows []row
+	config.DB.Model(&models.HostexTransaction{}).
+		Select("property_id, property_name, category, type, SUM(amount) as total").
+		Where("transaction_at >= ? AND transaction_at <= ?", query.StartDate, query.EndDate+" 23:59:59").
+		Group("property_id, property_name, category, type").
+		Scan(&rows)
+
+	// 숙소별 집계 (기존 MonthlySummary 로직 재활용)
+	type key struct {
+		pid  uint
+		name string
+	}
+	summaryMap := map[key]*MonthlySummary{}
+
+	for _, r := range rows {
+		pid := uint(0)
+		if r.PropertyID != nil {
+			pid = *r.PropertyID
+		}
+		k := key{pid, r.PropertyName}
+		sm, ok := summaryMap[k]
+		if !ok {
+			sm = &MonthlySummary{
+				PropertyID:   pid,
+				PropertyName: r.PropertyName,
+				YearMonth:    query.StartDate + "~" + query.EndDate,
+			}
+			summaryMap[k] = sm
+		}
+
+		if r.Type == models.TxTypeIncome {
+			switch r.Category {
+			case models.TxCatRoomRate:
+				sm.Revenue += r.Total
+			case models.TxCatRoomRefund:
+				sm.Refund += r.Total
+			}
+		} else {
+			switch r.Category {
+			case models.TxCatCleaning:
+				sm.CleaningFee += r.Total
+			case models.TxCatMgmt:
+				sm.MgmtFee += r.Total
+			case models.TxCatRentOut:
+				sm.RentOut += r.Total
+			case models.TxCatOperation:
+				sm.OperationFee += r.Total
+			case models.TxCatLabor:
+				sm.LaborFee += r.Total
+			case models.TxCatSupplies:
+				sm.SuppliesFee += r.Total
+			case models.TxCatMaintenance:
+				sm.Maintenance += r.Total
+			default:
+				sm.OtherCost += r.Total
+			}
+		}
+	}
+
+	// 결과 + 합계
+	var total MonthlySummary
+	total.YearMonth = query.StartDate + "~" + query.EndDate
+	results := make([]MonthlySummary, 0, len(summaryMap))
+
+	for _, sm := range summaryMap {
+		sm.NetRevenue = sm.Revenue - sm.Refund
+		sm.TotalCost = sm.CleaningFee + sm.MgmtFee + sm.RentOut + sm.OperationFee + sm.LaborFee + sm.SuppliesFee + sm.Maintenance + sm.OtherCost
+		sm.Profit = sm.NetRevenue - sm.TotalCost
+		if sm.NetRevenue > 0 {
+			sm.ProfitRate = float64(sm.Profit) / float64(sm.NetRevenue) * 100
+		}
+		results = append(results, *sm)
+
+		// 합계 누적
+		total.Revenue += sm.Revenue
+		total.Refund += sm.Refund
+		total.NetRevenue += sm.NetRevenue
+		total.CleaningFee += sm.CleaningFee
+		total.MgmtFee += sm.MgmtFee
+		total.RentOut += sm.RentOut
+		total.OperationFee += sm.OperationFee
+		total.LaborFee += sm.LaborFee
+		total.SuppliesFee += sm.SuppliesFee
+		total.Maintenance += sm.Maintenance
+		total.OtherCost += sm.OtherCost
+		total.TotalCost += sm.TotalCost
+		total.Profit += sm.Profit
+	}
+	if total.NetRevenue > 0 {
+		total.ProfitRate = float64(total.Profit) / float64(total.NetRevenue) * 100
+	}
+
+	return &SettlementResult{
+		StartDate:  query.StartDate,
+		EndDate:    query.EndDate,
+		Properties: results,
+		Total:      total,
+	}, nil
+}
+
 // ─── 내부 헬퍼 ───────────────────────────────────────────────
 
 func (s *TransactionService) buildPropertyCache() map[string]uint {

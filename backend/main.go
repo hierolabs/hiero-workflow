@@ -41,10 +41,13 @@ func main() {
 		&models.Campaign{},
 		&models.HostexTransaction{},
 		&models.ManualEntry{},
+		&models.CleaningCode{},
 	)
 	seedAdminUser()
 	seedProperties()
 	seedDiagnosisSample()
+	service.SeedCleaningCodes()
+	service.SeedCleaners()
 
 	// Hostex 전체 동기화 (백그라운드)
 	go func() {

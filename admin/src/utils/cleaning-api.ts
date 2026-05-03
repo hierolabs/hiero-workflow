@@ -46,8 +46,36 @@ export interface Cleaner {
   name: string;
   phone: string;
   region: string;
+  regions: string;
+  available_days: string;
+  transport: string;
+  can_laundry: boolean;
+  can_dry: boolean;
+  max_daily: number;
   active: boolean;
   memo: string;
+}
+
+export interface CleaningCode {
+  id: number;
+  code: string;
+  region_code: string;
+  region_name: string;
+  building_name: string;
+  room_name: string;
+  room_count: number;
+  base_price: number;
+  property_id: number | null;
+  memo: string;
+}
+
+export interface CleanerWorkload {
+  cleaner_id: number;
+  cleaner_name: string;
+  assigned: number;
+  completed: number;
+  in_progress: number;
+  max_daily: number;
 }
 
 export interface Issue {
@@ -242,6 +270,20 @@ export async function createCleaner(data: { name: string; phone: string; region:
 export async function deleteCleaner(id: number): Promise<void> {
   const res = await apiRequest(`/cleaners/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("삭제 실패");
+}
+
+// Cleaning Codes
+export async function fetchCleaningCodes(): Promise<CleaningCode[]> {
+  const res = await apiRequest("/cleaning-codes");
+  if (!res.ok) throw new Error("청소코드 조회 실패");
+  return res.json();
+}
+
+// Cleaner Workload
+export async function fetchCleanerWorkload(date: string): Promise<CleanerWorkload[]> {
+  const res = await apiRequest(`/cleaning/workload?date=${date}`);
+  if (!res.ok) throw new Error("워크로드 조회 실패");
+  return res.json();
 }
 
 // Issues

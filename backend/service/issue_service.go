@@ -199,10 +199,30 @@ type IssueSummary struct {
 
 func (s *IssueService) GetSummary() IssueSummary {
 	var summary IssueSummary
-	config.DB.Model(&models.Issue{}).Count(&summary.Total)
-	config.DB.Model(&models.Issue{}).Where("status = ?", "open").Count(&summary.Open)
-	config.DB.Model(&models.Issue{}).Where("status = ?", "in_progress").Count(&summary.InProgress)
-	config.DB.Model(&models.Issue{}).Where("status = ?", "resolved").Count(&summary.Resolved)
+
+	// 단일 GROUP BY 쿼리로 통합 (4개 COUNT → 1개)
+	type statusCount struct {
+		Status string
+		Count  int64
+	}
+	var rows []statusCount
+	config.DB.Model(&models.Issue{}).
+		Select("status, COUNT(*) as count").
+		Group("status").
+		Scan(&rows)
+
+	for _, r := range rows {
+		summary.Total += r.Count
+		switch r.Status {
+		case "open":
+			summary.Open = r.Count
+		case "in_progress":
+			summary.InProgress = r.Count
+		case "resolved":
+			summary.Resolved = r.Count
+		}
+	}
+
 	return summary
 }
 

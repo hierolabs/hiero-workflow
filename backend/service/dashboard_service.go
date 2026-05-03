@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"hiero-workflow/backend/config"
@@ -14,44 +15,103 @@ func NewDashboardService() *DashboardService {
 	return &DashboardService{}
 }
 
-// GetCEODashboard — DB 기반 CEO 대시보드 (Hostex API 호출 없음)
-func (s *DashboardService) GetCEODashboard() (map[string]interface{}, error) {
+// DashboardQuery — 대시보드 기간 필터
+type DashboardQuery struct {
+	StartDate string `form:"start_date"` // 2026-05-01
+	EndDate   string `form:"end_date"`   // 2026-05-04
+}
+
+// Normalize — 기본값 설정 (비어있으면 오늘)
+func (q *DashboardQuery) Normalize() {
+	today := time.Now().Format("2006-01-02")
+	if q.StartDate == "" {
+		q.StartDate = today
+	}
+	if q.EndDate == "" {
+		q.EndDate = q.StartDate
+	}
+}
+
+// IsToday — 오늘 하루인지 확인 (액션 카드 표시 여부 판단)
+func (q *DashboardQuery) IsToday() bool {
+	today := time.Now().Format("2006-01-02")
+	return q.StartDate == today && q.EndDate == today
+}
+
+// DayCount — 기간 일수
+func (q *DashboardQuery) DayCount() int {
+	d := dateDiff(q.StartDate, q.EndDate)
+	if d < 1 {
+		return 1
+	}
+	return d + 1
+}
+
+// GetCEODashboard — DB 기반 CEO 대시보드 (기간 필터 지원)
+func (s *DashboardService) GetCEODashboard(query DashboardQuery) (map[string]interface{}, error) {
+	query.Normalize()
+	startDate := query.StartDate
+	endDate := query.EndDate
 	today := time.Now().Format("2006-01-02")
 	threeDaysLater := time.Now().Add(3 * 24 * time.Hour).Format("2006-01-02")
 	sevenDaysLater := time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02")
 
-	// 1. 전체 숙소
-	var properties []models.Property
-	config.DB.Where("status = ?", "active").Find(&properties)
+	// DB 쿼리 병렬 실행
+	var (
+		properties      []models.Property
+		checkIns        []models.Reservation
+		checkOuts       []models.Reservation
+		inHouse         []models.Reservation
+		todayBookings   []models.Reservation
+		upcoming3d      []models.Reservation
+		upcoming7d      []models.Reservation
+		recentCheckouts []models.Reservation
+	)
 
-	// 2. 오늘 체크인
-	var checkIns []models.Reservation
-	config.DB.Where("check_in_date = ? AND status = ?", today, "accepted").Find(&checkIns)
+	sixtyDaysBefore, _ := time.Parse("2006-01-02", endDate)
+	sixtyDaysAgo := sixtyDaysBefore.Add(-60 * 24 * time.Hour).Format("2006-01-02")
 
-	// 3. 오늘 체크아웃
-	var checkOuts []models.Reservation
-	config.DB.Where("check_out_date = ? AND status = ?", today, "accepted").Find(&checkOuts)
+	var wg sync.WaitGroup
+	wg.Add(8)
 
-	// 4. 현재 투숙 중 (체크인 <= 오늘, 체크아웃 > 오늘)
-	var inHouse []models.Reservation
-	config.DB.Where("check_in_date <= ? AND check_out_date > ? AND status = ?", today, today, "accepted").Find(&inHouse)
+	// 필요한 컬럼만 SELECT (네트워크+메모리 절감)
+	rsvCols := "id, property_id, internal_prop_id, check_in_date, check_out_date, nights, total_rate, total_commission, channel_name, channel_type, booked_at, status"
 
-	// 5. 오늘 신규 예약 (booked_at 기준)
-	var todayBookings []models.Reservation
-	config.DB.Where("booked_at LIKE ? AND status = ?", today+"%", "accepted").Find(&todayBookings)
+	go func() { defer wg.Done(); config.DB.Where("status = ?", "active").Select("id, hostex_id, name").Find(&properties) }()
+	go func() {
+		defer wg.Done()
+		config.DB.Select(rsvCols).Where("check_in_date >= ? AND check_in_date <= ? AND status = ?", startDate, endDate, "accepted").Find(&checkIns)
+	}()
+	go func() {
+		defer wg.Done()
+		config.DB.Select(rsvCols).Where("check_out_date >= ? AND check_out_date <= ? AND status = ?", startDate, endDate, "accepted").Find(&checkOuts)
+	}()
+	go func() {
+		defer wg.Done()
+		config.DB.Select(rsvCols).Where("check_in_date <= ? AND check_out_date > ? AND status = ?", endDate, startDate, "accepted").Find(&inHouse)
+	}()
+	go func() {
+		defer wg.Done()
+		if startDate == endDate {
+			config.DB.Select(rsvCols).Where("booked_at >= ? AND booked_at < ?  AND status = ?", startDate+"T00:00:00", startDate+"T23:59:59", "accepted").Find(&todayBookings)
+		} else {
+			config.DB.Select(rsvCols).Where("booked_at >= ? AND booked_at < ? AND status = ?", startDate+"T00:00:00", endDate+"T23:59:59", "accepted").Find(&todayBookings)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		config.DB.Select(rsvCols).Where("check_in_date > ? AND check_in_date <= ? AND status = ?", today, threeDaysLater, "accepted").Find(&upcoming3d)
+	}()
+	go func() {
+		defer wg.Done()
+		config.DB.Select(rsvCols).Where("check_in_date > ? AND check_in_date <= ? AND status = ?", today, sevenDaysLater, "accepted").Find(&upcoming7d)
+	}()
+	go func() {
+		defer wg.Done()
+		config.DB.Select("id, property_id, check_out_date").Where("check_out_date >= ? AND check_out_date <= ? AND status = ?", sixtyDaysAgo, endDate, "accepted").Find(&recentCheckouts)
+	}()
 
-	// 6. 내일~3일 예약
-	var upcoming3d []models.Reservation
-	config.DB.Where("check_in_date > ? AND check_in_date <= ? AND status = ?", today, threeDaysLater, "accepted").Find(&upcoming3d)
-
-	// 7. 7일 예약
-	var upcoming7d []models.Reservation
-	config.DB.Where("check_in_date > ? AND check_in_date <= ? AND status = ?", today, sevenDaysLater, "accepted").Find(&upcoming7d)
-
-	// 8. 최근 60일 체크아웃 (공실 일수 계산)
-	sixtyDaysAgo := time.Now().Add(-60 * 24 * time.Hour).Format("2006-01-02")
-	var recentCheckouts []models.Reservation
-	config.DB.Where("check_out_date >= ? AND check_out_date <= ? AND status = ?", sixtyDaysAgo, today, "accepted").Find(&recentCheckouts)
+	wg.Wait()
 
 	lastCheckout := map[int64]string{}
 	for _, r := range recentCheckouts {
@@ -215,9 +275,37 @@ func (s *DashboardService) GetCEODashboard() (map[string]interface{}, error) {
 		})
 	}
 
+	// 가동률 계산
+	days := query.DayCount()
 	occupancyRate := float64(0)
-	if len(properties) > 0 {
-		occupancyRate = float64(len(inHouse)) / float64(len(properties)) * 100
+	if days == 1 {
+		// 단일일: 기존 방식 (투숙 중 숙소 수 / 전체 숙소 수)
+		if len(properties) > 0 {
+			occupancyRate = float64(len(inHouse)) / float64(len(properties)) * 100
+		}
+	} else {
+		// 기간: room-nights 기반
+		totalRoomNights := len(properties) * days
+		occupiedRoomNights := 0
+		for _, r := range inHouse {
+			rStart := r.CheckInDate
+			rEnd := r.CheckOutDate
+			overlapStart := startDate
+			if rStart > overlapStart {
+				overlapStart = rStart
+			}
+			overlapEnd := endDate
+			if rEnd < overlapEnd {
+				overlapEnd = rEnd
+			}
+			overlap := dateDiff(overlapStart, overlapEnd)
+			if overlap > 0 {
+				occupiedRoomNights += overlap
+			}
+		}
+		if totalRoomNights > 0 {
+			occupancyRate = float64(occupiedRoomNights) / float64(totalRoomNights) * 100
+		}
 	}
 
 	// 채널별 ADR
@@ -239,7 +327,7 @@ func (s *DashboardService) GetCEODashboard() (map[string]interface{}, error) {
 		}
 	}
 
-	// 🔥 액션 생성
+	// 🔥 액션 생성 (오늘 모드일 때만)
 	targetOccupancy := 82.0
 	targetADR := int64(120000)
 	actions := []map[string]interface{}{}
@@ -265,6 +353,9 @@ func (s *DashboardService) GetCEODashboard() (map[string]interface{}, error) {
 			checkInNames = append(checkInNames, fmt.Sprintf("#%d", r.PropertyID))
 		}
 	}
+
+	// 액션은 오늘 모드일 때만 생성
+	if query.IsToday() {
 
 	// 액션 1: 공실 위험
 	if vacantCritical > 0 {
@@ -377,7 +468,22 @@ func (s *DashboardService) GetCEODashboard() (map[string]interface{}, error) {
 		})
 	}
 
+	} // end if query.IsToday()
+
+	// 기간 라벨
+	periodLabel := startDate
+	if startDate != endDate {
+		periodLabel = startDate + " ~ " + endDate
+	}
+
 	return map[string]interface{}{
+		"period": map[string]interface{}{
+			"start_date": startDate,
+			"end_date":   endDate,
+			"days":       days,
+			"label":      periodLabel,
+			"is_today":   query.IsToday(),
+		},
 		"actions": actions,
 		"revenue": map[string]interface{}{
 			"today_revenue":    todayRevenue,

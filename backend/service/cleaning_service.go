@@ -27,21 +27,34 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 	config.DB.Where("check_out_date = ? AND status = ?", date, "accepted").
 		Find(&reservations)
 
+	// 기존 청소 업무 한 번에 조회 (N+1 제거)
+	var existingTasks []models.CleaningTask
+	config.DB.Where("cleaning_date = ?", date).Select("reservation_code").Find(&existingTasks)
+	existingSet := map[string]bool{}
+	for _, t := range existingTasks {
+		existingSet[t.ReservationCode] = true
+	}
+
+	// Property 맵 사전 로드 (N+1 제거)
+	var allProps []models.Property
+	config.DB.Select("id, name, code, address").Find(&allProps)
+	propMap := map[uint]models.Property{}
+	for _, p := range allProps {
+		propMap[p.ID] = p
+	}
+
 	created := 0
 	for _, r := range reservations {
 		// 이미 생성된 청소 업무 중복 방지
-		var existing models.CleaningTask
-		if err := config.DB.Where("reservation_code = ? AND cleaning_date = ?",
-			r.ReservationCode, date).First(&existing).Error; err == nil {
+		if existingSet[r.ReservationCode] {
 			continue
 		}
 
-		// 내부 Property 정보 조회
+		// 내부 Property 정보 조회 (맵에서)
 		var propName, propCode, address string
 		var propID *uint
 		if r.InternalPropID != nil {
-			var prop models.Property
-			if err := config.DB.First(&prop, *r.InternalPropID).Error; err == nil {
+			if prop, ok := propMap[*r.InternalPropID]; ok {
 				propName = prop.Name
 				propCode = prop.Code
 				address = prop.Address
@@ -273,16 +286,84 @@ type CleaningSummary struct {
 
 func (s *CleaningService) GetSummary(date string) CleaningSummary {
 	var summary CleaningSummary
-	db := config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ?", date)
 
-	db.Count(&summary.Total)
-	config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ? AND status = ?", date, "pending").Count(&summary.Pending)
-	config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ? AND status = ?", date, "assigned").Count(&summary.Assigned)
-	config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ? AND status = ?", date, "in_progress").Count(&summary.InProgress)
-	config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ? AND status = ?", date, "completed").Count(&summary.Completed)
-	config.DB.Model(&models.CleaningTask{}).Where("cleaning_date = ? AND status = ?", date, "issue").Count(&summary.Issue)
+	// 단일 GROUP BY 쿼리로 통합 (6개 COUNT → 1개)
+	type statusCount struct {
+		Status string
+		Count  int64
+	}
+	var rows []statusCount
+	config.DB.Model(&models.CleaningTask{}).
+		Where("cleaning_date = ?", date).
+		Select("status, COUNT(*) as count").
+		Group("status").
+		Scan(&rows)
+
+	for _, r := range rows {
+		summary.Total += r.Count
+		switch r.Status {
+		case "pending":
+			summary.Pending = r.Count
+		case "assigned":
+			summary.Assigned = r.Count
+		case "in_progress":
+			summary.InProgress = r.Count
+		case "completed":
+			summary.Completed = r.Count
+		case "issue":
+			summary.Issue = r.Count
+		}
+	}
 
 	return summary
+}
+
+// --- 청소코드 ---
+
+func (s *CleaningService) ListCleaningCodes() []models.CleaningCode {
+	var codes []models.CleaningCode
+	config.DB.Order("region_code ASC, code ASC").Find(&codes)
+	return codes
+}
+
+// --- 청소자별 워크로드 ---
+
+type CleanerWorkloadItem struct {
+	CleanerID   uint   `json:"cleaner_id"`
+	CleanerName string `json:"cleaner_name"`
+	Assigned    int    `json:"assigned"`
+	Completed   int    `json:"completed"`
+	InProgress  int    `json:"in_progress"`
+	MaxDaily    int    `json:"max_daily"`
+}
+
+func (s *CleaningService) GetCleanerWorkload(date string) []CleanerWorkloadItem {
+	var cleaners []models.Cleaner
+	config.DB.Where("active = ?", true).Order("name ASC").Find(&cleaners)
+
+	result := make([]CleanerWorkloadItem, 0, len(cleaners))
+	for _, c := range cleaners {
+		var assigned, completed, inProgress int64
+		config.DB.Model(&models.CleaningTask{}).
+			Where("cleaning_date = ? AND cleaner_id = ?", date, c.ID).
+			Count(&assigned)
+		config.DB.Model(&models.CleaningTask{}).
+			Where("cleaning_date = ? AND cleaner_id = ? AND status = ?", date, c.ID, "completed").
+			Count(&completed)
+		config.DB.Model(&models.CleaningTask{}).
+			Where("cleaning_date = ? AND cleaner_id = ? AND status = ?", date, c.ID, "in_progress").
+			Count(&inProgress)
+
+		result = append(result, CleanerWorkloadItem{
+			CleanerID:   c.ID,
+			CleanerName: c.Name,
+			Assigned:    int(assigned),
+			Completed:   int(completed),
+			InProgress:  int(inProgress),
+			MaxDaily:    c.MaxDaily,
+		})
+	}
+	return result
 }
 
 // --- 청소자 CRUD ---

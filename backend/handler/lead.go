@@ -160,3 +160,130 @@ func (h *LeadHandler) Dashboard(c *gin.Context) {
 	stats := h.svc.GetDashboardStats()
 	c.JSON(http.StatusOK, stats)
 }
+
+func (h *LeadHandler) SaveDiagnosis(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID입니다"})
+		return
+	}
+
+	var req struct {
+		PropertyAddress string `json:"property_address"`
+		PropertySize    string `json:"property_size"`
+		PhotoURLs       string `json:"photo_urls"`
+		DiagnosisNotes  string `json:"diagnosis_notes"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청입니다"})
+		return
+	}
+
+	var actorID uint
+	if uid, ok := c.Get("user_id"); ok {
+		if u, ok := uid.(uint); ok {
+			actorID = u
+		}
+	}
+
+	if err := h.svc.SaveDiagnosis(uint(id), req.PropertyAddress, req.PropertySize, req.PhotoURLs, req.DiagnosisNotes, actorID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "진단 정보 저장에 실패했습니다"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "진단 정보가 저장되었습니다"})
+}
+
+func (h *LeadHandler) CalculateRevenue(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID입니다"})
+		return
+	}
+
+	var req struct {
+		ADR              int64   `json:"adr" binding:"required"`
+		OccupancyRate    float64 `json:"occupancy_rate" binding:"required"`
+		MonthlyFixedCost int64   `json:"monthly_fixed_cost"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ADR과 가동률을 입력해주세요"})
+		return
+	}
+
+	var actorID uint
+	if uid, ok := c.Get("user_id"); ok {
+		if u, ok := uid.(uint); ok {
+			actorID = u
+		}
+	}
+
+	result, err := h.svc.CalculateRevenue(uint(id), req.ADR, req.OccupancyRate, req.MonthlyFixedCost, actorID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "매출 계산에 실패했습니다"})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *LeadHandler) SaveProposal(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID입니다"})
+		return
+	}
+
+	var req struct {
+		ProposalContent string `json:"proposal_content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "제안서 내용을 입력해주세요"})
+		return
+	}
+
+	var actorID uint
+	if uid, ok := c.Get("user_id"); ok {
+		if u, ok := uid.(uint); ok {
+			actorID = u
+		}
+	}
+
+	if err := h.svc.SaveProposal(uint(id), req.ProposalContent, actorID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "제안서 저장에 실패했습니다"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "제안서가 저장되었습니다"})
+}
+
+func (h *LeadHandler) AddActivity(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID입니다"})
+		return
+	}
+
+	var req struct {
+		Action  string `json:"action" binding:"required"`
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "액션을 입력해주세요"})
+		return
+	}
+
+	var actorID uint
+	if uid, ok := c.Get("user_id"); ok {
+		if u, ok := uid.(uint); ok {
+			actorID = u
+		}
+	}
+
+	if err := h.svc.LogActivity(uint(id), req.Action, req.Content, actorID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "활동 기록에 실패했습니다"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "활동이 기록되었습니다"})
+}

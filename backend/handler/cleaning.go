@@ -241,6 +241,21 @@ func (h *CleaningHandler) DeleteCleaner(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "삭제 완료"})
 }
 
+// --- 청소코드 ---
+
+func (h *CleaningHandler) ListCleaningCodes(c *gin.Context) {
+	codes := h.svc.ListCleaningCodes()
+	c.JSON(http.StatusOK, codes)
+}
+
+// --- 청소자별 배정 현황 ---
+
+func (h *CleaningHandler) CleanerWorkload(c *gin.Context) {
+	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
+	workload := h.svc.GetCleanerWorkload(date)
+	c.JSON(http.StatusOK, workload)
+}
+
 func parseUint(s string) (uint, error) {
 	id, err := strconv.ParseUint(s, 10, 32)
 	return uint(id), err

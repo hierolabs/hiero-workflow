@@ -59,8 +59,7 @@ export default function Leads() {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   useEffect(() => {
-    fetchDashboard();
-    fetchLeads();
+    Promise.all([fetchDashboard(), fetchLeads()]);
   }, [filter]);
 
   const fetchDashboard = async () => {

@@ -65,6 +65,8 @@ func (s *LeadService) UpdateStatus(id uint, status models.LeadStatus) error {
 		lead.RepliedAt = &now
 	case models.LeadStatusDiagnosed:
 		lead.DiagnosedAt = &now
+	case models.LeadStatusProposalSent:
+		lead.ProposalSentAt = &now
 	case models.LeadStatusContracted:
 		lead.ContractedAt = &now
 	}
@@ -147,12 +149,16 @@ func (s *LeadService) GetDashboardStats() map[string]interface{} {
 	var newLeads int64
 	var contactedLeads int64
 	var repliedLeads int64
+	var diagnosedLeads int64
+	var proposalSentLeads int64
 	var contractedLeads int64
 
 	config.DB.Model(&models.OutsourcingLead{}).Count(&totalLeads)
 	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "new").Count(&newLeads)
 	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "contacted").Count(&contactedLeads)
 	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "replied").Count(&repliedLeads)
+	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "diagnosed").Count(&diagnosedLeads)
+	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "proposal_sent").Count(&proposalSentLeads)
 	config.DB.Model(&models.OutsourcingLead{}).Where("status = ?", "contracted").Count(&contractedLeads)
 
 	var todayLeads []models.OutsourcingLead
@@ -163,11 +169,120 @@ func (s *LeadService) GetDashboardStats() map[string]interface{} {
 		Find(&todayLeads)
 
 	return map[string]interface{}{
-		"total_leads":        totalLeads,
-		"new_leads":          newLeads,
-		"contacted_leads":    contactedLeads,
-		"replied_leads":      repliedLeads,
-		"contracted_leads":   contractedLeads,
-		"today_contact_list": todayLeads,
+		"total_leads":         totalLeads,
+		"new_leads":           newLeads,
+		"contacted_leads":     contactedLeads,
+		"replied_leads":       repliedLeads,
+		"diagnosed_leads":     diagnosedLeads,
+		"proposal_sent_leads": proposalSentLeads,
+		"contracted_leads":    contractedLeads,
+		"today_contact_list":  todayLeads,
 	}
+}
+
+// SaveDiagnosis 진단 결과 + 사진/주소 저장
+func (s *LeadService) SaveDiagnosis(id uint, address, size, photoURLs, notes string, actorID uint) error {
+	lead, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if address != "" {
+		lead.PropertyAddress = address
+	}
+	if size != "" {
+		lead.PropertySize = size
+	}
+	if photoURLs != "" {
+		lead.PhotoURLs = photoURLs
+		lead.HasPhotos = true
+	}
+
+	lead.CalculateScore()
+
+	if err := config.DB.Save(lead).Error; err != nil {
+		return err
+	}
+
+	if notes != "" {
+		s.LogActivity(id, models.LeadActionDiagnosisNote, notes, actorID)
+	}
+	if photoURLs != "" {
+		s.LogActivity(id, models.LeadActionPhotosCollected, "사진/주소 정보 수집 완료", actorID)
+	}
+
+	return nil
+}
+
+// CalculateRevenue 예상 매출/손익분기 계산
+func (s *LeadService) CalculateRevenue(id uint, adr int64, occupancyRate float64, monthlyFixedCost int64, actorID uint) (map[string]interface{}, error) {
+	lead, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	monthlyRevenue := int64(float64(adr) * 30 * occupancyRate / 100)
+	var breakevenOcc float64
+	if adr > 0 {
+		breakevenOcc = float64(monthlyFixedCost) / float64(adr*30) * 100
+	}
+	annualProjection := monthlyRevenue * 12
+
+	lead.EstimatedADR = adr
+	lead.MonthlyRevenueEstimate = monthlyRevenue
+	lead.BreakevenOccupancy = fmt.Sprintf("%.1f%%", breakevenOcc)
+	lead.ExpectedRevenue = annualProjection
+
+	if err := config.DB.Save(lead).Error; err != nil {
+		return nil, err
+	}
+
+	result := map[string]interface{}{
+		"adr":                  adr,
+		"occupancy_rate":       occupancyRate,
+		"monthly_fixed_cost":   monthlyFixedCost,
+		"monthly_revenue":      monthlyRevenue,
+		"breakeven_occupancy":  fmt.Sprintf("%.1f%%", breakevenOcc),
+		"annual_projection":    annualProjection,
+		"monthly_net":          monthlyRevenue - monthlyFixedCost,
+	}
+
+	content := fmt.Sprintf("ADR ₩%d, 가동률 %.0f%%, 월매출 ₩%d, 손익분기 %.1f%%", adr, occupancyRate, monthlyRevenue, breakevenOcc)
+	s.LogActivity(id, models.LeadActionRevenueCalculated, content, actorID)
+
+	return result, nil
+}
+
+// SaveProposal 제안서 저장 + 상태 자동 전환
+func (s *LeadService) SaveProposal(id uint, content string, actorID uint) error {
+	lead, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	lead.ProposalContent = content
+
+	now := time.Now()
+	lead.ProposalSentAt = &now
+
+	// 현재 상태가 proposal_sent 이전이면 자동 전환
+	statusOrder := map[models.LeadStatus]int{
+		models.LeadStatusNew:             0,
+		models.LeadStatusContacted:       1,
+		models.LeadStatusReplied:         2,
+		models.LeadStatusDiagnosed:       3,
+		models.LeadStatusProposalSent:    4,
+		models.LeadStatusContractPending: 5,
+		models.LeadStatusContracted:      6,
+	}
+	if order, ok := statusOrder[lead.Status]; ok && order < 4 {
+		lead.Status = models.LeadStatusProposalSent
+	}
+
+	if err := config.DB.Save(lead).Error; err != nil {
+		return err
+	}
+
+	s.LogActivity(id, models.LeadActionProposalGenerated, "위탁운영 제안서 발송", actorID)
+	return nil
 }

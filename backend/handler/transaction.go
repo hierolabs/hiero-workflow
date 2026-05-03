@@ -57,6 +57,23 @@ func (h *TransactionHandler) Summary(c *gin.Context) {
 	})
 }
 
+// GET /admin/settlement/summary?start_date=&end_date= — 기간 기반 정산
+func (h *TransactionHandler) Settlement(c *gin.Context) {
+	var query service.SettlementQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 파라미터: " + err.Error()})
+		return
+	}
+
+	result, err := h.svc.GetSettlement(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // GET /admin/transactions/months — 데이터 있는 월 목록
 func (h *TransactionHandler) Months(c *gin.Context) {
 	var months []string

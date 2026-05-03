@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -40,6 +41,16 @@ func ConnectDB() {
 		log.Fatal("DB 연결 실패:", err)
 	}
 
-	log.Println("DB 연결 성공")
+	// 커넥션 풀 설정
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal("DB 풀 설정 실패:", err)
+	}
+	sqlDB.SetMaxOpenConns(50)                  // 최대 동시 연결
+	sqlDB.SetMaxIdleConns(20)                  // 대기 커넥션
+	sqlDB.SetConnMaxLifetime(time.Hour)        // 커넥션 최대 수명
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)  // 유휴 후 닫기
+
+	log.Println("DB 연결 성공 (pool: max=50, idle=20)")
 	DB = db
 }

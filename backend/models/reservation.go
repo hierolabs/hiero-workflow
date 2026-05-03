@@ -23,10 +23,10 @@ type Reservation struct {
 	TotalRate       int64     `json:"total_rate"`
 	TotalCommission int64     `json:"total_commission"`
 	Currency        string    `json:"currency" gorm:"size:10;default:KRW"`
-	BookedAt        string    `json:"booked_at" gorm:"size:50"`
+	BookedAt        string    `json:"booked_at" gorm:"size:50;index"`
 	CancelledAt     *string   `json:"cancelled_at" gorm:"size:50"`
 	Remarks         string    `json:"remarks" gorm:"type:text"`
-	ConversationID  string    `json:"conversation_id" gorm:"size:100"`
+	ConversationID  string    `json:"conversation_id" gorm:"size:100;index"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

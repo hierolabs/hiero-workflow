@@ -17,6 +17,18 @@ const (
 	LeadStatusRejected        LeadStatus = "rejected"
 )
 
+// 활동 로그 액션 상수
+const (
+	LeadActionStatusChange      = "status_change"
+	LeadActionMessageSent       = "message_sent"
+	LeadActionReplyReceived     = "reply_received"
+	LeadActionDiagnosisNote     = "diagnosis_note"
+	LeadActionPhotosCollected   = "photos_collected"
+	LeadActionRevenueCalculated = "revenue_calculated"
+	LeadActionProposalGenerated = "proposal_generated"
+	LeadActionContractSigned    = "contract_signed"
+)
+
 type OutsourcingLead struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
@@ -29,6 +41,20 @@ type OutsourcingLead struct {
 	PainPoint       string `gorm:"type:text" json:"pain_point"`
 	ExpectedRevenue int64  `json:"expected_revenue"`
 	ContactChannel  string `gorm:"size:50" json:"contact_channel"`
+
+	// Step 7: 사진/주소 수집
+	PropertyAddress string `gorm:"size:255" json:"property_address"`
+	PropertySize    string `gorm:"size:50" json:"property_size"`
+	PhotoURLs       string `gorm:"type:text" json:"photo_urls"`
+
+	// Step 8: 매출 계산
+	MonthlyRevenueEstimate int64  `json:"monthly_revenue_estimate"`
+	BreakevenOccupancy     string `gorm:"size:50" json:"breakeven_occupancy"`
+	EstimatedADR           int64  `json:"estimated_adr"`
+
+	// Step 9: 제안서
+	ProposalContent string     `gorm:"type:text" json:"proposal_content"`
+	ProposalSentAt  *time.Time `json:"proposal_sent_at"`
 
 	Status LeadStatus `gorm:"size:50;default:'new'" json:"status"`
 

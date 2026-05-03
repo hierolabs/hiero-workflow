@@ -19,34 +19,56 @@ cd ~/hiero-workflow && claude
 6. .env, secret, 위험 명령어는 승인 없이 실행하지 마라.
 ```
 
-## 3. 이전 세션 이어서 할 때 추가
+## 3. 이전 세션 이어서 할 때 (전체 복사)
 
 ```
-이전 세션 작업 내역:
+토큰 절약 모드로 운영한다.
 
-[완료]
-- 5엔진 사업 진단 시스템 구축 (backend + admin frontend)
-  - 모델: models/property_business_diagnosis.go (5엔진 × 5지표 = 25개)
-  - 서비스: service/diagnosis_service.go (점수 계산 + 액션맵 + 헤드라인)
-  - 자동 평가: service/diagnosis_seed_service.go (예약/청소/이슈/거래 데이터 → 15개 지표 자동)
-  - 핸들러: handler/diagnosis.go (ListAll/GetOne/Update/Portfolio/Generate)
-  - 프론트: admin/src/pages/Diagnosis.tsx (리스트 + 상세 뷰)
-  - 대시보드: Dashboard.tsx에 사업진단 카드 추가
+원칙:
+1. CLAUDE.md를 먼저 읽고 프로젝트 구조를 파악해라.
+2. 전체 파일을 읽지 말고 Grep/Glob으로 필요한 파일만 찾아라.
+3. 수정 전 영향 파일 목록을 먼저 말해라.
+4. 5개 이상 파일 수정 시 계획을 먼저 제시해라.
+5. 작업 완료 시 변경 내용 + 요약을 보여줘라.
+6. .env, secret, 위험 명령어는 승인 없이 실행하지 마라.
 
-- Hostex 거래 CSV 업로드 시스템
-  - 모델: models/hostex_transaction.go
-  - 서비스: service/transaction_service.go (CSV 파싱 + 월간 집계)
-  - 핸들러: handler/transaction.go (Upload/Summary/Months)
-  - 데이터: 2025~2026 CSV 11,641건 임포트 완료, 98개 숙소 매칭
+---
 
-[현재 상태]
-- 진단 101건 생성됨 (B등급 79, C등급 22)
-- 판매/운영/재무 엔진: 데이터 기반 자동 계산 동작 중
-- 가치창출/마케팅 엔진: 수동 평가 미입력 (기본값 50) — 10개 항목
-- 재무: Hostex 거래 CSV 기반 월 평균 매출/비용 연결 완료
+## 이전 세션 작업 요약
 
-[남은 과제]
-- 가치창출/마케팅 10개 항목 수동 평가 UI 또는 일괄 입력
-- 진단 결과 기반 액션 실행 연동
-- 거래 데이터 정기 업로드 자동화
+프로젝트: ~/hiero-workflow (HIERO 숙소 운영 OS)
+Stack: Go 1.26 (Gin, GORM, MySQL) + React + TypeScript + Vite + Tailwind
+실행: backend :8080, admin :5184 (proxy → 8080), frontend :5180
+
+### 완료된 핵심 기능
+
+1. 예약/청소/이슈/정산 운영 시스템 (Hostex 연동)
+2. 5엔진 사업 진단 (25개 지표, 자동+수동)
+3. Hostex 거래 CSV 임포트 (11,641건)
+4. CEO Dashboard (KPI, 리스크, 가격, 성장, 진단, 마케팅)
+5. 위탁운영 마케팅 CRM (리드 스코어링, 파이프라인, 진단/매출계산/제안서)
+6. 마케팅 랜딩페이지 (frontend/ - 메인 + 5개 상세)
+7. 마케팅 에이전트 팀 (.claude/agents/ 8개)
+8. 위키형 운영 매뉴얼 (11개 페이지)
+
+### 다음에 할 수 있는 작업
+- 띵똥(ThingDone) 청소배정 SaaS MVP 개발
+- 정산 리포트 자동화
+- 숙소 온보딩 Task 자동 생성
+- Hostex 동기화 고도화
+- 사업 진단 리포트 PDF 출력
+- 가치창출/마케팅 엔진 수동 평가 UI
 ```
+
+---
+
+## 토큰 절약 팁
+
+| 방법 | 효과 |
+|------|------|
+| CLAUDE.md 활용 | 구조 파악에 토큰 낭비 방지 |
+| Grep/Glob 사용 | 전체 파일 읽기 대신 필요 부분만 |
+| 영향 파일 먼저 확인 | 불필요한 수정 방지 |
+| 계획 먼저 제시 | 방향 틀어지면 토큰 폭발 |
+| 짧은 응답 요청 | "간략히", "요약만" 등 지시 |
+| 세션 분리 | 큰 작업은 세션 나눠서 진행 |

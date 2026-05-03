@@ -11,9 +11,12 @@ func registerAPIRoutes(r *gin.Engine) {
 	reservationHandler := handler.NewReservationHandler()
 	webhookHandler := handler.NewWebhookHandler()
 	dashboardHandler := handler.NewDashboardHandler()
+	leadHandler := handler.NewLeadHandler()
 
 	api := r.Group("/api")
 	{
+		// 공개 리드 등록 (랜딩페이지용)
+		api.POST("/marketing/leads", leadHandler.Create)
 		// 태스크
 		api.GET("/tasks", taskHandler.GetTasks)
 		api.POST("/tasks", taskHandler.CreateTask)

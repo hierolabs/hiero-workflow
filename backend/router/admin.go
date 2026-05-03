@@ -80,6 +80,10 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.PATCH("/cleaning/tasks/:id/complete", cleaningHandler.Complete)
 			protected.PATCH("/cleaning/tasks/:id/issue", cleaningHandler.ReportIssue)
 
+			// 청소코드
+			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
+			protected.GET("/cleaning/workload", cleaningHandler.CleanerWorkload)
+
 			// 청소자 관리
 			protected.GET("/cleaners", cleaningHandler.ListCleaners)
 			protected.POST("/cleaners", cleaningHandler.CreateCleaner)
@@ -106,10 +110,8 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/diagnosis/:property_id", diagnosisHandler.GetOne)
 			protected.PUT("/diagnosis/:property_id", diagnosisHandler.Update)
 
-			// 정산 관리 (이슈 기반 — settlement 타입 필터)
-			protected.GET("/settlement/summary", func(c *gin.Context) {
-				c.JSON(200, gin.H{"message": "settlement module — use issues API with issue_type=settlement"})
-			})
+			// 정산 관리 (거래 기반 — 기간별 숙소 정산)
+			protected.GET("/settlement/summary", transactionHandler.Settlement)
 
 			// 게스트 메시지 (채팅)
 			protected.GET("/messages/conversations", messageHandler.ListConversations)
@@ -142,6 +144,10 @@ func registerAdminRoutes(r *gin.Engine) {
 				marketing.PATCH("/leads/:id/status", leadHandler.UpdateStatus)
 				marketing.POST("/leads/:id/score", leadHandler.RecalculateScore)
 				marketing.POST("/leads/:id/message", leadHandler.GenerateMessage)
+				marketing.POST("/leads/:id/diagnosis", leadHandler.SaveDiagnosis)
+				marketing.POST("/leads/:id/revenue", leadHandler.CalculateRevenue)
+				marketing.POST("/leads/:id/proposal", leadHandler.SaveProposal)
+				marketing.POST("/leads/:id/activity", leadHandler.AddActivity)
 			}
 
 			// 운영 매뉴얼 (위키)
