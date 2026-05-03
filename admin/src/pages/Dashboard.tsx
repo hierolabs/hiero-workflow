@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ActionDispatchModal, { type DispatchAction } from "../components/ActionDispatchModal";
+import OperationManual from "../components/OperationManual";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const PUBLIC_API_URL = API_URL.replace("/admin", "/api");
@@ -81,6 +82,7 @@ export default function Dashboard() {
   const [dispatchAction, setDispatchAction] = useState<Action | null>(null);
   const [toast, setToast] = useState("");
   const [diagList, setDiagList] = useState<DiagItem[]>([]);
+  const [showManual, setShowManual] = useState(false);
 
   const fetch_ = async () => {
     setLoading(true);
@@ -154,9 +156,14 @@ export default function Dashboard() {
             {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
           </p>
         </div>
-        <button onClick={fetch_} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-          새로고침
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+            운영 매뉴얼
+          </button>
+          <button onClick={fetch_} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+            새로고침
+          </button>
+        </div>
       </div>
 
       {/* 🔥 P0: 오늘 해야 할 액션 — 클릭하면 dispatch */}

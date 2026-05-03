@@ -19,6 +19,10 @@ func registerAdminRoutes(r *gin.Engine) {
 	commHandler := handler.NewCommunicationHandler()
 	calendarHandler := handler.NewCalendarHandler()
 	diagnosisHandler := handler.NewDiagnosisHandler()
+	messageHandler := handler.NewMessageHandler()
+	leadHandler := handler.NewLeadHandler()
+	manualHandler := handler.NewManualHandler()
+	transactionHandler := handler.NewTransactionHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -90,9 +94,15 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.PATCH("/issues/:id/status", issueHandler.UpdateStatus)
 			protected.PATCH("/issues/:id/assignee", issueHandler.UpdateAssignee)
 
+			// Hostex 거래 내역
+			protected.POST("/transactions/upload", transactionHandler.Upload)
+			protected.GET("/transactions/summary", transactionHandler.Summary)
+			protected.GET("/transactions/months", transactionHandler.Months)
+
 			// 5엔진 사업 진단
 			protected.GET("/diagnosis", diagnosisHandler.ListAll)
 			protected.GET("/diagnosis/portfolio", diagnosisHandler.Portfolio)
+			protected.POST("/diagnosis/generate", diagnosisHandler.Generate)
 			protected.GET("/diagnosis/:property_id", diagnosisHandler.GetOne)
 			protected.PUT("/diagnosis/:property_id", diagnosisHandler.Update)
 
@@ -101,11 +111,44 @@ func registerAdminRoutes(r *gin.Engine) {
 				c.JSON(200, gin.H{"message": "settlement module — use issues API with issue_type=settlement"})
 			})
 
+			// 게스트 메시지 (채팅)
+			protected.GET("/messages/conversations", messageHandler.ListConversations)
+			protected.GET("/messages/conversations/:conversation_id", messageHandler.GetConversation)
+			protected.POST("/messages/conversations/:conversation_id/messages", messageHandler.SendMessage)
+			protected.POST("/messages/conversations/:conversation_id/read", messageHandler.MarkRead)
+			protected.POST("/messages/conversations/:conversation_id/sync", messageHandler.SyncConversationMessages)
+			protected.POST("/messages/sync", messageHandler.SyncMessages)
+			protected.POST("/messages/sync-all", messageHandler.SyncAllMessages)
+			protected.GET("/messages/analysis", messageHandler.AnalyzeMessages)
+			protected.POST("/messages/sync-reviews", messageHandler.SyncReviews)
+			protected.POST("/messages/conversations/:conversation_id/requests", messageHandler.CreateGuestRequest)
+			protected.PATCH("/messages/requests/:id/status", messageHandler.UpdateGuestRequestStatus)
+			protected.GET("/messages/requests/pending", messageHandler.ListPendingRequests)
+
 			// 멀티박스 (응대 기록)
 			protected.GET("/communications/recent", commHandler.ListRecent)
 			protected.GET("/communications/reservation/:id", commHandler.ListByReservation)
 			protected.GET("/communications/property/:id", commHandler.ListByProperty)
 			protected.POST("/communications", commHandler.Create)
+
+			// 위탁운영 마케팅 CRM
+			marketing := protected.Group("/marketing")
+			{
+				marketing.GET("/dashboard", leadHandler.Dashboard)
+				marketing.GET("/leads", leadHandler.List)
+				marketing.POST("/leads", leadHandler.Create)
+				marketing.GET("/leads/:id", leadHandler.Get)
+				marketing.PUT("/leads/:id", leadHandler.Update)
+				marketing.PATCH("/leads/:id/status", leadHandler.UpdateStatus)
+				marketing.POST("/leads/:id/score", leadHandler.RecalculateScore)
+				marketing.POST("/leads/:id/message", leadHandler.GenerateMessage)
+			}
+
+			// 운영 매뉴얼 (위키)
+			protected.GET("/manual", manualHandler.List)
+			protected.GET("/manual/entry", manualHandler.Get)
+			protected.POST("/manual", manualHandler.Upsert)
+			protected.DELETE("/manual", manualHandler.Delete)
 
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)

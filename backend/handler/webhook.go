@@ -17,12 +17,16 @@ import (
 type WebhookHandler struct {
 	reservationSvc *service.ReservationService
 	hostexSvc      *service.HostexSyncService
+	messageSvc     *service.MessageService
+	reviewSvc      *service.ReviewService
 }
 
 func NewWebhookHandler() *WebhookHandler {
 	return &WebhookHandler{
 		reservationSvc: service.NewReservationService(),
 		hostexSvc:      service.NewHostexSyncService(),
+		messageSvc:     service.NewMessageService(),
+		reviewSvc:      service.NewReviewService(),
 	}
 }
 
@@ -86,9 +90,11 @@ func (h *WebhookHandler) processWebhook(body []byte) {
 
 	case "message_created":
 		log.Printf("[Webhook] 새 메시지 수신: reservation %s", payload.ReservationCode)
+		go h.messageSvc.HandleIncomingMessage(payload.ReservationCode)
 
 	case "review_created", "review_updated":
 		log.Printf("[Webhook] 리뷰 이벤트: %s", payload.ReservationCode)
+		go h.syncReview(payload.ReservationCode)
 
 	default:
 		log.Printf("[Webhook] 미처리 이벤트: %s", payload.Event)
@@ -115,6 +121,14 @@ func (h *WebhookHandler) syncReservation(reservationCode string) {
 	saved := h.reservationSvc.UpsertFromHostex(r)
 	log.Printf("[Webhook] 예약 저장 완료: %s (guest: %s, %s~%s, internal_prop: %v)",
 		r.ReservationCode, r.GuestName, r.CheckInDate, r.CheckOutDate, saved.InternalPropID)
+}
+
+// syncReview — 리뷰 웹훅 처리
+func (h *WebhookHandler) syncReview(reservationCode string) {
+	if reservationCode == "" {
+		return
+	}
+	h.reviewSvc.SyncSingleReview(reservationCode)
 }
 
 // GetLogs — 웹훅 로그 조회 (어드민용)

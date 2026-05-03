@@ -10,7 +10,11 @@ import Issues from "./pages/Issues";
 import Settlement from "./pages/Settlement";
 import Revenue from "./pages/Revenue";
 import Diagnosis from "./pages/Diagnosis";
+import Leads from "./pages/Leads";
+import LeadDetail from "./pages/LeadDetail";
 import Users from "./pages/Users";
+import Messages from "./pages/Messages";
+import MessageAnalysis from "./pages/MessageAnalysis";
 import CalendarPage from "./features/calendar/components/CalendarPage";
 import Layout from "./components/Layout";
 
@@ -40,11 +44,15 @@ function App() {
             <Route path="/properties" element={<Properties />} />
             <Route path="/reservations" element={<Reservations />} />
             <Route path="/hostex" element={<HostexSync />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/messages/analysis" element={<MessageAnalysis />} />
             <Route path="/cleaning" element={<Cleaning />} />
             <Route path="/issues" element={<Issues />} />
             <Route path="/settlement" element={<Settlement />} />
             <Route path="/revenue" element={<Revenue />} />
             <Route path="/diagnosis" element={<Diagnosis />} />
+            <Route path="/leads" element={<Leads />} />
+            <Route path="/leads/:id" element={<LeadDetail />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
           </Route>

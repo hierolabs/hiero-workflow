@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import OperationManual from "../components/OperationManual";
 import {
   fetchCleaningTasks,
   fetchCleaningSummary,
@@ -23,11 +24,15 @@ type Tab = "tasks" | "cleaners";
 
 export default function Cleaning() {
   const [tab, setTab] = useState<Tab>("tasks");
+  const [showManual, setShowManual] = useState(false);
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">청소 관리</h1>
-        <p className="mt-1 text-sm text-gray-500">체크아웃 기반 청소 업무 배정 및 관리</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">청소 관리</h1>
+          <p className="mt-1 text-sm text-gray-500">체크아웃 기반 청소 업무 배정 및 관리</p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         <TabBtn active={tab === "tasks"} onClick={() => setTab("tasks")}>오늘 청소</TabBtn>
@@ -35,6 +40,7 @@ export default function Cleaning() {
       </div>
       {tab === "tasks" && <TasksTab />}
       {tab === "cleaners" && <CleanersTab />}
+      {showManual && <OperationManual page="cleaning" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import OperationManual from "../components/OperationManual";
 import {
   fetchHostexMappings,
   linkHostexProperty,
@@ -15,14 +16,18 @@ type Tab = "mappings" | "logs";
 
 export default function HostexSync() {
   const [tab, setTab] = useState<Tab>("mappings");
+  const [showManual, setShowManual] = useState(false);
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Hostex 연동</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Hostex 숙소와 내부 공간을 연결하고, 예약 동기화 상태를 확인합니다.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Hostex 연동</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Hostex 숙소와 내부 공간을 연결하고, 예약 동기화 상태를 확인합니다.
+          </p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
 
       {/* Tabs */}
@@ -37,6 +42,7 @@ export default function HostexSync() {
 
       {tab === "mappings" && <MappingTab />}
       {tab === "logs" && <LogsTab />}
+      {showManual && <OperationManual page="hostex-sync" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

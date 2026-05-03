@@ -12,11 +12,28 @@ import (
 )
 
 type DiagnosisHandler struct {
-	svc *service.DiagnosisService
+	svc     *service.DiagnosisService
+	seedSvc *service.DiagnosisSeedService
 }
 
 func NewDiagnosisHandler() *DiagnosisHandler {
-	return &DiagnosisHandler{svc: service.NewDiagnosisService()}
+	return &DiagnosisHandler{
+		svc:     service.NewDiagnosisService(),
+		seedSvc: service.NewDiagnosisSeedService(),
+	}
+}
+
+// POST /admin/diagnosis/generate — 전체 숙소 진단 자동 생성
+func (h *DiagnosisHandler) Generate(c *gin.Context) {
+	count, err := h.seedSvc.GenerateAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "진단 생성 완료",
+		"processed": count,
+	})
 }
 
 // GET /admin/diagnosis — 전체 숙소 진단 리스트 (점수 낮은 순)

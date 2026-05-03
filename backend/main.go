@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"hiero-workflow/backend/config"
 	"hiero-workflow/backend/models"
@@ -30,6 +31,16 @@ func main() {
 		&models.Issue{},
 		&models.CommunicationLog{},
 		&models.PropertyBusinessDiagnosis{},
+		&models.Conversation{},
+		&models.Message{},
+		&models.GuestRequest{},
+		&models.Review{},
+		&models.OutsourcingLead{},
+		&models.LeadActivityLog{},
+		&models.MessageTemplate{},
+		&models.Campaign{},
+		&models.HostexTransaction{},
+		&models.ManualEntry{},
 	)
 	seedAdminUser()
 	seedProperties()
@@ -40,6 +51,33 @@ func main() {
 		log.Println("[Boot] Hostex 전체 동기화 시작...")
 		syncSvc := service.NewHostexSyncService()
 		syncSvc.SyncAll()
+
+		log.Println("[Boot] 대화 동기화 시작...")
+		msgSvc := service.NewMessageService()
+		msgSvc.SyncConversations()
+
+		log.Println("[Boot] 리뷰 동기화 시작...")
+		reviewSvc := service.NewReviewService()
+		reviewSvc.SyncReviews()
+	}()
+
+	// 1시간마다 자동 동기화
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			log.Println("[Cron] 정기 동기화 시작...")
+			syncSvc := service.NewHostexSyncService()
+			syncSvc.SyncReservations()
+
+			msgSvc := service.NewMessageService()
+			msgSvc.SyncConversations()
+			msgSvc.SyncAllMessages()
+
+			reviewSvc := service.NewReviewService()
+			reviewSvc.SyncReviews()
+			log.Println("[Cron] 정기 동기화 완료")
+		}
 	}()
 
 	r := router.Setup()

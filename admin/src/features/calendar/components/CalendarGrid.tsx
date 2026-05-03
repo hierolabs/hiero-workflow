@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import type { CalendarProperty, CalendarReservation } from "../types/calendar";
 import { groupReservationsByProperty } from "../utils/reservationLayout";
 import { isToday } from "../utils/date";
@@ -35,15 +35,6 @@ export default function CalendarGrid({
     }
   }, [dates]);
 
-  // Mouse wheel → horizontal scroll
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!scrollRef.current) return;
-    // If mostly vertical scroll, convert to horizontal
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-      e.preventDefault();
-      scrollRef.current.scrollLeft += e.deltaY;
-    }
-  }, []);
 
   if (properties.length === 0) {
     return (
@@ -60,7 +51,6 @@ export default function CalendarGrid({
       ref={scrollRef}
       className="rounded-lg border border-gray-200 bg-white overflow-auto"
       style={{ maxHeight: "calc(100vh - 160px)", WebkitOverflowScrolling: "touch" }}
-      onWheel={handleWheel}
     >
       <div style={{ width: totalWidth }}>
         {/* Header — sticky top */}

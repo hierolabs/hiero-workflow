@@ -1,6 +1,7 @@
 package hostex
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,6 +59,36 @@ func (c *Client) request(method, path string, params map[string]string) ([]byte,
 	if len(body) == 0 {
 		return nil, fmt.Errorf("호스텍스에서 빈 응답 (HTTP %d)", resp.StatusCode)
 	}
+
+	return body, nil
+}
+
+func (c *Client) requestWithBody(method, path string, bodyData interface{}) ([]byte, error) {
+	jsonBody, err := json.Marshal(bodyData)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(method, baseURL+path, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Hostex-Access-Token", c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[Hostex] %s %s → %d (%d bytes)", method, path, resp.StatusCode, len(body))
 
 	return body, nil
 }
@@ -754,4 +785,175 @@ func dateDiffDays(from, to string) int {
 		return 0
 	}
 	return int(t.Sub(f).Hours() / 24)
+}
+
+// === Conversation / Message API ===
+
+type ConversationSummary struct {
+	ID            string              `json:"id"`
+	ChannelType   string              `json:"channel_type"`
+	LastMessageAt string              `json:"last_message_at"`
+	Guest         ConversationGuest   `json:"guest"`
+	PropertyTitle string              `json:"property_title"`
+	CheckInDate   string              `json:"check_in_date"`
+	CheckOutDate  string              `json:"check_out_date"`
+}
+
+type ConversationGuest struct {
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+}
+
+type HostexMessage struct {
+	ID          string  `json:"id"`
+	SenderRole  string  `json:"sender_role"` // guest, host
+	DisplayType string  `json:"display_type"` // Text, Image
+	Content     string  `json:"content"`
+	Attachment  *string `json:"attachment"`
+	CreatedAt   string  `json:"created_at"`
+}
+
+// GetConversations — 대화 목록 조회
+func (c *Client) GetConversations(limit, offset int) ([]ConversationSummary, int, error) {
+	body, err := c.request("GET", "/conversations", map[string]string{
+		"limit":  fmt.Sprintf("%d", limit),
+		"offset": fmt.Sprintf("%d", offset),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var resp APIResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, 0, err
+	}
+
+	var data struct {
+		Conversations []ConversationSummary `json:"conversations"`
+		Total         int                   `json:"total"`
+	}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return nil, 0, err
+	}
+
+	return data.Conversations, data.Total, nil
+}
+
+// GetAllConversations — 전체 대화 목록 페이징 조회
+func (c *Client) GetAllConversations() ([]ConversationSummary, error) {
+	var all []ConversationSummary
+	offset := 0
+	for {
+		convs, total, err := c.GetConversations(100, offset)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, convs...)
+		if len(all) >= total || len(convs) == 0 {
+			break
+		}
+		offset += len(convs)
+	}
+	return all, nil
+}
+
+// GetConversationMessages — 대화 메시지 목록 조회
+func (c *Client) GetConversationMessages(conversationID string) ([]HostexMessage, string, error) {
+	body, err := c.request("GET", "/conversations/"+conversationID, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var resp APIResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, "", err
+	}
+
+	var data struct {
+		Messages   []HostexMessage `json:"messages"`
+		Activities []struct {
+			ReservationCode string `json:"reservation_code"`
+			Property        struct {
+				ID int64 `json:"id"`
+			} `json:"property"`
+		} `json:"activities"`
+	}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return nil, "", err
+	}
+
+	// 첫 번째 activity에서 reservation_code 추출
+	var resCode string
+	for _, a := range data.Activities {
+		if a.ReservationCode != "" {
+			resCode = a.ReservationCode
+			break
+		}
+	}
+
+	return data.Messages, resCode, nil
+}
+
+// SendTextMessage — 텍스트 메시지 발송
+func (c *Client) SendTextMessage(conversationID string, message string) error {
+	_, err := c.requestWithBody("POST", "/conversations/"+conversationID, map[string]string{
+		"message": message,
+	})
+	return err
+}
+
+// === Review API ===
+
+type HostexReview struct {
+	ReservationCode string        `json:"reservation_code"`
+	PropertyID      int64         `json:"property_id"`
+	ChannelType     string        `json:"channel_type"`
+	CheckInDate     string        `json:"check_in_date"`
+	CheckOutDate    string        `json:"check_out_date"`
+	GuestReview     *ReviewDetail `json:"guest_review"`
+	HostReview      *ReviewDetail `json:"host_review"`
+	HostReply       *string       `json:"host_reply"`
+}
+
+type ReviewDetail struct {
+	Score    int              `json:"score"`
+	SubScore []ReviewSubScore `json:"sub_score"`
+	Content  string           `json:"content"`
+	CreatedAt string          `json:"created_at"`
+}
+
+type ReviewSubScore struct {
+	Category string `json:"category"`
+	Rating   int    `json:"rating"`
+}
+
+// GetReviews — 리뷰 목록 조회
+func (c *Client) GetReviews(params map[string]string) ([]HostexReview, error) {
+	body, err := c.request("GET", "/reviews", params)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp APIResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+
+	var data struct {
+		Reviews []HostexReview `json:"reviews"`
+	}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return nil, err
+	}
+
+	return data.Reviews, nil
+}
+
+// SendImageMessage — 이미지 메시지 발송
+func (c *Client) SendImageMessage(conversationID string, jpegBase64 string) error {
+	_, err := c.requestWithBody("POST", "/conversations/"+conversationID, map[string]string{
+		"jpeg_base64": jpegBase64,
+	})
+	return err
 }

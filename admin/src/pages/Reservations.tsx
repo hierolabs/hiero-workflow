@@ -7,6 +7,7 @@ import {
   type Reservation,
   type ReservationListQuery,
 } from "../utils/reservation-api";
+import OperationManual from "../components/OperationManual";
 
 export default function Reservations() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -18,6 +19,7 @@ export default function Reservations() {
     page_size: 20,
   });
   const [keyword, setKeyword] = useState("");
+  const [showManual, setShowManual] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,11 +70,14 @@ export default function Reservations() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          전체 {total}건의 예약이 있습니다.
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            전체 {total}건의 예약이 있습니다.
+          </p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
 
       {/* Filters */}

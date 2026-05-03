@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import OperationManual from "../components/OperationManual";
 import {
   fetchIssues,
   fetchIssueSummary,
@@ -21,11 +22,15 @@ type Tab = "issues" | "comms";
 
 export default function Issues() {
   const [tab, setTab] = useState<Tab>("issues");
+  const [showManual, setShowManual] = useState(false);
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">이슈 & 멀티박스</h1>
-        <p className="mt-1 text-sm text-gray-500">운영 이슈 추적 및 예약/숙소 기준 응대 기록</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">이슈 & 멀티박스</h1>
+          <p className="mt-1 text-sm text-gray-500">운영 이슈 추적 및 예약/숙소 기준 응대 기록</p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         <TabBtn active={tab === "issues"} onClick={() => setTab("issues")}>이슈 트래킹</TabBtn>
@@ -33,6 +38,7 @@ export default function Issues() {
       </div>
       {tab === "issues" && <IssuesTab />}
       {tab === "comms" && <CommsTab />}
+      {showManual && <OperationManual page="issues" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

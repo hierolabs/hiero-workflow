@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import OperationManual from "../components/OperationManual";
 import {
   fetchProperties,
   createProperty,
@@ -54,6 +55,7 @@ export default function Properties() {
   const [keyword, setKeyword] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
 
+  const [showManual, setShowManual] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Property | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -208,6 +210,7 @@ export default function Properties() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
           <button
             onClick={handleExport}
             className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -470,6 +473,7 @@ export default function Properties() {
           }}
         />
       )}
+      {showManual && <OperationManual page="properties" onClose={() => setShowManual(false)} />}
     </div>
   );
 }
