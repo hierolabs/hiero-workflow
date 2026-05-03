@@ -11,12 +11,14 @@ import {
   ISSUE_STATUS_STYLES,
   ISSUE_PRIORITY_STYLES,
 } from "../utils/cleaning-api";
+import OperationManual from "../components/OperationManual";
 
 export default function Settlement() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [summary, setSummary] = useState<IssueSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -67,12 +69,15 @@ export default function Settlement() {
             미수금, 정산 관련 이슈를 추적합니다
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + 정산 이슈 등록
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + 정산 이슈 등록
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -162,6 +167,7 @@ export default function Settlement() {
           onCreate={handleCreate}
         />
       )}
+      {showManual && <OperationManual page="settlement" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

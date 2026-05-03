@@ -271,6 +271,7 @@ export default function Reservations() {
           )}
         </div>
       )}
+      {showManual && <OperationManual page="reservations" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

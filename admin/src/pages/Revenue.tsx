@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { apiRequest } from "../utils/api";
+import OperationManual from "../components/OperationManual";
 
 // --- Types ---
 interface PeriodRevenue {
@@ -84,6 +85,7 @@ export default function Revenue() {
   const [endDate, setEndDate] = useState("");
   const [data, setData] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showManual, setShowManual] = useState(false);
 
   // 프리셋 변경 시 날짜 자동 설정
   useEffect(() => {
@@ -114,9 +116,12 @@ export default function Revenue() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">매출 현황</h1>
-        <p className="mt-0.5 text-sm text-gray-500">일별 / 주별 / 월별 매출·수수료·순수익 추이</p>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">매출 현황</h1>
+          <p className="mt-0.5 text-sm text-gray-500">일별 / 주별 / 월별 매출·수수료·순수익 추이</p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
 
       {/* Controls */}
@@ -276,6 +281,7 @@ export default function Revenue() {
           </div>
         </>
       )}
+      {showManual && <OperationManual page="revenue" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

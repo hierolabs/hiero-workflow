@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import OperationManual from "../components/OperationManual";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -107,6 +108,7 @@ export default function Diagnosis() {
   const [detail, setDetail] = useState<DiagnosisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedEngine, setSelectedEngine] = useState<string>("");
+  const [showManual, setShowManual] = useState(false);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -153,9 +155,12 @@ export default function Diagnosis() {
   // 리스트 뷰
   return (
     <div>
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">숙소 사업 진단</h1>
-        <p className="mt-0.5 text-sm text-gray-500">5엔진 기준 · 점수 낮은 순 정렬</p>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">숙소 사업 진단</h1>
+          <p className="mt-0.5 text-sm text-gray-500">5엔진 기준 · 점수 낮은 순 정렬</p>
+        </div>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
 
       {/* 포트폴리오 요약 */}
@@ -252,6 +257,7 @@ export default function Diagnosis() {
           </div>
         )}
       </div>
+      {showManual && <OperationManual page="diagnosis" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

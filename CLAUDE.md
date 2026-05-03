@@ -51,6 +51,16 @@ docs/                  — 프로젝트 문서 (개발지시서, 체계도 등)
 - `frontend/node_modules/`
 - `admin/node_modules/`
 
+## Token Rules
+- 전체 파일을 무작정 읽지 말고, 필요한 파일만 Grep/Glob으로 찾아라
+- 수정 전 영향 파일 목록을 먼저 말해라
+- 5개 이상 파일 수정 시 계획을 먼저 제시하고 승인 후 진행
+- 같은 오류를 2회 반복하면 접근 방식을 바꿔라
+- 로그/빌드 결과는 핵심 부분만 사용
+- .env, key, token, secret 파일을 출력하지 마라
+- rm -rf, DROP, TRUNCATE, force push는 사전 승인 없이 실행하지 마라
+- 작업 완료 후 변경 내용 + 요약을 반드시 보여줘라
+
 ## Key Domains
 - 예약(Reservation): Hostex 웹훅 수신 → 예약 동기화
 - 청소(Cleaning): 체크아웃 기반 자동 배정, 청소원 관리

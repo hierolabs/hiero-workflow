@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../utils/api";
+import OperationManual from "../components/OperationManual";
 
 interface Task {
   id: number;
@@ -46,6 +47,7 @@ export default function Tasks() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showManual, setShowManual] = useState(false);
 
   const fetchTasks = async () => {
     try {
@@ -99,12 +101,15 @@ export default function Tasks() {
             전체 {filteredTasks.length}개의 태스크가 있습니다.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
-        >
-          + 태스크 생성
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+          >
+            + 태스크 생성
+          </button>
+        </div>
       </div>
 
       {/* Team Filter */}
@@ -235,6 +240,7 @@ export default function Tasks() {
           }}
         />
       )}
+      {showManual && <OperationManual page="tasks" onClose={() => setShowManual(false)} />}
     </div>
   );
 }

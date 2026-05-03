@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import OperationManual from "../components/OperationManual";
 import {
   getConversations,
   getConversation,
@@ -71,6 +72,7 @@ export default function Messages() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [newRequestType, setNewRequestType] = useState("special_request");
   const [newRequestNote, setNewRequestNote] = useState("");
+  const [showManual, setShowManual] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 대화 목록 로드 + URL에서 conv 파라미터 처리
@@ -181,13 +183,16 @@ export default function Messages() {
         <div className="p-3 border-b border-gray-200 space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">게스트 메시지</h2>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50"
-            >
-              {syncing ? "동기화중..." : "동기화"}
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+              >
+                {syncing ? "동기화중..." : "동기화"}
+              </button>
+            </div>
           </div>
           <input
             type="text"
@@ -344,6 +349,7 @@ export default function Messages() {
             </div>
           </div>
 
+
           {/* 요청 추가 폼 */}
           {showRequestForm && (
             <div className="p-3 border-b border-gray-100 space-y-2">
@@ -434,6 +440,7 @@ export default function Messages() {
           </div>
         </div>
       )}
+      {showManual && <OperationManual page="messages" onClose={() => setShowManual(false)} />}
     </div>
   );
 }
