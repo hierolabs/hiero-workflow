@@ -1,35 +1,68 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Tasks from "./pages/Tasks";
+import Properties from "./pages/Properties";
+import Reservations from "./pages/Reservations";
+import HostexSync from "./pages/HostexSync";
+import Cleaning from "./pages/Cleaning";
+import Issues from "./pages/Issues";
+import Settlement from "./pages/Settlement";
+import Revenue from "./pages/Revenue";
+import Diagnosis from "./pages/Diagnosis";
+import Users from "./pages/Users";
+import CalendarPage from "./features/calendar/components/CalendarPage";
+import Layout from "./components/Layout";
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, token } = useAuth();
-
-  if (token && !isAuthenticated) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>로딩 중...</div>;
-  }
-
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+function PrivateRoute() {
+  const token = localStorage.getItem("token");
+  return token ? <Outlet /> : <Navigate to="/login" />;
 }
 
-function AppRoutes() {
-  const { isAuthenticated } = useAuth();
-
+function PrivateLayout() {
   return (
-    <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />} />
-      <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-    </Routes>
+    <Layout>
+      <Outlet />
+    </Layout>
   );
 }
 
-export default function App() {
+function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<PrivateRoute />}>
+          <Route element={<PrivateLayout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/properties" element={<Properties />} />
+            <Route path="/reservations" element={<Reservations />} />
+            <Route path="/hostex" element={<HostexSync />} />
+            <Route path="/cleaning" element={<Cleaning />} />
+            <Route path="/issues" element={<Issues />} />
+            <Route path="/settlement" element={<Settlement />} />
+            <Route path="/revenue" element={<Revenue />} />
+            <Route path="/diagnosis" element={<Diagnosis />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+          </Route>
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }
+
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+      <p className="mt-1 text-sm text-gray-500">
+        이 페이지는 준비 중입니다.
+      </p>
+    </div>
+  );
+}
+
+export default App;
