@@ -43,6 +43,14 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 		propMap[p.ID] = p
 	}
 
+	// CleaningCode 맵 사전 로드 (property_code → 단가 매칭)
+	var allCodes []models.CleaningCode
+	config.DB.Find(&allCodes)
+	codeMap := map[string]models.CleaningCode{} // code → CleaningCode
+	for _, c := range allCodes {
+		codeMap[c.Code] = c
+	}
+
 	created := 0
 	for _, r := range reservations {
 		// 이미 생성된 청소 업무 중복 방지
@@ -62,6 +70,16 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 			}
 		}
 
+		// CleaningCode 매칭 → 단가 자동 입력
+		var cleaningCodeID *uint
+		var cleaningCodeStr string
+		var basePrice int
+		if cc, ok := codeMap[propCode]; ok {
+			cleaningCodeID = &cc.ID
+			cleaningCodeStr = cc.Code
+			basePrice = cc.BasePrice
+		}
+
 		// 다음 체크인 확인 → 우선순위 결정
 		priority := s.calcPriority(r.PropertyID, date)
 
@@ -72,6 +90,10 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 			CleaningDate:    date,
 			CheckOutTime:    "11:00", // default
 			NextCheckIn:     s.findNextCheckIn(r.PropertyID, date),
+			CleaningCodeID:  cleaningCodeID,
+			CleaningCode:    cleaningCodeStr,
+			BasePrice:       basePrice,
+			TotalCost:       basePrice,
 			Status:          models.CleaningStatusPending,
 			Priority:        priority,
 			PropertyName:    propName,

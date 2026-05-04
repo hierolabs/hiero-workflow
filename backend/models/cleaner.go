@@ -16,10 +16,12 @@ const (
 )
 
 type Cleaner struct {
-	ID     uint   `gorm:"primaryKey" json:"id"`
-	Name   string `gorm:"size:100;not null" json:"name"`
-	Phone  string `gorm:"size:20" json:"phone"`
-	Region string `gorm:"size:50;index" json:"region"` // 대표 권역 (하위 호환)
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	LoginID  string `gorm:"size:50;uniqueIndex" json:"login_id"` // 로그인 ID
+	Password string `gorm:"size:200" json:"-"`                   // 비밀번호 (해시)
+	Name     string `gorm:"size:100;not null" json:"name"`
+	Phone    string `gorm:"size:20" json:"phone"`
+	Region   string `gorm:"size:50;index" json:"region"` // 대표 권역 (하위 호환)
 
 	// 다중 권역 (쉼표 구분: "A,A2" 또는 "강동 전역")
 	Regions string `gorm:"size:200" json:"regions"`

@@ -2,6 +2,7 @@ package router
 
 import (
 	"hiero-workflow/backend/handler"
+	"hiero-workflow/backend/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,5 +35,20 @@ func registerAPIRoutes(r *gin.Engine) {
 		api.POST("/webhooks/hostex", webhookHandler.HandleHostex)
 		api.GET("/webhooks/logs", webhookHandler.GetLogs)
 		api.POST("/webhooks/sync", webhookHandler.InitialSync)
+
+		// 청소자 앱 (띵동)
+		cleanerApp := handler.NewCleanerAppHandler()
+		api.POST("/cleaner/login", cleanerApp.Login)
+
+		cleanerProtected := api.Group("/cleaner")
+		cleanerProtected.Use(middleware.CleanerAuth())
+		{
+			cleanerProtected.GET("/me", cleanerApp.Me)
+			cleanerProtected.GET("/tasks", cleanerApp.MyTasks)
+			cleanerProtected.PATCH("/tasks/:id/start", cleanerApp.StartTask)
+			cleanerProtected.PATCH("/tasks/:id/complete", cleanerApp.CompleteTask)
+			cleanerProtected.PATCH("/tasks/:id/issue", cleanerApp.ReportIssue)
+			cleanerProtected.GET("/payment", cleanerApp.MyPayment)
+		}
 	}
 }

@@ -39,6 +39,13 @@ type CleaningTask struct {
 	CheckOutTime string `gorm:"size:10" json:"check_out_time"`               // 체크아웃 시간
 	NextCheckIn  string `gorm:"size:20" json:"next_check_in"`                // 다음 체크인 날짜
 
+	// 단가
+	CleaningCodeID *uint  `gorm:"index" json:"cleaning_code_id"`
+	CleaningCode   string `gorm:"size:20" json:"cleaning_code"`  // A22, B101 등
+	BasePrice      int    `gorm:"default:0" json:"base_price"`   // 기본 청소비
+	ExtraCost      int    `gorm:"default:0" json:"extra_cost"`   // 추가비
+	TotalCost      int    `gorm:"default:0" json:"total_cost"`   // 합계
+
 	// 배정
 	CleanerID   *uint  `gorm:"index" json:"cleaner_id"`
 	CleanerName string `gorm:"size:100" json:"cleaner_name"`
