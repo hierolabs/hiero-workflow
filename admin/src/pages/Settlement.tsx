@@ -65,6 +65,10 @@ interface MonthlySummary {
   property_name: string;
   year_month: string;
   revenue: number;
+  short_term_revenue: number;
+  mid_term_taxable: number;
+  mid_term_exempt: number;
+  service_revenue: number;
   other_revenue: number;
   refund: number;
   commission: number;
@@ -547,7 +551,7 @@ export default function Settlement() {
                 <span className="text-sm font-bold text-gray-900">{selectedYear}년 {parseInt(selectedYearMonth)}월 상세</span>
               </div>
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <SummaryCard label="총 매출" value={`${fmt(result.total.revenue)}`} />
+                <SummaryCard label="총매출" value={`${fmt(result.total.revenue)}`} />
                 <SummaryCard label="순매출" value={`${fmt(result.total.net_revenue)}`} />
                 <SummaryCard label="총비용" value={`${fmt(result.total.total_cost)}`} color="red" />
                 <SummaryCard label="순이익" value={`${fmt(result.total.profit)}`} color={result.total.profit >= 0 ? "green" : "red"} />
@@ -564,8 +568,10 @@ export default function Settlement() {
         <>
           {/* 정산 합계 카드 */}
           {result && (
-            <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <SummaryCard label="총 매출" value={`${fmt(result.total.revenue)}`} />
+            <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
+              <SummaryCard label="과세 숙박" value={`${fmt(result.total.taxable_revenue)}`} />
+              <SummaryCard label="면세 전대" value={`${fmt(result.total.exempt_revenue)}`} />
+              <SummaryCard label="총매출" value={`${fmt(result.total.revenue)}`} />
               <SummaryCard label="순매출" value={`${fmt(result.total.net_revenue)}`} />
               <SummaryCard label="총비용" value={`${fmt(result.total.total_cost)}`} color="red" />
               <SummaryCard label="순이익" value={`${fmt(result.total.profit)}`}
@@ -662,12 +668,60 @@ export default function Settlement() {
   );
 }
 
-type SortKey = "property_name" | "revenue" | "other_revenue" | "refund" | "commission" | "airbnb_vat" | "net_revenue" | "cleaning_fee" | "mgmt_fee" | "rent_out" | "rent_in" | "operation_fee" | "labor_fee" | "supplies_fee" | "maintenance" | "interior_fee" | "interest_fee" | "dividend_fee" | "property_fee" | "other_cost" | "total_cost" | "profit" | "profit_rate";
+type SortKey = "property_name" | "revenue" | "short_term_revenue" | "mid_term_taxable" | "mid_term_exempt" | "service_revenue" | "other_revenue" | "refund" | "commission" | "airbnb_vat" | "net_revenue" | "cleaning_fee" | "mgmt_fee" | "rent_out" | "rent_in" | "operation_fee" | "labor_fee" | "supplies_fee" | "maintenance" | "interior_fee" | "interest_fee" | "dividend_fee" | "property_fee" | "other_cost" | "total_cost" | "profit" | "profit_rate";
 type SortDir = "asc" | "desc";
 
-const COLUMNS: { key: SortKey; label: string; align: "left" | "right" }[] = [
+// 컬럼 인포 팝업 내용
+const COLUMN_INFO: Record<string, { title: string; desc: string; details: string[] }> = {
+  short_term_revenue: {
+    title: "단기임대 (과세 10%)",
+    desc: "숙박 플랫폼을 통한 단기 숙박 매출. 부가세 10% 과세 대상.",
+    details: ["Airbnb / 에어비앤비", "Booking.com", "Agoda", "기타 숙박 OTA"],
+  },
+  mid_term_revenue: {
+    title: "중기임대",
+    desc: "중기 거주 플랫폼 매출. 거주 기간에 따라 과세/면세 자동 분류.",
+    details: [
+      "29일 미만 → 과세 (VAT 10%)",
+      "29일 이상 → 면세 (주거용 전대)",
+      "삼삼엠투 / 리브애니웨어 / 자리톡",
+      "개인입금 / 직접 계약",
+    ],
+  },
+  service_revenue: {
+    title: "서비스매출 (과세 10%)",
+    desc: "숙박·임대 외 과세 서비스 매출. 향후 적용 예정.",
+    details: ["청소비 별도 청구", "운영관리 수수료", "컨설팅 / 교육", "소프트웨어 이용료"],
+  },
+  revenue: {
+    title: "총매출",
+    desc: "단기임대 + 중기임대 + 서비스매출의 합계.",
+    details: ["과세/면세 구분 전 총 객실 요금"],
+  },
+  commission: {
+    title: "플랫폼 수수료",
+    desc: "예약 플랫폼에서 차감하는 호스트 수수료.",
+    details: ["Airbnb 호스트 수수료 (3~5%)", "Booking.com (12~18%)", "Agoda (15~20%)"],
+  },
+  airbnb_vat: {
+    title: "에어비앤비 VAT",
+    desc: "에어비앤비 매출에 대한 부가가치세 10%.",
+    details: ["에어비앤비 매출 × 10%", "부가세 신고 시 매출세액으로 반영"],
+  },
+  net_revenue: {
+    title: "순매출",
+    desc: "총매출에서 환불·수수료·VAT를 차감한 실제 수익.",
+    details: ["총매출 + 기타수입 - 환불 - 수수료 - VAT"],
+  },
+};
+
+const COLUMNS: { key: SortKey; label: string; align: "left" | "right"; expand?: boolean }[] = [
   { key: "property_name", label: "숙소", align: "left" },
-  { key: "revenue", label: "매출", align: "right" },
+  { key: "short_term_revenue", label: "단기", align: "right", expand: true },
+  { key: "mid_term_taxable", label: "<1M", align: "right", expand: true },
+  { key: "mid_term_exempt", label: "≥1M", align: "right", expand: true },
+  { key: "service_revenue", label: "서비스", align: "right", expand: true },
+  { key: "revenue", label: "총매출", align: "right" },
   { key: "other_revenue", label: "기타수입", align: "right" },
   { key: "refund", label: "환불", align: "right" },
   { key: "commission", label: "플랫폼수수료", align: "right" },
@@ -699,6 +753,9 @@ function getSortValue(p: MonthlySummary, key: SortKey): number | string {
 // SortKey → API query params (category, type)
 const FIELD_TO_QUERY: Record<string, { category?: string; type?: string } | null> = {
   revenue: { category: "객실 요금", type: "수입" },
+  short_term_revenue: { category: "객실 요금", type: "수입" },
+  mid_term_taxable: { category: "객실 요금", type: "수입" },
+  mid_term_exempt: { category: "객실 요금", type: "수입" },
   other_revenue: { type: "수입" }, // category != 객실요금, != 환불 → 서버에서 필터
   refund: { category: "객실 요금 환불", type: "수입" },
   cleaning_fee: { category: "청소 비용", type: "비용" },
@@ -726,10 +783,20 @@ interface DrilldownInfo {
   fieldLabel: string;
 }
 
+// 인포 키 매핑 (mid_term_taxable, mid_term_exempt → mid_term_revenue)
+function getInfoKey(colKey: string): string | null {
+  if (colKey === "short_term_revenue") return "short_term_revenue";
+  if (colKey === "mid_term_taxable" || colKey === "mid_term_exempt") return "mid_term_revenue";
+  if (colKey in COLUMN_INFO) return colKey;
+  return null;
+}
+
 function PropertyTable({ result }: { result: SettlementResult }) {
   const [sortKey, setSortKey] = useState<SortKey>("profit");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [drilldown, setDrilldown] = useState<DrilldownInfo | null>(null);
+  const [infoKey, setInfoKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -743,87 +810,123 @@ function PropertyTable({ result }: { result: SettlementResult }) {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const arrow = (key: SortKey) => sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+  const arrow = (key: SortKey) => sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : " ⇅";
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            {COLUMNS.map((col) => (
-              <th
-                key={col.key}
-                onClick={() => handleSort(col.key)}
-                className={`${col.key === "property_name" ? "sticky left-0 bg-gray-50 " : ""}px-3 py-2.5 text-${col.align} text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-900 select-none whitespace-nowrap`}
-              >
-                {col.label}{arrow(col.key)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b-2 border-gray-300 bg-gray-50 font-bold">
-            <td className="sticky left-0 bg-gray-50 px-3 py-2.5 text-gray-900 whitespace-nowrap">합계 ({result.properties.length}개)</td>
-            {COLUMNS.slice(1).map((col) => {
-              const v = result.total[col.key as keyof MonthlySummary] as number || 0;
-              const isProfit = col.key === "profit" || col.key === "profit_rate";
-              const isCost = col.key === "total_cost";
-              const isRefund = col.key === "refund";
-              const color = isProfit ? (v >= 0 ? "text-green-700" : "text-red-700") : isCost ? "text-red-700" : isRefund && v ? "text-red-600" : "text-gray-900";
-              return (
-                <td key={col.key} className={`px-3 py-2.5 text-right ${color}`}>
-                  {col.key === "profit_rate" ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
-                </td>
-              );
-            })}
-          </tr>
-          {sorted.map((p) => (
-            <tr key={`${p.property_id}-${p.property_name}`} className="border-b border-gray-100 hover:bg-gray-50">
-              <td className="sticky left-0 bg-white px-3 py-2 font-medium text-gray-900 whitespace-nowrap max-w-[200px] truncate">
-                {p.property_name || `#${p.property_id}`}
-              </td>
-              {COLUMNS.slice(1).map((col) => {
-                const v = p[col.key as keyof MonthlySummary] as number || 0;
-                const isProfit = col.key === "profit";
-                const isProfitRate = col.key === "profit_rate";
+    <>
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
+        {infoKey && COLUMN_INFO[infoKey] && (
+          <InfoPopup info={COLUMN_INFO[infoKey]} onClose={() => setInfoKey(null)} />
+        )}
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              {COLUMNS.filter((col) => !col.expand || expanded).map((col) => {
+                const ik = getInfoKey(col.key);
+                const isExpandCol = col.expand;
+                return (
+                  <th
+                    key={col.key}
+                    className={`${col.key === "property_name" ? "sticky left-0 bg-gray-50 " : ""}${isExpandCol ? "bg-blue-50/50 " : ""}px-3 py-2.5 text-${col.align} text-xs font-medium ${isExpandCol ? "text-blue-600" : "text-gray-500"} select-none whitespace-nowrap`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.key === "revenue" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                          className={`inline-flex h-4 px-1 items-center justify-center rounded text-[9px] font-medium transition-colors flex-shrink-0 ${expanded ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-600 hover:bg-blue-200"}`}
+                          title={expanded ? "매출 상세 접기" : "매출 상세 펼치기"}
+                        >
+                          {expanded ? "◀" : "▶"}
+                        </button>
+                      )}
+                      <span className="cursor-pointer hover:text-gray-900" onClick={() => handleSort(col.key)}>
+                        {col.label}{arrow(col.key)}
+                      </span>
+                      {ik && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setInfoKey(ik); }}
+                          className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold text-gray-500 hover:bg-blue-100 hover:text-blue-600 transition-colors flex-shrink-0"
+                          title="항목 설명"
+                        >
+                          i
+                        </button>
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b-2 border-gray-300 bg-gray-50 font-bold">
+              <td className="sticky left-0 bg-gray-50 px-3 py-2.5 text-gray-900 whitespace-nowrap">합계 ({result.properties.length}개)</td>
+              {COLUMNS.slice(1).filter((col) => !col.expand || expanded).map((col) => {
+                const v = result.total[col.key as keyof MonthlySummary] as number || 0;
+                const isProfit = col.key === "profit" || col.key === "profit_rate";
                 const isCost = col.key === "total_cost";
                 const isRefund = col.key === "refund";
-                const isNet = col.key === "net_revenue";
-                const color = isProfit ? `font-bold ${v >= 0 ? "text-green-700" : "text-red-700"}`
-                  : isProfitRate ? `font-medium ${v >= 0 ? "text-green-600" : "text-red-600"}`
-                  : isCost ? "font-medium text-red-600"
-                  : isRefund && v ? "text-red-500"
-                  : isNet ? "font-medium text-gray-900"
-                  : "text-gray-600";
-                const drillable = isDrillable(col.key) && v !== 0;
+                const isExpandCol = col.expand;
+                const color = isProfit ? (v >= 0 ? "text-green-700" : "text-red-700") : isCost ? "text-red-700" : isRefund && v ? "text-red-600" : "text-gray-900";
                 return (
-                  <td
-                    key={col.key}
-                    onClick={drillable ? () => setDrilldown({ propertyId: p.property_id, propertyName: p.property_name || `#${p.property_id}`, field: col.key, fieldLabel: col.label }) : undefined}
-                    className={`px-3 py-2 text-right ${color} ${drillable ? "cursor-pointer hover:underline hover:bg-blue-50" : ""}`}
-                  >
-                    {isProfitRate ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
+                  <td key={col.key} className={`px-3 py-2.5 text-right ${color} ${isExpandCol ? "bg-blue-50/30" : ""}`}>
+                    {col.key === "profit_rate" ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
                   </td>
                 );
               })}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {drilldown && (
-        <TransactionDetailModal
-          propertyId={drilldown.propertyId}
-          propertyName={drilldown.propertyName}
-          field={drilldown.field}
-          fieldLabel={drilldown.fieldLabel}
-          startDate={result.start_date}
-          endDate={result.end_date}
-          onClose={() => setDrilldown(null)}
-        />
-      )}
-    </div>
+            {sorted.map((p) => (
+              <tr key={`${p.property_id}-${p.property_name}`} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="sticky left-0 bg-white px-3 py-2 font-medium text-gray-900 whitespace-nowrap max-w-[200px] truncate">
+                  {p.property_name || `#${p.property_id}`}
+                </td>
+                {COLUMNS.slice(1).filter((col) => !col.expand || expanded).map((col) => {
+                  const v = p[col.key as keyof MonthlySummary] as number || 0;
+                  const isProfit = col.key === "profit";
+                  const isProfitRate = col.key === "profit_rate";
+                  const isCost = col.key === "total_cost";
+                  const isRefund = col.key === "refund";
+                  const isNet = col.key === "net_revenue";
+                  const isExpandCol = col.expand;
+                  const color = isProfit ? `font-bold ${v >= 0 ? "text-green-700" : "text-red-700"}`
+                    : isProfitRate ? `font-medium ${v >= 0 ? "text-green-600" : "text-red-600"}`
+                    : isCost ? "font-medium text-red-600"
+                    : isRefund && v ? "text-red-500"
+                    : isNet ? "font-medium text-gray-900"
+                    : isExpandCol ? "text-blue-700"
+                    : "text-gray-600";
+                  const drillable = isDrillable(col.key) && v !== 0;
+                  return (
+                    <td
+                      key={col.key}
+                      onClick={drillable ? () => setDrilldown({ propertyId: p.property_id, propertyName: p.property_name || `#${p.property_id}`, field: col.key, fieldLabel: col.label }) : undefined}
+                      className={`px-3 py-2 text-right ${color} ${isExpandCol ? "bg-blue-50/20" : ""} ${drillable ? "cursor-pointer hover:underline hover:bg-blue-50" : ""}`}
+                    >
+                      {isProfitRate ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {drilldown && (
+          <TransactionDetailModal
+            propertyId={drilldown.propertyId}
+            propertyName={drilldown.propertyName}
+            field={drilldown.field}
+            fieldLabel={drilldown.fieldLabel}
+            startDate={result.start_date}
+            endDate={result.end_date}
+            onClose={() => setDrilldown(null)}
+          />
+        )}
+      </div>
+
+    </>
   );
 }
+
+
 
 // 카테고리 목록 (변경 드롭다운용)
 const ALL_CATEGORIES = [
@@ -987,7 +1090,7 @@ function TransactionDetailModal({ propertyId, propertyName, field, fieldLabel, s
   );
 }
 
-function SummaryCard({ label, value, color }: { label: string; value: string; color?: string }) {
+function SummaryCard({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
   const colorCls = {
     red: "text-red-700 bg-red-50 border-red-200",
     green: "text-green-700 bg-green-50 border-green-200",
@@ -997,6 +1100,29 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
     <div className={`rounded-lg border p-4 ${colorCls}`}>
       <p className="text-xs font-medium opacity-70">{label}</p>
       <p className="mt-1 text-xl font-bold">{value}</p>
+      {sub && <p className="mt-0.5 text-[10px] opacity-60">{sub}</p>}
+    </div>
+  );
+}
+
+function InfoPopup({ info, onClose }: { info: { title: string; desc: string; details: string[] }; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <h4 className="text-sm font-bold text-gray-900">{info.title}</h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+        </div>
+        <p className="text-xs text-gray-600 mb-3">{info.desc}</p>
+        <ul className="space-y-1">
+          {info.details.map((d, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-gray-500">
+              <span className="mt-0.5 h-1 w-1 rounded-full bg-gray-400 flex-shrink-0" />
+              {d}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

@@ -89,12 +89,16 @@ type MonthlySummary struct {
 	PropertyName string `json:"property_name"`
 	YearMonth    string `json:"year_month"`
 	// 매출
-	Revenue      int64  `json:"revenue"`         // 객실 요금
-	OtherRevenue int64  `json:"other_revenue"`   // 기타 수입 (배당및월세, 기타 등)
-	Refund       int64  `json:"refund"`          // 환불
-	Commission   int64  `json:"commission"`      // 플랫폼 수수료 (reservations.total_commission)
-	AirbnbVat    int64  `json:"airbnb_vat"`      // 에어비앤비 부가세 10%
-	NetRevenue   int64  `json:"net_revenue"`     // 순매출 (Revenue + OtherRevenue - Refund - Commission - AirbnbVat)
+	Revenue          int64  `json:"revenue"`             // 총 객실 요금 (합산)
+	ShortTermRevenue int64  `json:"short_term_revenue"`  // 단기임대 과세 (Airbnb, Booking, Agoda) — VAT 10%
+	MidTermTaxable   int64  `json:"mid_term_taxable"`    // 중기임대 과세 (삼삼엠투 등, 29일 미만) — VAT 10%
+	MidTermExempt    int64  `json:"mid_term_exempt"`     // 중기임대 면세 (삼삼엠투 등, 29일 이상)
+	ServiceRevenue   int64  `json:"service_revenue"`     // 과세 서비스매출 (향후 사용)
+	OtherRevenue     int64  `json:"other_revenue"`       // 기타 수입 (배당및월세, 기타 등)
+	Refund         int64  `json:"refund"`            // 환불
+	Commission     int64  `json:"commission"`        // 플랫폼 수수료 (reservations.total_commission)
+	AirbnbVat      int64  `json:"airbnb_vat"`        // 에어비앤비 부가세 10%
+	NetRevenue     int64  `json:"net_revenue"`       // 순매출 (Revenue + OtherRevenue - Refund - Commission - AirbnbVat)
 	// 비용
 	CleaningFee  int64  `json:"cleaning_fee"`    // 청소 비용
 	MgmtFee      int64  `json:"mgmt_fee"`        // 관리비
@@ -120,12 +124,21 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 		PropertyName string
 		Category     string
 		Type         string
+		Channel      string
+		RevenueClass string
 		Total        int64
 	}
 	var rows []row
 	query := config.DB.Model(&models.HostexTransaction{}).
-		Select("property_id, property_name, category, type, SUM(amount) as total").
-		Group("property_id, property_name, category, type")
+		Select(`property_id, property_name, category, type, channel,
+			CASE
+				WHEN type = '수입' AND category = '객실 요금' AND LOWER(channel) IN ('airbnb','에어비앤비','booking.com','booking','agoda') THEN 'short_term'
+				WHEN type = '수입' AND category = '객실 요금' AND DATEDIFF(check_out, check_in) < 29 THEN 'mid_term_taxable'
+				WHEN type = '수입' AND category = '객실 요금' THEN 'mid_term_exempt'
+				ELSE ''
+			END as revenue_class,
+			SUM(amount) as total`).
+		Group("property_id, property_name, category, type, channel, revenue_class")
 
 	if yearMonth != "" {
 		query = query.Where("year_month = ?", yearMonth)
@@ -155,7 +168,7 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 			summaryMap[k] = sm
 		}
 
-		mapCategoryToSummary(sm, r.Type, r.Category, r.Total)
+		mapCategoryToSummary(sm, r.Type, r.Category, r.RevenueClass, r.Total)
 	}
 
 	results := make([]MonthlySummary, 0, len(summaryMap))
@@ -203,11 +216,20 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 		PropertyName string
 		Category     string
 		Type         string
+		Channel      string
+		RevenueClass string
 		Total        int64
 	}
 	var rows []row
 	db := config.DB.Model(&models.HostexTransaction{}).
-		Select("property_id, property_name, category, type, SUM(amount) as total").
+		Select(`property_id, property_name, category, type, channel,
+			CASE
+				WHEN type = '수입' AND category = '객실 요금' AND LOWER(channel) IN ('airbnb','에어비앤비','booking.com','booking','agoda') THEN 'short_term'
+				WHEN type = '수입' AND category = '객실 요금' AND DATEDIFF(check_out, check_in) < 29 THEN 'mid_term_taxable'
+				WHEN type = '수입' AND category = '객실 요금' THEN 'mid_term_exempt'
+				ELSE ''
+			END as revenue_class,
+			SUM(amount) as total`).
 		Where("transaction_at >= ? AND transaction_at <= ?", query.StartDate, query.EndDate+" 23:59:59")
 	if query.PropertyIDs != "" {
 		ids := strings.Split(query.PropertyIDs, ",")
@@ -221,10 +243,10 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 	} else if query.Channel != "" {
 		db = db.Where("channel = ?", query.Channel)
 	}
-	db.Group("property_id, property_name, category, type").
+	db.Group("property_id, property_name, category, type, channel, revenue_class").
 		Scan(&rows)
 
-	// 숙소별 집계 (기존 MonthlySummary 로직 재활용)
+	// 숙소별 집계
 	type key struct {
 		pid  uint
 		name string
@@ -247,7 +269,7 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 			summaryMap[k] = sm
 		}
 
-		mapCategoryToSummary(sm, r.Type, r.Category, r.Total)
+		mapCategoryToSummary(sm, r.Type, r.Category, r.RevenueClass, r.Total)
 	}
 
 	// reservations에서 숙소별 수수료 + 에어비앤비 매출 조회
@@ -307,11 +329,19 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 // ─── 카테고리 매핑 헬퍼 ──────────────────────────────────────
 
 // mapCategoryToSummary 수입/비용 카테고리를 MonthlySummary 필드에 매핑
-func mapCategoryToSummary(sm *MonthlySummary, txType, category string, amount int64) {
+func mapCategoryToSummary(sm *MonthlySummary, txType, category, revenueClass string, amount int64) {
 	if txType == models.TxTypeIncome {
 		switch category {
 		case models.TxCatRoomRate:
 			sm.Revenue += amount
+			switch revenueClass {
+			case "short_term":
+				sm.ShortTermRevenue += amount
+			case "mid_term_taxable":
+				sm.MidTermTaxable += amount
+			case "mid_term_exempt":
+				sm.MidTermExempt += amount
+			}
 		case models.TxCatRoomRefund:
 			sm.Refund += amount
 		default:
@@ -364,6 +394,10 @@ func calcSummaryTotals(sm *MonthlySummary) {
 // addToTotal 합계 누적
 func addToTotal(total *MonthlySummary, sm *MonthlySummary) {
 	total.Revenue += sm.Revenue
+	total.ShortTermRevenue += sm.ShortTermRevenue
+	total.MidTermTaxable += sm.MidTermTaxable
+	total.MidTermExempt += sm.MidTermExempt
+	total.ServiceRevenue += sm.ServiceRevenue
 	total.OtherRevenue += sm.OtherRevenue
 	total.Refund += sm.Refund
 	total.Commission += sm.Commission
