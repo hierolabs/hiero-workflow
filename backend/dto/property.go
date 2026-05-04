@@ -70,6 +70,11 @@ type UpdatePropertyRequest struct {
 	Deposit       int64   `json:"deposit"`
 	CheckInTime   string  `json:"check_in_time"`
 	CheckOutTime  string  `json:"check_out_time"`
+	OperationType string  `json:"operation_type"`
+	TaxCategory   string  `json:"tax_category"`
+	LicenseStatus string  `json:"license_status"`
+	ContractType  string  `json:"contract_type"`
+	OwnerName     string  `json:"owner_name"`
 	Memo          string  `json:"memo"`
 }
 
@@ -133,8 +138,10 @@ func (q *PropertyListQuery) Normalize() {
 	if q.Page < 1 {
 		q.Page = 1
 	}
-	if q.PageSize < 1 || q.PageSize > 100 {
+	if q.PageSize < 1 {
 		q.PageSize = 20
+	} else if q.PageSize > 500 {
+		q.PageSize = 500
 	}
 }
 
@@ -162,6 +169,11 @@ type PropertyResponse struct {
 	OperationStatus string  `json:"operation_status"`
 	CheckInTime     string  `json:"check_in_time"`
 	CheckOutTime    string  `json:"check_out_time"`
+	OperationType   string  `json:"operation_type"`
+	TaxCategory     string  `json:"tax_category"`
+	LicenseStatus   string  `json:"license_status"`
+	ContractType    string  `json:"contract_type"`
+	OwnerName       string  `json:"owner_name"`
 	Memo            string  `json:"memo"`
 	CreatedByID     *uint   `json:"created_by_id"`
 	CreatedAt       string  `json:"created_at"`
@@ -191,6 +203,11 @@ func NewPropertyResponse(p models.Property) PropertyResponse {
 		OperationStatus: p.OperationStatus,
 		CheckInTime:     p.CheckInTime,
 		CheckOutTime:    p.CheckOutTime,
+		OperationType:   p.OperationType,
+		TaxCategory:     p.TaxCategory,
+		LicenseStatus:   p.LicenseStatus,
+		ContractType:    p.ContractType,
+		OwnerName:       p.OwnerName,
 		Memo:            p.Memo,
 		CreatedByID:     p.CreatedByID,
 		CreatedAt:       p.CreatedAt.Format("2006-01-02T15:04:05Z"),

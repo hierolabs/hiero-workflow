@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
+import Checklist from "./pages/Checklist";
 import Properties from "./pages/Properties";
 import Reservations from "./pages/Reservations";
 import HostexSync from "./pages/HostexSync";
@@ -14,6 +15,7 @@ import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
+import PropertyOrder from "./pages/settings/PropertyOrder";
 import Messages from "./pages/Messages";
 import MessageAnalysis from "./pages/MessageAnalysis";
 import CalendarPage from "./features/calendar/components/CalendarPage";
@@ -42,6 +44,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/checklist" element={<Checklist />} />
             <Route path="/properties" element={<Properties />} />
             <Route path="/reservations" element={<Reservations />} />
             <Route path="/hostex" element={<HostexSync />} />
@@ -56,6 +59,7 @@ function App() {
             <Route path="/leads/:id" element={<LeadDetail />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/property-order" element={<PropertyOrder />} />
           </Route>
         </Route>
       </Routes>

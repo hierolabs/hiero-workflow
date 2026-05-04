@@ -24,6 +24,9 @@ func registerAdminRoutes(r *gin.Engine) {
 	manualHandler := handler.NewManualHandler()
 	transactionHandler := handler.NewTransactionHandler()
 	dashboardHandler := handler.NewDashboardHandler()
+	data3Handler := handler.NewData3Handler()
+	costHandler := handler.NewCostHandler()
+	checklistHandler := handler.NewChecklistHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -107,6 +110,10 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/transactions/summary", transactionHandler.Summary)
 			protected.GET("/transactions/months", transactionHandler.Months)
 			protected.GET("/transactions/channels", transactionHandler.Channels)
+			protected.GET("/transactions/list", transactionHandler.ListTransactions)
+			protected.PATCH("/transactions/:id/category", transactionHandler.UpdateCategory)
+			protected.GET("/transactions/categories", transactionHandler.Categories)
+			protected.POST("/transactions/backfill-accounting", transactionHandler.BackfillAccounting)
 
 			// 5엔진 사업 진단
 			protected.GET("/diagnosis", diagnosisHandler.ListAll)
@@ -160,6 +167,22 @@ func registerAdminRoutes(r *gin.Engine) {
 				marketing.POST("/leads/:id/proposal", leadHandler.SaveProposal)
 				marketing.POST("/leads/:id/activity", leadHandler.AddActivity)
 			}
+
+			// Data 3 통합 분석 (reservation + transaction JOIN)
+			protected.GET("/data3/records", data3Handler.GetRecords)
+			protected.GET("/data3/summary", data3Handler.GetSummary)
+
+			// 운영 체크리스트
+			protected.GET("/checklist/today", checklistHandler.GetToday)
+			protected.GET("/checklist/summary", checklistHandler.Summary)
+			protected.PATCH("/checklist/:id/toggle", checklistHandler.Toggle)
+
+			// 비용 관리 (cost_raw + cost_allocations)
+			protected.GET("/costs/raw", costHandler.ListRawCosts)
+			protected.GET("/costs/allocations", costHandler.ListAllocations)
+			protected.GET("/costs/monthly", costHandler.MonthlySummary)
+			protected.POST("/costs/import-from-transactions", costHandler.ImportFromTransactions)
+			protected.POST("/costs/reallocate", costHandler.ReallocateAll)
 
 			// 운영 매뉴얼 (위키)
 			protected.GET("/manual", manualHandler.List)

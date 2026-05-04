@@ -55,9 +55,13 @@ export interface ReservationListQuery {
   check_out_to?: string;
   booked_from?: string;
   booked_to?: string;
+  reservation_date_from?: string;
+  reservation_date_to?: string;
   view_mode?: string;
   keyword?: string;
   unmatched_only?: boolean;
+  sort_by?: string;
+  sort_order?: string;
 }
 
 export interface HostexMapping {
@@ -133,6 +137,8 @@ function buildQueryString(query: ReservationListQuery): string {
   if (query.view_mode) params.set("view_mode", query.view_mode);
   if (query.keyword) params.set("keyword", query.keyword);
   if (query.unmatched_only) params.set("unmatched_only", "true");
+  if (query.sort_by) params.set("sort_by", query.sort_by);
+  if (query.sort_order) params.set("sort_order", query.sort_order);
   return params.toString();
 }
 

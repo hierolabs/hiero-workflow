@@ -239,3 +239,55 @@ func (h *TransactionHandler) Channels(c *gin.Context) {
 		Pluck("channel", &channels)
 	c.JSON(http.StatusOK, channels)
 }
+
+// GET /admin/transactions/list?property_id=&start_date=&end_date=&category=&type= — 개별 거래 목록
+func (h *TransactionHandler) ListTransactions(c *gin.Context) {
+	pid, _ := strconv.Atoi(c.Query("property_id"))
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	category := c.Query("category")
+	txType := c.Query("type")
+
+	txs, err := h.svc.ListTransactions(uint(pid), startDate, endDate, category, txType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, txs)
+}
+
+// PATCH /admin/transactions/:id/category — 거래 카테고리 변경
+func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 ID"})
+		return
+	}
+	var body struct {
+		Category string `json:"category" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "카테고리를 입력해주세요"})
+		return
+	}
+	if err := h.svc.UpdateTransactionCategory(uint(id), body.Category); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "카테고리 변경 완료"})
+}
+
+// GET /admin/transactions/categories — 전체 카테고리 목록
+func (h *TransactionHandler) Categories(c *gin.Context) {
+	c.JSON(http.StatusOK, h.svc.AllCategories())
+}
+
+// POST /admin/transactions/backfill-accounting — 기존 데이터 계정코드 일괄 매핑
+func (h *TransactionHandler) BackfillAccounting(c *gin.Context) {
+	count, err := h.svc.BackfillAccountingFields()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "백필 완료", "updated": count})
+}

@@ -156,6 +156,7 @@ type Reservation struct {
 	GuestPhone      string          `json:"guest_phone"`
 	GuestEmail      string          `json:"guest_email"`
 	BookedAt        string          `json:"booked_at"`
+	CreatedAt       string          `json:"created_at"` // Hostex 예약 최초 생성 시점 (진짜 예약일)
 	CancelledAt     *string         `json:"cancelled_at"`
 	Remarks         string           `json:"remarks"`
 	ConversationID  string           `json:"conversation_id"`
@@ -858,41 +859,65 @@ func (c *Client) GetAllConversations() ([]ConversationSummary, error) {
 	return all, nil
 }
 
-// GetConversationMessages — 대화 메시지 목록 조회
+// GetConversationMessages — 대화 메시지 목록 조회 (페이징 포함)
 func (c *Client) GetConversationMessages(conversationID string) ([]HostexMessage, string, error) {
-	body, err := c.request("GET", "/conversations/"+conversationID, nil)
-	if err != nil {
-		return nil, "", err
-	}
-
-	var resp APIResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, "", err
-	}
-
-	var data struct {
-		Messages   []HostexMessage `json:"messages"`
-		Activities []struct {
-			ReservationCode string `json:"reservation_code"`
-			Property        struct {
-				ID int64 `json:"id"`
-			} `json:"property"`
-		} `json:"activities"`
-	}
-	if err := json.Unmarshal(resp.Data, &data); err != nil {
-		return nil, "", err
-	}
-
-	// 첫 번째 activity에서 reservation_code 추출
+	var allMessages []HostexMessage
 	var resCode string
-	for _, a := range data.Activities {
-		if a.ReservationCode != "" {
-			resCode = a.ReservationCode
+	offset := 0
+
+	for {
+		params := map[string]string{
+			"limit":  "100",
+			"offset": fmt.Sprintf("%d", offset),
+		}
+		body, err := c.request("GET", "/conversations/"+conversationID, params)
+		if err != nil {
+			return nil, "", err
+		}
+
+		var resp APIResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, "", err
+		}
+
+		var data struct {
+			Messages   []HostexMessage `json:"messages"`
+			Total      int             `json:"total"`
+			Activities []struct {
+				ReservationCode string `json:"reservation_code"`
+				Property        struct {
+					ID int64 `json:"id"`
+				} `json:"property"`
+			} `json:"activities"`
+		}
+		if err := json.Unmarshal(resp.Data, &data); err != nil {
+			return nil, "", err
+		}
+
+		// 첫 번째 activity에서 reservation_code 추출
+		if resCode == "" {
+			for _, a := range data.Activities {
+				if a.ReservationCode != "" {
+					resCode = a.ReservationCode
+					break
+				}
+			}
+		}
+
+		allMessages = append(allMessages, data.Messages...)
+
+		// 페이징 종료 조건: 반환 0건, total 도달, 또는 total 필드 없음
+		if len(data.Messages) == 0 || (data.Total > 0 && len(allMessages) >= data.Total) {
 			break
 		}
+		// total이 0이면 API가 페이징을 지원하지 않는 것 → 1회로 종료
+		if data.Total == 0 {
+			break
+		}
+		offset += len(data.Messages)
 	}
 
-	return data.Messages, resCode, nil
+	return allMessages, resCode, nil
 }
 
 // SendTextMessage — 텍스트 메시지 발송

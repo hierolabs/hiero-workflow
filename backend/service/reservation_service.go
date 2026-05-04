@@ -10,6 +10,25 @@ import (
 	"hiero-workflow/backend/models"
 )
 
+// extractDate "2024-03-15T09:00:00Z" → "2024-03-15"
+func extractDate(s string) string {
+	if len(s) >= 10 {
+		return s[:10]
+	}
+	return s
+}
+
+// extractDateOrFallback booked_at이 없으면 check_in_date를 fallback으로 사용
+func extractDateOrFallback(bookedAt, checkInDate string) string {
+	if len(bookedAt) >= 10 {
+		return bookedAt[:10]
+	}
+	if len(checkInDate) >= 10 {
+		return checkInDate[:10]
+	}
+	return ""
+}
+
 type ReservationService struct{}
 
 func NewReservationService() *ReservationService {
@@ -195,16 +214,13 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 	if query.BookedFrom != "" || query.BookedTo != "" {
 		// booked_at은 UTC ISO 문자열. KST 기준 필터 → UTC로 변환 (-9h)
 		if query.BookedFrom != "" {
-			// KST 00:00 = UTC 전날 15:00
-			utcFrom := query.BookedFrom + "T-1" // 문자열 비교로는 부정확하므로 직접 계산
 			t, err := time.Parse("2006-01-02", query.BookedFrom)
 			if err == nil {
-				utcFrom = t.Add(-9 * time.Hour).Format("2006-01-02T15:04:05+00:00")
+				utcFrom := t.Add(-9 * time.Hour).Format("2006-01-02T15:04:05+00:00")
+				db = db.Where("booked_at >= ?", utcFrom)
 			}
-			db = db.Where("booked_at >= ?", utcFrom)
 		}
 		if query.BookedTo != "" {
-			// KST 23:59:59 = UTC 당일 14:59:59 → 다음날 15:00 미만
 			t, err := time.Parse("2006-01-02", query.BookedTo)
 			if err == nil {
 				utcTo := t.Add(24*time.Hour - 9*time.Hour).Format("2006-01-02T15:04:05+00:00")
@@ -242,8 +258,22 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 
 	var reservations []models.Reservation
 	offset := (query.Page - 1) * query.PageSize
+
+	// 정렬
 	orderBy := "booked_at DESC, created_at DESC"
-	if query.ViewMode == "checkin" {
+	if query.SortBy != "" {
+		allowedCols := map[string]bool{
+			"check_in_date": true, "check_out_date": true, "total_rate": true,
+			"nights": true, "booked_at": true, "guest_name": true,
+		}
+		if allowedCols[query.SortBy] {
+			dir := "DESC"
+			if query.SortOrder == "asc" {
+				dir = "ASC"
+			}
+			orderBy = query.SortBy + " " + dir
+		}
+	} else if query.ViewMode == "checkin" {
 		orderBy = "check_in_date DESC"
 	} else if query.ViewMode == "checkout" {
 		orderBy = "check_out_date DESC"
@@ -465,11 +495,15 @@ type ReservationListQuery struct {
 	CheckInTo       string `form:"check_in_to"`
 	CheckOutFrom    string `form:"check_out_from"`
 	CheckOutTo      string `form:"check_out_to"`
-	BookedFrom      string `form:"booked_from"`
-	BookedTo        string `form:"booked_to"`
+	BookedFrom          string `form:"booked_from"`
+	BookedTo            string `form:"booked_to"`
+	ReservationDateFrom string `form:"reservation_date_from"` // 예약일 기준 필터
+	ReservationDateTo   string `form:"reservation_date_to"`
 	ViewMode        string `form:"view_mode"` // booked, checkin, checkout, cancelled
 	Keyword         string `form:"keyword"`
 	UnmatchedOnly   bool   `form:"unmatched_only"`
+	SortBy          string `form:"sort_by"`    // check_in_date, check_out_date, total_rate, nights, booked_at, guest_name, property_name
+	SortOrder       string `form:"sort_order"` // asc, desc
 }
 
 func (q *ReservationListQuery) Normalize() {

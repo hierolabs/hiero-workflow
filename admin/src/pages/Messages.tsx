@@ -89,7 +89,7 @@ export default function Messages() {
   }, []);
 
   async function loadConversations() {
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = { page_size: "500" };
     if (keyword) params.keyword = keyword;
     const data = await getConversations(params);
     setConversations(data.conversations || []);

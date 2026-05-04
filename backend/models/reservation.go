@@ -23,7 +23,8 @@ type Reservation struct {
 	TotalRate       int64     `json:"total_rate"`
 	TotalCommission int64     `json:"total_commission"`
 	Currency        string    `json:"currency" gorm:"size:10;default:KRW"`
-	BookedAt        string    `json:"booked_at" gorm:"size:50;index"`
+	ReservationDate string    `json:"reservation_date" gorm:"column:reservation_date;size:20;index"` // 예약 생성일 (매출 기준일)
+	BookedAt        string    `json:"booked_at" gorm:"size:50;index"`                               // Hostex 원본 (deprecated → reservation_date 사용)
 	CancelledAt     *string   `json:"cancelled_at" gorm:"size:50"`
 	Remarks         string    `json:"remarks" gorm:"type:text"`
 	ConversationID  string    `json:"conversation_id" gorm:"size:100;index"`

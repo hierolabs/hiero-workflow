@@ -38,6 +38,19 @@ interface RevenueData {
   channels: ChannelRevenue[];
 }
 
+interface Data3Summary {
+  accrued_revenue: number;
+  accrued_commission: number;
+  accrued_net: number;
+  expected_deposit: number;
+  actual_income: number;
+  allocated_cost: number;
+  net_profit: number;
+  reservation_count: number;
+  avg_adr: number;
+  total_nights: number;
+}
+
 type GroupBy = "day" | "week" | "month";
 type Preset = "7d" | "30d" | "90d" | "this_month" | "last_month" | "custom";
 
@@ -52,7 +65,7 @@ const PRESETS: { key: Preset; label: string }[] = [
 
 function getPresetDates(preset: Preset): { start: string; end: string; group: GroupBy } {
   const now = new Date();
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   switch (preset) {
     case "7d":
@@ -84,6 +97,7 @@ export default function Revenue() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [data, setData] = useState<RevenueData | null>(null);
+  const [data3, setData3] = useState<Data3Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showManual, setShowManual] = useState(false);
 
@@ -103,10 +117,12 @@ export default function Revenue() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await apiRequest(
-          `/revenue/summary?start_date=${startDate}&end_date=${endDate}&group_by=${groupBy}`
-        );
+        const [res, d3Res] = await Promise.all([
+          apiRequest(`/revenue/summary?start_date=${startDate}&end_date=${endDate}&group_by=${groupBy}`),
+          apiRequest(`/data3/summary?start_date=${startDate}&end_date=${endDate}`).catch(() => null),
+        ]);
         if (res.ok) setData(await res.json());
+        if (d3Res?.ok) setData3(await d3Res.json());
       } catch { /* ignore */ }
       setLoading(false);
     };
@@ -186,14 +202,31 @@ export default function Revenue() {
         <div className="py-20 text-center text-gray-400">데이터가 없습니다</div>
       ) : (
         <>
-          {/* KPI Cards */}
-          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <KpiCard label="총 매출" value={`₩${krw(data.total_revenue)}`} />
-            <KpiCard label="수수료" value={`₩${krw(data.total_commission)}`} sub />
-            <KpiCard label="순수익" value={`₩${krw(data.total_net)}`} highlight />
-            <KpiCard label="예약 건수" value={`${krw(data.total_bookings)}건`} />
-            <KpiCard label="평균 ADR" value={`₩${krw(data.avg_adr)}`} />
-          </div>
+          {/* KPI Cards — Data 3 기준 3대 금액 */}
+          {data3 ? (
+            <div className="mb-5 space-y-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <KpiCard label="발생 매출 (예약일)" value={`₩${krw(data3.accrued_revenue)}`} />
+                <KpiCard label="입금 예정 (deposit)" value={`₩${krw(data3.expected_deposit)}`} />
+                <KpiCard label="실제 입금 (CSV)" value={`₩${krw(data3.actual_income)}`} />
+                <KpiCard label="순이익" value={`₩${krw(data3.net_profit)}`} highlight />
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <KpiCard label="수수료" value={`-₩${krw(data3.accrued_commission)}`} sub />
+                <KpiCard label="배분 비용" value={`-₩${krw(data3.allocated_cost)}`} sub />
+                <KpiCard label="예약 건수" value={`${krw(data3.reservation_count)}건`} />
+                <KpiCard label="평균 ADR" value={`₩${krw(data3.avg_adr)}`} />
+              </div>
+            </div>
+          ) : (
+            <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <KpiCard label="총 매출" value={`₩${krw(data.total_revenue)}`} />
+              <KpiCard label="수수료" value={`₩${krw(data.total_commission)}`} sub />
+              <KpiCard label="순수익" value={`₩${krw(data.total_net)}`} highlight />
+              <KpiCard label="예약 건수" value={`${krw(data.total_bookings)}건`} />
+              <KpiCard label="평균 ADR" value={`₩${krw(data.avg_adr)}`} />
+            </div>
+          )}
 
           {/* Chart */}
           <div className="mb-5 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">

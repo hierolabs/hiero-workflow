@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import OperationManual from "../components/OperationManual";
 import {
   fetchReservations,
   STATUS_LABELS,
@@ -11,11 +12,11 @@ import ReservationDetailModal from "../components/ReservationDetailModal";
 import MultiSelect from "../components/MultiSelect";
 
 type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
-type PeriodPreset = "today" | "this_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
+type PeriodPreset = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
 
 function getDateRange(preset: PeriodPreset): { from: string; to: string } {
   const now = new Date();
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const startOfWeek = (d: Date) => {
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
@@ -25,8 +26,17 @@ function getDateRange(preset: PeriodPreset): { from: string; to: string } {
   switch (preset) {
     case "today":
       return { from: fmt(now), to: fmt(now) };
+    case "yesterday": {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      return { from: fmt(y), to: fmt(y) };
+    }
     case "this_week": {
       const s = startOfWeek(new Date(now));
+      const e = new Date(s); e.setDate(e.getDate() + 6);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "last_week": {
+      const s = startOfWeek(new Date(now)); s.setDate(s.getDate() - 7);
       const e = new Date(s); e.setDate(e.getDate() + 6);
       return { from: fmt(s), to: fmt(e) };
     }
@@ -85,6 +95,9 @@ export default function Reservations() {
   const [keyword, setKeyword] = useState("");
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selectedResId, setSelectedResId] = useState<number | null>(null);
+  const [showManual, setShowManual] = useState(false);
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // 숙소/채널 필터 (다중 선택)
   const [filterPropIds, setFilterPropIds] = useState<string[]>([]);
@@ -123,9 +136,10 @@ export default function Reservations() {
 
     if (filterPropIds.length > 0) q.internal_prop_ids = filterPropIds.join(",");
     if (filterChannels.length > 0) q.channel_type = filterChannels.join(",");
+    if (sortBy) { q.sort_by = sortBy; q.sort_order = sortOrder; }
     (q as Record<string, unknown>).view_mode = viewMode;
     return q;
-  }, [viewMode, period, customFrom, customTo, page, keyword, filterPropIds, filterChannels]);
+  }, [viewMode, period, customFrom, customTo, page, keyword, filterPropIds, filterChannels, sortBy, sortOrder]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -191,6 +205,15 @@ export default function Reservations() {
 
   const handleViewChange = (v: ViewMode) => { setViewMode(v); setPage(1); };
   const handlePeriodChange = (p: PeriodPreset) => { setPeriod(p); setPage(1); };
+  const handleSort = (col: string) => {
+    if (sortBy === col) {
+      if (sortOrder === "desc") setSortOrder("asc");
+      else { setSortBy(""); setSortOrder("desc"); } // 3rd click: reset
+    } else {
+      setSortBy(col); setSortOrder("desc");
+    }
+    setPage(1);
+  };
 
   const formatWon = (value: number) => value.toLocaleString("ko-KR") + "원";
   const getChannelLabel = (r: Reservation) => {
@@ -216,7 +239,9 @@ export default function Reservations() {
 
   const periodPresets: { value: PeriodPreset; label: string }[] = [
     { value: "today", label: "오늘" },
+    { value: "yesterday", label: "어제" },
     { value: "this_week", label: "이번주" },
+    { value: "last_week", label: "지난주" },
     { value: "this_month", label: "이번달" },
     { value: "last_month", label: "지난달" },
     { value: "this_quarter", label: "이번 분기" },
@@ -228,9 +253,14 @@ export default function Reservations() {
 
   return (
     <div>
+      {showManual && <OperationManual page="reservations" onClose={() => setShowManual(false)} />}
+
       {/* Header */}
-      <div className="mb-4">
+      <div className="mb-4 flex items-start justify-between">
         <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">운영 매뉴얼</button>
+      </div>
+      <div className="mb-4">
         <div className="mt-2 flex flex-wrap gap-4 text-sm">
           <span className="text-gray-500">총 <strong className="text-gray-900">{total}건</strong></span>
           <span className="text-gray-500">총 <strong className="text-gray-900">{sumNights.toLocaleString()}박</strong></span>
@@ -357,14 +387,14 @@ export default function Reservations() {
                 <tr>
                   <Th>숙소</Th>
                   <Th>예약코드</Th>
-                  <Th>게스트</Th>
+                  <SortTh col="guest_name" current={sortBy} order={sortOrder} onClick={handleSort}>게스트</SortTh>
                   <Th>채널</Th>
-                  <Th>체크인</Th>
-                  <Th>체크아웃</Th>
-                  <Th>박</Th>
+                  <SortTh col="check_in_date" current={sortBy} order={sortOrder} onClick={handleSort}>체크인</SortTh>
+                  <SortTh col="check_out_date" current={sortBy} order={sortOrder} onClick={handleSort}>체크아웃</SortTh>
+                  <SortTh col="nights" current={sortBy} order={sortOrder} onClick={handleSort}>박</SortTh>
                   <Th>상태</Th>
-                  <Th>매출</Th>
-                  <Th>예약일</Th>
+                  <SortTh col="total_rate" current={sortBy} order={sortOrder} onClick={handleSort}>매출</SortTh>
+                  <SortTh col="booked_at" current={sortBy} order={sortOrder} onClick={handleSort}>예약일</SortTh>
                   {viewMode === "cancelled" && <Th>취소일</Th>}
                 </tr>
               </thead>
@@ -456,7 +486,23 @@ export default function Reservations() {
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{children}</th>;
+  return <th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-400">{children}</th>;
+}
+function SortTh({ children, col, current, order, onClick }: { children: React.ReactNode; col: string; current: string; order: string; onClick: (col: string) => void }) {
+  const active = current === col;
+  return (
+    <th
+      className={`px-4 py-3 text-left text-xs font-medium tracking-wider cursor-pointer select-none transition-colors ${active ? "text-slate-900 bg-gray-100" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"}`}
+      onClick={() => onClick(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {children}
+        <span className={`text-[10px] ${active ? "text-blue-600" : "text-gray-300"}`}>
+          {active ? (order === "asc" ? "▲" : "▼") : "⇅"}
+        </span>
+      </span>
+    </th>
+  );
 }
 function Td({ children }: { children: React.ReactNode }) {
   return <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{children}</td>;

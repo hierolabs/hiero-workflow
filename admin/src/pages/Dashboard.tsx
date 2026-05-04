@@ -48,7 +48,7 @@ const PRESETS: { key: PresetKey; label: string }[] = [
 
 function getPresetDates(key: PresetKey): { start: string; end: string } {
   const now = new Date();
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   switch (key) {
     case "today":
       return { start: fmt(now), end: fmt(now) };
@@ -117,6 +117,19 @@ interface DashboardData {
 
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(n);
 
+interface Data3Summary {
+  accrued_revenue: number;
+  accrued_commission: number;
+  accrued_net: number;
+  expected_deposit: number;
+  actual_income: number;
+  allocated_cost: number;
+  net_profit: number;
+  reservation_count: number;
+  avg_adr: number;
+  total_nights: number;
+}
+
 interface MarketingStats {
   total_leads: number;
   new_leads: number;
@@ -139,11 +152,14 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [dispatchAction, setDispatchAction] = useState<Action | null>(null);
   const [toast, setToast] = useState("");
   const [diagList, setDiagList] = useState<DiagItem[]>([]);
   const [mktStats, setMktStats] = useState<MarketingStats | null>(null);
+  const [data3, setData3] = useState<Data3Summary | null>(null);
+  const [checklistSummary, setChecklistSummary] = useState<{ total: number; completed: number; rate: number } | null>(null);
   const [showManual, setShowManual] = useState(false);
 
   // 기간 필터 상태
@@ -159,18 +175,22 @@ export default function Dashboard() {
   };
 
   const fetch_ = async () => {
-    setLoading(true);
+    const isInitial = data === null;
+    if (isInitial) setLoading(true);
+    else setRefreshing(true);
     setError("");
     try {
       const { start, end } = getDateRange();
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      // 3개 API 병렬 호출
-      const [ceoRes, diagRes, mktRes] = await Promise.all([
+      // 5개 API 병렬 호출
+      const [ceoRes, diagRes, mktRes, data3Res, clRes] = await Promise.all([
         fetch(`${PUBLIC_API_URL}/dashboard/ceo?start_date=${start}&end_date=${end}`),
         fetch(`${API_URL}/diagnosis`, { headers }).catch(() => null),
         fetch(`${API_URL}/marketing/dashboard`, { headers }).catch(() => null),
+        fetch(`${API_URL}/data3/summary?start_date=${start}&end_date=${end}`, { headers }).catch(() => null),
+        fetch(`${API_URL}/checklist/summary`, { headers }).catch(() => null),
       ]);
 
       if (!ceoRes.ok) throw new Error();
@@ -183,10 +203,17 @@ export default function Dashboard() {
       if (mktRes?.ok) {
         setMktStats(await mktRes.json());
       }
+      if (data3Res?.ok) {
+        setData3(await data3Res.json());
+      }
+      if (clRes?.ok) {
+        setChecklistSummary(await clRes.json());
+      }
     } catch {
-      setError("대시보드 데이터를 불러올 수 없습니다");
+      if (isInitial) setError("대시보드 데이터를 불러올 수 없습니다");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -204,8 +231,8 @@ export default function Dashboard() {
     }
   }, [toast]);
 
-  if (loading) return <Loading />;
-  if (error) return <Error msg={error} />;
+  if (loading && !data) return <Loading />;
+  if (error && !data) return <Error msg={error} />;
   if (!data) return null;
 
   const occGap = parseFloat(data.metrics.occupancy_rate) - parseFloat(data.metrics.target_occupancy);
@@ -249,8 +276,8 @@ export default function Dashboard() {
             <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
               운영 매뉴얼
             </button>
-            <button onClick={fetch_} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-              새로고침
+            <button onClick={fetch_} disabled={refreshing} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50">
+              {refreshing ? "갱신 중..." : "새로고침"}
             </button>
           </div>
         </div>
@@ -347,6 +374,22 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 체크리스트 요약 */}
+      {checklistSummary && checklistSummary.total > 0 && (
+        <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold text-gray-900">오늘의 체크리스트</span>
+              <span className="text-sm text-gray-500">{checklistSummary.completed}/{checklistSummary.total} 완료</span>
+            </div>
+            <a href="/checklist" className="text-xs text-blue-600 hover:underline">전체 보기 →</a>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${checklistSummary.rate}%` }} />
           </div>
         </div>
       )}
@@ -478,23 +521,39 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* 💰 매출 */}
+        {/* 💰 매출 (Data 3 기준 3대 금액) */}
         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <div className="mb-3">
             <h2 className="text-base font-bold text-gray-900">💰 매출</h2>
-            <p className="text-xs text-gray-400">Revenue Reality</p>
+            <p className="text-xs text-gray-400">Revenue / Deposit / Profit</p>
           </div>
-          <div className="space-y-3">
-            <Row label="체크인 매출 (총)" value={`₩${fmt(data.revenue.today_revenue)}`} />
-            <Row label="수수료" value={`-₩${fmt(data.revenue.today_commission)}`} sub />
-            <div className="border-t border-gray-200 pt-3">
-              <Row label="순 매출" value={`₩${fmt(data.revenue.today_net)}`} bold />
+          {data3 ? (
+            <div className="space-y-3">
+              <Row label="발생 매출 (예약일 기준)" value={`₩${fmt(data3.accrued_revenue)}`} />
+              <Row label="수수료" value={`-₩${fmt(data3.accrued_commission)}`} sub />
+              <div className="border-t border-gray-200 pt-3">
+                <Row label="입금 예정 (deposit_date)" value={`₩${fmt(data3.expected_deposit)}`} bold />
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <Row label="실제 입금 (CSV 기준)" value={`₩${fmt(data3.actual_income)}`} muted />
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <Row label="배분 비용" value={`-₩${fmt(data3.allocated_cost)}`} sub />
+                <Row label="순이익" value={`₩${fmt(data3.net_profit)}`} bold />
+              </div>
+              <div className="border-t border-gray-100 pt-3 text-xs text-gray-400">
+                {data3.reservation_count}건 / {data3.total_nights}박 / ADR ₩{fmt(data3.avg_adr)}
+              </div>
             </div>
-            <div className="border-t border-gray-100 pt-3">
-              <Row label="일일 투숙 매출 (ADR 합계)" value={`₩${fmt(data.revenue.daily_in_house)}`} muted />
-              <p className="mt-1 text-xs text-gray-400">현재 투숙 중인 {data.metrics.in_house_count}실의 하루 매출 합계</p>
+          ) : (
+            <div className="space-y-3">
+              <Row label="체크인 매출 (총)" value={`₩${fmt(data.revenue.today_revenue)}`} />
+              <Row label="수수료" value={`-₩${fmt(data.revenue.today_commission)}`} sub />
+              <div className="border-t border-gray-200 pt-3">
+                <Row label="순 매출" value={`₩${fmt(data.revenue.today_net)}`} bold />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 📈 성장 */}

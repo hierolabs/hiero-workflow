@@ -21,6 +21,11 @@ export interface Property {
   operation_status: string;
   check_in_time: string;
   check_out_time: string;
+  operation_type: string;
+  tax_category: string;
+  license_status: string;
+  contract_type: string;
+  owner_name: string;
   memo: string;
   created_by_id: number | null;
   created_at: string;
@@ -63,10 +68,49 @@ export interface CreatePropertyPayload {
   deposit: number;
   check_in_time: string;
   check_out_time: string;
+  operation_type: string;
+  tax_category: string;
+  license_status: string;
+  contract_type: string;
+  owner_name: string;
   memo: string;
 }
 
 export type UpdatePropertyPayload = Omit<CreatePropertyPayload, "code">;
+
+export const OPERATION_TYPES = ["MID_TERM_SUBLEASE", "LICENSED_AIRBNB", "WEHOME_SPECIAL", "FOREIGN_TOURIST_HOMESTAY", "UNLICENSED_RISK", "MIXED"] as const;
+export const TAX_CATEGORIES = ["VAT_EXEMPT_RENT", "VAT_TAXABLE_LODGING", "VAT_TAXABLE_SERVICE", "COMMON_COST"] as const;
+export const LICENSE_STATUSES = ["NONE", "PENDING", "APPROVED", "EXPIRED"] as const;
+export const CONTRACT_TYPES = ["SUBLEASE_CONTRACT", "PLATFORM_BOOKING", "SERVICE_CONTRACT"] as const;
+
+export const OPERATION_TYPE_LABELS: Record<string, string> = {
+  MID_TERM_SUBLEASE: "중단기 전대",
+  LICENSED_AIRBNB: "허가형 비엔비",
+  WEHOME_SPECIAL: "위홈 실증특례",
+  FOREIGN_TOURIST_HOMESTAY: "외국인관광도시민박",
+  UNLICENSED_RISK: "무허가 위험",
+  MIXED: "혼합(전대+숙박)",
+};
+
+export const TAX_CATEGORY_LABELS: Record<string, string> = {
+  VAT_EXEMPT_RENT: "면세 (전대임대료)",
+  VAT_TAXABLE_LODGING: "과세 (숙박매출)",
+  VAT_TAXABLE_SERVICE: "과세 (서비스)",
+  COMMON_COST: "공통비",
+};
+
+export const LICENSE_STATUS_LABELS: Record<string, string> = {
+  NONE: "없음",
+  PENDING: "신청중",
+  APPROVED: "승인",
+  EXPIRED: "만료",
+};
+
+export const CONTRACT_TYPE_LABELS: Record<string, string> = {
+  SUBLEASE_CONTRACT: "전대차계약",
+  PLATFORM_BOOKING: "플랫폼예약",
+  SERVICE_CONTRACT: "서비스계약",
+};
 
 export const PROPERTY_STATUSES = ["preparing", "active", "paused", "closed"] as const;
 export const OPERATION_STATUSES = ["inactive", "available", "occupied", "maintenance", "blocked"] as const;

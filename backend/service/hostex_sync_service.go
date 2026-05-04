@@ -239,10 +239,10 @@ func (s *HostexSyncService) SyncProperties() (int, error) {
 }
 
 // SyncReservations — Hostex 예약을 내부 Reservation DB로 동기화
-// 과거 30일 ~ 미래 90일 범위 (일반 동기화)
+// 과거 3일 ~ 미래 14일 (웹훅 누락분 보완 목적, 매시간 실행)
 func (s *HostexSyncService) SyncReservations() (int, error) {
-	pastStart := time.Now().Add(-30 * 24 * time.Hour).Format("2006-01-02")
-	futureEnd := time.Now().Add(90 * 24 * time.Hour).Format("2006-01-02")
+	pastStart := time.Now().Add(-3 * 24 * time.Hour).Format("2006-01-02")
+	futureEnd := time.Now().Add(14 * 24 * time.Hour).Format("2006-01-02")
 	return s.syncReservationRange(pastStart, futureEnd)
 }
 

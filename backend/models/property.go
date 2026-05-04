@@ -23,6 +23,39 @@ const (
 	OperationStatusBlocked     = "blocked"
 )
 
+// 운영유형 (세무·회계 구조)
+const (
+	OpTypeMidTermSublease      = "MID_TERM_SUBLEASE"       // 중단기 전대
+	OpTypeLicensedAirbnb       = "LICENSED_AIRBNB"          // 허가형 비엔비
+	OpTypeWehomeSpecial        = "WEHOME_SPECIAL"           // 위홈 실증특례
+	OpTypeForeignTourist       = "FOREIGN_TOURIST_HOMESTAY" // 외국인관광도시민박
+	OpTypeUnlicensedRisk       = "UNLICENSED_RISK"          // 무허가 위험
+	OpTypeMixed                = "MIXED"                    // 혼합
+)
+
+// 세금구분
+const (
+	TaxCatExemptRent      = "VAT_EXEMPT_RENT"       // 면세 전대 임대료
+	TaxCatTaxableLodging  = "VAT_TAXABLE_LODGING"   // 과세 숙박매출
+	TaxCatTaxableService  = "VAT_TAXABLE_SERVICE"    // 과세 서비스매출
+	TaxCatCommonCost      = "COMMON_COST"            // 공통비
+)
+
+// 허가상태
+const (
+	LicenseNone      = "NONE"       // 없음
+	LicensePending   = "PENDING"    // 신청중
+	LicenseApproved  = "APPROVED"   // 승인
+	LicenseExpired   = "EXPIRED"    // 만료
+)
+
+// 계약유형
+const (
+	ContractSublease = "SUBLEASE_CONTRACT"  // 전대차계약
+	ContractPlatform = "PLATFORM_BOOKING"   // 플랫폼 숙박예약
+	ContractService  = "SERVICE_CONTRACT"   // 운영관리/컨설팅
+)
+
 var ValidPropertyStatuses = map[string]bool{
 	PropertyStatusPreparing: true,
 	PropertyStatusActive:    true,
@@ -78,6 +111,13 @@ type Property struct {
 
 	// 표시 순서
 	DisplayOrder int `gorm:"default:9999" json:"display_order"`
+
+	// 세무·회계
+	OperationType string `gorm:"size:30;index;default:''" json:"operation_type"`  // MID_TERM_SUBLEASE / LICENSED_AIRBNB / MIXED 등
+	TaxCategory   string `gorm:"size:30;index;default:''" json:"tax_category"`    // VAT_EXEMPT_RENT / VAT_TAXABLE_LODGING 등
+	LicenseStatus string `gorm:"size:20;default:''" json:"license_status"`        // NONE / PENDING / APPROVED / EXPIRED
+	ContractType  string `gorm:"size:30;default:''" json:"contract_type"`         // SUBLEASE_CONTRACT / PLATFORM_BOOKING 등
+	OwnerName     string `gorm:"size:100;default:''" json:"owner_name"`           // 임대인(집주인)
 
 	// 메모
 	Memo string `gorm:"type:text" json:"memo"`

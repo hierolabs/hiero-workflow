@@ -1,157 +1,86 @@
-import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-interface Property {
-  id: number;
-  code: string;
-  name: string;
-  region: string;
-  status: string;
-  display_order: number;
-}
+const settingsMenus = [
+  {
+    to: "/settings/property-order",
+    title: "숙소 표시 순서",
+    description: "캘린더·공간관리에서 숙소가 표시되는 순서를 조정합니다",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+      </svg>
+    ),
+  },
+  {
+    to: "/settings/property-costs",
+    title: "숙소별 비용 설정",
+    description: "소유구조·월세·위탁료·공과금 등 고정비용을 설정합니다",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    badge: "준비중",
+  },
+  {
+    to: "/settings/notifications",
+    title: "알림 설정",
+    description: "이슈·청소·예약 알림 수신 채널과 조건을 설정합니다",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+    ),
+    badge: "준비중",
+  },
+  {
+    to: "/settings/categories",
+    title: "카테고리 관리",
+    description: "이슈 유형·청소 유형·비용 카테고리를 관리합니다",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+      </svg>
+    ),
+    badge: "준비중",
+  },
+];
 
 export default function Settings() {
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-
-  const token = localStorage.getItem("token");
-
-  const fetchProperties = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`${API_URL}/properties?page=1&page_size=200`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const json = await res.json();
-      setProperties(json.properties || []);
-    }
-    setLoading(false);
-  }, [token]);
-
-  useEffect(() => {
-    fetchProperties();
-  }, [fetchProperties]);
-
-  function handleDragStart(idx: number) {
-    setDragIdx(idx);
-  }
-
-  function handleDragOver(e: React.DragEvent, idx: number) {
-    e.preventDefault();
-    if (dragIdx === null || dragIdx === idx) return;
-    const updated = [...properties];
-    const [moved] = updated.splice(dragIdx, 1);
-    updated.splice(idx, 0, moved);
-    setProperties(updated);
-    setDragIdx(idx);
-  }
-
-  function handleDragEnd() {
-    setDragIdx(null);
-  }
-
-  function moveItem(idx: number, direction: "up" | "down") {
-    const target = direction === "up" ? idx - 1 : idx + 1;
-    if (target < 0 || target >= properties.length) return;
-    const updated = [...properties];
-    [updated[idx], updated[target]] = [updated[target], updated[idx]];
-    setProperties(updated);
-  }
-
-  async function saveOrder() {
-    setSaving(true);
-    const orders = properties.map((p, i) => ({ id: p.id, display_order: i + 1 }));
-    const res = await fetch(`${API_URL}/properties/reorder`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ orders }),
-    });
-    if (res.ok) {
-      setToast("순서가 저장되었습니다");
-      setTimeout(() => setToast(""), 2000);
-    } else {
-      setToast("저장 실패");
-      setTimeout(() => setToast(""), 2000);
-    }
-    setSaving(false);
-  }
-
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">설정</h1>
-        <p className="mt-1 text-sm text-gray-500">숙소 표시 순서를 드래그 또는 버튼으로 조정합니다</p>
+        <p className="mt-1 text-sm text-gray-500">시스템 설정을 관리합니다</p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-700">숙소 순서 (캘린더/공간관리 공통)</h3>
-          <button
-            onClick={saveOrder}
-            disabled={saving}
-            className="rounded-md bg-slate-800 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+      <div className="grid gap-4 sm:grid-cols-2">
+        {settingsMenus.map((menu) => (
+          <Link
+            key={menu.to}
+            to={menu.to}
+            className="group relative flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
           >
-            {saving ? "저장 중..." : "순서 저장"}
-          </button>
-        </div>
-
-        {toast && (
-          <div className="mx-4 mt-2 rounded bg-green-50 px-3 py-1.5 text-xs text-green-700">{toast}</div>
-        )}
-
-        {loading ? (
-          <div className="py-12 text-center text-sm text-gray-400">로딩 중...</div>
-        ) : (
-          <div className="max-h-[600px] overflow-y-auto">
-            {properties.map((p, idx) => (
-              <div
-                key={p.id}
-                draggable
-                onDragStart={() => handleDragStart(idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDragEnd={handleDragEnd}
-                className={`flex items-center gap-3 border-b border-gray-100 px-4 py-2 text-sm transition-colors ${
-                  dragIdx === idx ? "bg-blue-50" : "hover:bg-gray-50"
-                } cursor-grab active:cursor-grabbing`}
-              >
-                <span className="w-8 shrink-0 text-center text-xs text-gray-400">{idx + 1}</span>
-                <svg className="h-4 w-4 shrink-0 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
-                </svg>
-                <span className="w-16 shrink-0 font-mono text-xs text-gray-500">{p.code}</span>
-                <span className="flex-1 truncate text-gray-700">{p.name}</span>
-                <span className="w-16 shrink-0 text-xs text-gray-400">{p.region}</span>
-                <span className={`w-12 shrink-0 text-xs ${p.status === "active" ? "text-green-600" : "text-gray-400"}`}>
-                  {p.status === "active" ? "활성" : p.status}
-                </span>
-                <div className="flex shrink-0 gap-1">
-                  <button
-                    onClick={() => moveItem(idx, "up")}
-                    disabled={idx === 0}
-                    className="rounded p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => moveItem(idx, "down")}
-                    disabled={idx === properties.length - 1}
-                    className="rounded p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+              {menu.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">{menu.title}</h3>
+                {menu.badge && (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                    {menu.badge}
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+              <p className="mt-1 text-xs text-gray-500 leading-relaxed">{menu.description}</p>
+            </div>
+            <svg className="h-5 w-5 shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        ))}
       </div>
     </div>
   );

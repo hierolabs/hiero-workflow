@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 	"unicode/utf8"
 
 	"hiero-workflow/backend/config"
@@ -58,6 +60,7 @@ func (s *TransactionService) ImportCSV(reader io.Reader) (int, int, error) {
 			skipped++
 			continue
 		}
+		MapAccountingFields(&tx)
 		parsed = append(parsed, tx)
 	}
 
@@ -89,7 +92,9 @@ type MonthlySummary struct {
 	Revenue      int64  `json:"revenue"`         // 객실 요금
 	OtherRevenue int64  `json:"other_revenue"`   // 기타 수입 (배당및월세, 기타 등)
 	Refund       int64  `json:"refund"`          // 환불
-	NetRevenue   int64  `json:"net_revenue"`     // 순매출 (Revenue + OtherRevenue - Refund)
+	Commission   int64  `json:"commission"`      // 플랫폼 수수료 (reservations.total_commission)
+	AirbnbVat    int64  `json:"airbnb_vat"`      // 에어비앤비 부가세 10%
+	NetRevenue   int64  `json:"net_revenue"`     // 순매출 (Revenue + OtherRevenue - Refund - Commission - AirbnbVat)
 	// 비용
 	CleaningFee  int64  `json:"cleaning_fee"`    // 청소 비용
 	MgmtFee      int64  `json:"mgmt_fee"`        // 관리비
@@ -245,6 +250,38 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 		mapCategoryToSummary(sm, r.Type, r.Category, r.Total)
 	}
 
+	// reservations에서 숙소별 수수료 + 에어비앤비 매출 조회
+	type commRow struct {
+		PropertyID      uint
+		TotalCommission int64
+		AirbnbRevenue   int64
+	}
+	var commRows []commRow
+	commDB := config.DB.Model(&models.Reservation{}).
+		Select(`property_id,
+			SUM(total_commission) as total_commission,
+			SUM(CASE WHEN channel_name IN ('Airbnb','에어비앤비') THEN total_rate ELSE 0 END) as airbnb_revenue`).
+		Where("status = 'accepted' AND booked_at >= ? AND booked_at <= ?", query.StartDate, query.EndDate+" 23:59:59")
+	if query.PropertyIDs != "" {
+		ids := strings.Split(query.PropertyIDs, ",")
+		commDB = commDB.Where("property_id IN ?", ids)
+	} else if query.PropertyID > 0 {
+		commDB = commDB.Where("property_id = ?", query.PropertyID)
+	}
+	commDB.Group("property_id").Scan(&commRows)
+
+	// 수수료/부가세를 summaryMap에 반영
+	for _, cr := range commRows {
+		for k, sm := range summaryMap {
+			if sm.PropertyID == uint(cr.PropertyID) {
+				sm.Commission = cr.TotalCommission
+				sm.AirbnbVat = int64(float64(cr.AirbnbRevenue) * 0.1)
+				summaryMap[k] = sm
+				break
+			}
+		}
+	}
+
 	// 결과 + 합계
 	var total MonthlySummary
 	total.YearMonth = query.StartDate + "~" + query.EndDate
@@ -314,7 +351,7 @@ func mapCategoryToSummary(sm *MonthlySummary, txType, category string, amount in
 
 // calcSummaryTotals 순매출/총비용/이익 계산
 func calcSummaryTotals(sm *MonthlySummary) {
-	sm.NetRevenue = sm.Revenue + sm.OtherRevenue - sm.Refund
+	sm.NetRevenue = sm.Revenue + sm.OtherRevenue - sm.Refund - sm.Commission - sm.AirbnbVat
 	sm.TotalCost = sm.CleaningFee + sm.MgmtFee + sm.RentOut + sm.RentIn +
 		sm.OperationFee + sm.LaborFee + sm.SuppliesFee + sm.Maintenance +
 		sm.InteriorFee + sm.InterestFee + sm.DividendFee + sm.PropertyFee + sm.OtherCost
@@ -329,6 +366,8 @@ func addToTotal(total *MonthlySummary, sm *MonthlySummary) {
 	total.Revenue += sm.Revenue
 	total.OtherRevenue += sm.OtherRevenue
 	total.Refund += sm.Refund
+	total.Commission += sm.Commission
+	total.AirbnbVat += sm.AirbnbVat
 	total.NetRevenue += sm.NetRevenue
 	total.CleaningFee += sm.CleaningFee
 	total.MgmtFee += sm.MgmtFee
@@ -345,6 +384,49 @@ func addToTotal(total *MonthlySummary, sm *MonthlySummary) {
 	total.OtherCost += sm.OtherCost
 	total.TotalCost += sm.TotalCost
 	total.Profit += sm.Profit
+}
+
+// ─── 개별 거래 조회 (셀 드릴다운) ─────────────────────────────
+
+// ListTransactions 숙소 + 기간 + 카테고리 조건으로 개별 거래 목록 반환
+func (s *TransactionService) ListTransactions(propertyID uint, startDate, endDate, category, txType string) ([]models.HostexTransaction, error) {
+	var txs []models.HostexTransaction
+	db := config.DB.Where("transaction_at >= ? AND transaction_at <= ?", startDate, endDate+" 23:59:59")
+	if propertyID > 0 {
+		db = db.Where("property_id = ?", propertyID)
+	}
+	if category != "" {
+		db = db.Where("category = ?", category)
+	}
+	if txType != "" {
+		db = db.Where("type = ?", txType)
+	}
+	err := db.Order("transaction_at DESC").Find(&txs).Error
+	return txs, err
+}
+
+// UpdateTransactionCategory 거래 카테고리 변경
+func (s *TransactionService) UpdateTransactionCategory(id uint, newCategory string) error {
+	var tx models.HostexTransaction
+	if err := config.DB.First(&tx, id).Error; err != nil {
+		return err
+	}
+	tx.Category = newCategory
+	MapAccountingFields(&tx)
+	return config.DB.Save(&tx).Error
+}
+
+// AllCategories 사용 가능한 모든 카테고리 목록
+func (s *TransactionService) AllCategories() []string {
+	return []string{
+		models.TxCatRoomRate, models.TxCatRoomRefund,
+		models.TxCatCleaning, models.TxCatMgmt,
+		models.TxCatRentOut, models.TxCatRentIn,
+		models.TxCatOperation, models.TxCatLabor,
+		models.TxCatSupplies, models.TxCatMaintenance,
+		models.TxCatInterior, models.TxCatPropertyFee,
+		models.TxCatDividend, models.TxCatDividendOnly, models.TxCatInterest,
+	}
 }
 
 // ─── 내부 헬퍼 ───────────────────────────────────────────────
@@ -447,4 +529,147 @@ func (b *bomReader) Read(p []byte) (int, error) {
 	// UTF-8 유효성 체크는 건너뜀
 	_ = utf8.Valid(p[:n])
 	return n, err
+}
+
+// ─── 계정과목 자동 매핑 ─────────────────────────────────────
+
+// OTA 채널 (과세 숙박매출)
+var otaChannels = map[string]bool{
+	"Airbnb": true, "에어비앤비": true,
+	"Agoda": true, "Booking.com": true,
+}
+
+// 장기 전대 채널 (면세 검토)
+var exemptChannels = map[string]bool{
+	"삼삼엠투": true, "리브": true, "자리톡": true,
+	"Houfy": true,
+}
+
+// 미분류 채널
+var reviewChannels = map[string]bool{
+	"오류검토": true, "알 수 없음": true, "미납": true,
+}
+
+// MapAccountingFields 거래의 category/type/channel을 기반으로 계정코드/계정명/세무분류 자동 매핑
+func MapAccountingFields(tx *models.HostexTransaction) {
+	if tx.Type == models.TxTypeIncome {
+		mapIncomeAccounting(tx)
+	} else {
+		mapExpenseAccounting(tx)
+	}
+}
+
+func mapIncomeAccounting(tx *models.HostexTransaction) {
+	switch tx.Category {
+	case models.TxCatRoomRate:
+		ch := tx.Channel
+		if otaChannels[ch] {
+			tx.AccountCode = "4201"
+			tx.AccountName = "숙박공유매출"
+			tx.TaxCategory = "VAT_TAXABLE_LODGING"
+		} else if exemptChannels[ch] || strings.HasPrefix(ch, "개인") {
+			tx.AccountCode = "4101"
+			tx.AccountName = "주거전대임대료수입"
+			tx.TaxCategory = "VAT_EXEMPT_RENT"
+		} else if reviewChannels[ch] {
+			tx.AccountCode = "9999"
+			tx.AccountName = "미분류매출"
+			tx.TaxCategory = "REVIEW_NEEDED"
+		} else {
+			// 알 수 없는 채널 → 검토 필요
+			tx.AccountCode = "9999"
+			tx.AccountName = "미분류매출"
+			tx.TaxCategory = "REVIEW_NEEDED"
+		}
+	case models.TxCatRoomRefund:
+		tx.AccountCode = "5114"
+		tx.AccountName = "고객보상비"
+		tx.TaxCategory = "VAT_TAXABLE_LODGING"
+	case "기타":
+		tx.AccountCode = "4901"
+		tx.AccountName = "기타수입"
+		tx.TaxCategory = "OTHER"
+	case models.TxCatDividend:
+		tx.AccountCode = "4901"
+		tx.AccountName = "기타수입"
+		tx.TaxCategory = "OTHER"
+	default:
+		tx.AccountCode = "9999"
+		tx.AccountName = "미분류매출"
+		tx.TaxCategory = "REVIEW_NEEDED"
+	}
+}
+
+func mapExpenseAccounting(tx *models.HostexTransaction) {
+	switch tx.Category {
+	case models.TxCatRentOut, models.TxCatRentIn, models.TxCatInterest:
+		tx.AccountCode = "5101"
+		tx.AccountName = "원임차료"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatMgmt:
+		tx.AccountCode = "5102"
+		tx.AccountName = "원관리비"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatCleaning:
+		tx.AccountCode = "5106"
+		tx.AccountName = "청소용역비"
+		tx.TaxCategory = "VAT_TAXABLE_SERVICE"
+	case models.TxCatSupplies:
+		tx.AccountCode = "5108"
+		tx.AccountName = "소모품비"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatMaintenance:
+		tx.AccountCode = "5109"
+		tx.AccountName = "수선비"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatInterior, "프로모션 비용":
+		tx.AccountCode = "5112"
+		tx.AccountName = "비품비/시설장치"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatRoomRefund:
+		tx.AccountCode = "5114"
+		tx.AccountName = "고객보상비"
+		tx.TaxCategory = "VAT_TAXABLE_LODGING"
+	case models.TxCatPropertyFee:
+		tx.AccountCode = "6107"
+		tx.AccountName = "세금과공과"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatLabor, models.TxCatOperation, "부동산수수료":
+		tx.AccountCode = "6109"
+		tx.AccountName = "지급수수료"
+		tx.TaxCategory = "COMMON_COST"
+	case models.TxCatDividend, models.TxCatDividendOnly:
+		tx.AccountCode = "9000"
+		tx.AccountName = "이익처분(배당)"
+		tx.TaxCategory = "NON_PL"
+	case "기타":
+		tx.AccountCode = "9999"
+		tx.AccountName = "미분류비용"
+		tx.TaxCategory = "REVIEW_NEEDED"
+	default:
+		tx.AccountCode = "9999"
+		tx.AccountName = "미분류비용"
+		tx.TaxCategory = "REVIEW_NEEDED"
+	}
+}
+
+// BackfillAccountingFields 기존 데이터에 계정코드/세무분류 일괄 매핑
+func (s *TransactionService) BackfillAccountingFields() (int64, error) {
+	var total int64
+	var txs []models.HostexTransaction
+
+	result := config.DB.Where("account_code IS NULL OR account_code = ''").FindInBatches(&txs, 500, func(tx2 *gorm.DB, batch int) error {
+		for i := range txs {
+			MapAccountingFields(&txs[i])
+		}
+		tx2.Save(&txs)
+		total += int64(len(txs))
+		log.Printf("[backfill] batch %d: %d건 매핑 완료 (누적 %d)", batch, len(txs), total)
+		return nil
+	})
+
+	if result.Error != nil {
+		return total, result.Error
+	}
+	return total, nil
 }

@@ -22,6 +22,9 @@ type HostexTransaction struct {
 	PropertyID    *uint     `gorm:"index" json:"property_id"`              // 내부 Property ID (매칭 후)
 	Operator      string    `gorm:"size:100" json:"operator"`              // 운영자
 	Note          string    `gorm:"type:text" json:"note"`                 // 비고
+	AccountCode   string    `gorm:"size:10;index" json:"account_code"`     // 계정과목코드 (4101, 4201, 5101 등)
+	AccountName   string    `gorm:"size:50" json:"account_name"`           // 계정과목명
+	TaxCategory   string    `gorm:"size:30;index" json:"tax_category"`     // 세무분류 (VAT_EXEMPT_RENT 등)
 	YearMonth     string    `gorm:"size:7;index" json:"year_month"`        // YYYY-MM (집계용)
 
 	CreatedAt time.Time `json:"created_at"`

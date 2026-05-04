@@ -38,6 +38,61 @@ const PAGE_CONFIG: Record<ManualPage, ManualConfig> = {
   dashboard: {
     title: "대시보드 운영 매뉴얼",
     sections: [
+      { key: "data-arch", label: "데이터 아키텍처 (전체)", defaultContent: `## HIERO 데이터 아키텍처
+
+### 데이터 구분
+| 구분 | 소스 | 테이블 | 역할 |
+|------|------|--------|------|
+| **Data 1** | Hostex API | reservations | 예약 원본. 매출의 기준 |
+| **Data 2** | Hostex CSV | hostex_transactions → cost_raw → cost_allocations | 정산/비용 원본 |
+| **Data 3** | Data 1 + Data 2 JOIN | (쿼리 시 생성) | 모든 분석의 기준 |
+
+### JOIN 조건
+\`reservations.reservation_code = hostex_transactions.reservation_ref\`
+
+### 3대 금액
+| 항목 | 의미 | 데이터 소스 | 날짜 기준 |
+|------|------|------------|-----------|
+| **발생 매출** | 언제 예약이 생겼나 | Data 1 (total_rate) | booked_at |
+| **입금 예정** | 언제 돈이 들어오나 | Data 3 (total_rate) | deposit_date |
+| **실제 입금** | 실제 얼마 들어왔나 | Data 2 (amount, type=수입) | transaction_at |
+
+### deposit_date 채널별 규칙
+| 채널 | 계산식 |
+|------|--------|
+| Liv / 리브애니웨어 | check_in_date |
+| 삼삼엠투 | check_in_date |
+| Airbnb | check_in_date + 1일 |
+| Booking.com | check_in_date |
+| Agoda | check_out_date |
+| 자리톡 | check_in_date + 5일 |
+
+### 비용 배분 규칙
+- 비용 기간(start~end)을 월별 일할 배분
+- 예: 100만원 (3/15~4/15) → 3월 516,129원 + 4월 483,871원
+- 원본은 cost_raw에 보존, 배분은 cost_allocations에 생성
+- 순이익 = 발생 매출 - cost_allocations(해당 월 배분 비용)
+
+### 페이지별 매핑
+| 페이지 | 데이터 | 날짜 기준 |
+|--------|--------|-----------|
+| /reservations | Data 1 | booked_at / check_in / check_out |
+| /settlement | Data 2 | transaction_at |
+| /revenue | Data 3 | 3대 금액 모두 표시 |
+| /dashboard | Data 3 | 3대 금액 요약 |
+
+### 동기화 방식
+| 방식 | 시점 | 범위 |
+|------|------|------|
+| 웹훅 | 실시간 | 해당 1건 |
+| 크론 | 매 1시간 | 과거 30일 ~ 미래 90일 |
+| 풀싱크 | 서버 부팅 시 | 과거 2년 ~ 미래 90일 |
+| CSV 업로드 | 수동 | 업로드 파일 전체 |
+
+### API
+- \`GET /admin/data3/summary?start_date=&end_date=\` — 3대 금액 집계
+- \`GET /admin/data3/records?start_date=&end_date=&date_field=\` — 개별 레코드
+- \`GET /admin/costs/monthly?start_month=&end_month=\` — 월별 비용` },
       { key: "morning", label: "매일 아침 확인 루틴", defaultContent: `## 매일 아침 확인 루틴
 
 1. **전일 예약 현황** — 신규 예약, 취소, 변경 건 확인
@@ -180,19 +235,112 @@ Dashboard → 캘린더 → 청소 → 이슈 → 메시지
   reservations: {
     title: "예약 관리 매뉴얼",
     sections: [
-      { key: "check", label: "예약 상태 확인", defaultContent: `## 예약 상태 확인
+      { key: "overview", label: "이 페이지 안내", defaultContent: `## 예약 관리 페이지
 
-### 예약 상태 종류
-- **confirmed** — 확정된 예약
-- **pending** — 대기 중 (호스트 승인 필요)
-- **cancelled** — 취소됨
-- **completed** — 퇴실 완료
+### 탭별 용도
+| 탭 | 날짜 기준 | 핵심 질문 |
+|-----|-----------|-----------|
+| **예약** | booked_at (예약 생성일) | 이 기간에 얼마의 매출이 발생했나? |
+| **체크인** | check_in_date | 오늘/이번 주 누가 입실하나? |
+| **체크아웃** | check_out_date | 오늘/이번 주 누가 퇴실하나? |
+| **연장** | 연속 예약 묶음 | 청소 스킵 대상은? |
+| **취소** | cancelled_at | 환불/재판매 대상은? |
 
-### 일일 확인 사항
-1. 오늘 체크인 예정 건 — 게스트 연락 여부
-2. 오늘 체크아웃 예정 건 — 청소 배정 확인
-3. 내일 체크인 예정 건 — 사전 안내 메시지 발송
-4. 미매칭 예약 — 숙소 매칭 확인` },
+### 데이터 출처
+Hostex API 예약 원본 (Data 1). 웹훅으로 실시간 반영, 1시간마다 자동 동기화.
+전체 데이터 구조는 **대시보드 매뉴얼 > 데이터 아키텍처** 참조.
+
+### 숫자를 볼 때 주의
+- **total_rate** = 게스트가 결제한 총액 (수수료 포함)
+- **status = accepted**인 건만 매출 집계에 포함
+- 2025년 상반기 데이터는 일부 누락 있음 (CSV 정산 기준 사용)` },
+      { key: "decision", label: "의사결정 (CEO)", defaultContent: `## 의사결정 모드 — CEO/대표
+
+> 이 페이지에서 "돈이 되고 있는가"를 판단한다.
+
+### 매주 월요일: 예약 탭 > 이번 달
+1. **이번 달 총매출** — 월 목표 대비 진행률 확인
+2. **전주 대비 신규 예약 건수** — 3일 연속 감소면 가격/채널 점검 지시
+3. **채널별 비중** — 단일 채널 50% 초과 시 분산 전략 필요
+
+### 매주 수요일: 취소 탭
+1. **취소율** — 10% 초과면 원인 분석 지시
+2. **동일 숙소 연속 취소** — 시설/리스팅 문제 의심 → 현장 점검 지시
+3. **취소 후 재판매 여부** — 빈 날짜 방치 확인
+
+### 의사결정 트리거
+| 이 페이지에서 보이는 것 | 판단 | 지시 대상 |
+|--------------------------|------|-----------|
+| 특정 숙소 14일간 예약 0건 | 구조적 문제 | 오재관: 사진 재촬영 / 우연: 리스팅 수정 |
+| 이번 달 매출 목표 50% 미달 (15일 기준) | 가격 전략 실패 | 전체: 가격 -15% + 프로모션 |
+| 특정 채널 매출 급감 | 채널 이상 | 우연: 채널 상태 확인 |
+| ADR이 전월 대비 -20% | 저가 경쟁 돌입 | 김진우: 시장 재조사 후 가격 재설정 |
+
+### 이 페이지에서 안 봐도 되는 것
+- 개별 체크인/체크아웃 상세 (관리 모드)
+- 미매칭 건 처리 (실행 모드)
+- API 필드, 데이터 구조 (데이터 구조 탭)` },
+      { key: "manage", label: "관리 (중간관리자)", defaultContent: `## 관리 모드 — 중간관리자
+
+> 이 페이지에서 "오늘~이번 주 운영에 구멍이 없는가"를 확인한다.
+
+### 매일 아침 9:00 (5분)
+1. **체크인 탭 > 오늘** — 오늘 입실 건 확인
+   - 각 건의 안내 메시지 발송 여부 (게스트 메시지 페이지와 교차 확인)
+   - 도어락 비밀번호 세팅 여부
+   - 청소 완료 여부 (청소 관리 페이지와 교차 확인)
+2. **체크아웃 탭 > 오늘** — 오늘 퇴실 건 확인
+   - 청소 배정 완료 여부
+   - 다음 체크인까지 시간 여유 (2시간 미만이면 청소 우선 배정)
+3. **연장 탭** — 연속 숙박 건 → 청소 스킵 대상 김진태에게 전달
+
+### 매주 월요일 (15분)
+1. **체크인 탭 > 이번 주** — 주간 입실 전체 조회
+   - 동시 체크인 3건 이상 날짜 → 청소 인력 사전 확보
+   - 외국인 게스트 → 영문 안내 준비 지시
+2. **취소 탭 > 최근 7일** — 재판매 가능 건 확인
+   - 직전 3일 이내 빈 날짜 → 직전 할인 걸기
+
+### 에스컬레이션 (내가 올려야 하는 것)
+| 상황 | 보고 대상 | 시한 |
+|------|-----------|------|
+| 미매칭 3건 이상 누적 | 개발/연동 담당 | 당일 |
+| 같은 숙소 2주 연속 무예약 | CEO (김진우) | 주간 보고 |
+| 체크인 당일 게스트 미연락 | CS (우연) | 1시간 이내 |
+| 당일 청소 인력 부족 | 청소 (김진태) | 즉시 |` },
+      { key: "execute", label: "실행 (현장팀)", defaultContent: `## 실행 모드 — 현장 실무자
+
+> 이 페이지에서 "오늘 내가 뭘 해야 하는가"를 확인한다.
+
+### 출근 직후 (3분)
+1. **체크인 탭 > 오늘** 열기
+   - 건별로 게스트명, 숙소, 체크인 시간 확인
+   - 안내 메시지 미발송 건 → 즉시 발송 (게스트 메시지 페이지)
+   - 도어락 코드 확인 → 안내 메시지에 포함됐는지 체크
+2. **체크아웃 탭 > 오늘** 열기
+   - 건별로 퇴실 시간 확인
+   - 청소 배정 안 된 건 → 청소 관리에서 즉시 배정
+
+### 오전 중 (필요시)
+3. **연장 탭** 확인
+   - 연속 숙박 건 → 중간 청소 불필요 → 김진태에게 "스킵" 전달
+   - 연장 미확인 방치 시 → 투숙 중 방에 청소부 진입 사고
+
+### 사고 방지 체크리스트
+| 절대 안 되는 것 | 결과 | 확인 방법 |
+|------------------|------|-----------|
+| 체크인 당일 안내 미발송 | 게스트 컴플레인 → 리뷰 하락 | 체크인 탭에서 오늘 건 전수 확인 |
+| 체크아웃 청소 미배정 | 다음 게스트 미청소 입실 | 체크아웃 탭 + 청소 관리 교차 확인 |
+| 미매칭 건 방치 | 매출 집계 누락 → 정산 오류 | 미매칭 필터로 주 1회 점검 |
+
+### 신규 입사자 첫 주
+| 날짜 | 할 일 |
+|------|-------|
+| 1일차 | 탭(예약/체크인/체크아웃/연장/취소) 전환하며 구조 파악, 선임이 옆에서 설명 |
+| 2일차 | 오늘 체크인/아웃 직접 확인 → 선임에게 구두 보고 |
+| 3일차 | 연장 예약 식별 → "이 건은 청소 스킵" 판단 연습 |
+| 4일차 | 취소 건 확인 → 재판매 가능 여부 판단 연습 |
+| 5일차 | 미매칭 건 발견 → 재매칭 직접 실행 |` },
       { key: "noshow", label: "노쇼/취소 대응", defaultContent: `## 노쇼/취소 대응 프로세스
 
 ### 노쇼 (No-show)
@@ -209,18 +357,6 @@ Dashboard → 캘린더 → 청소 → 이슈 → 메시지
 ### 환불 기준
 - 플랫폼별 환불 정책 준수
 - 특이 사항은 이슈로 등록` },
-      { key: "mismatch", label: "매칭 오류 대응", defaultContent: `## 예약 매칭 오류 대응
-
-### 매칭 오류 원인
-1. Hostex 숙소 ID 매핑 누락
-2. 동기화 지연
-3. 수동 예약 입력 오류
-
-### 대응 절차
-1. 예약 관리 > 재매칭 실행
-2. 자동 매칭 실패 시 수동으로 숙소 지정
-3. Hostex 연동 페이지에서 매핑 상태 확인
-4. 반복 발생 시 매핑 테이블 재설정` },
       { key: "checkinout", label: "체크인/체크아웃 운영", defaultContent: `## 체크인/체크아웃 운영
 
 ### 체크인 프로세스
@@ -238,6 +374,50 @@ Dashboard → 캘린더 → 청소 → 이슈 → 메시지
 - 예약별 임시 비밀번호 생성
 - 체크아웃 후 비밀번호 변경
 - 마스터 비밀번호는 팀 내부만 공유` },
+      { key: "data-ref", label: "개발 레퍼런스", defaultContent: `## 예약 데이터 레퍼런스 (개발용)
+
+> 코드 수정·기능 추가 시 참조. 운영에는 필요 없음.
+
+### 데이터 흐름
+OTA 채널 → Hostex → API/웹훅 → reservations 테이블 (Data 1) → 매출/정산/분석
+
+### 동기화
+| 방식 | 시점 | 범위 |
+|------|------|------|
+| 웹훅 | 실시간 | 해당 1건 |
+| 크론 | 매 1시간 | 과거 30일 ~ 미래 90일 |
+| 풀싱크 | 서버 부팅 시 | 과거 2년 ~ 미래 90일 |
+
+### DB 저장 필드
+| API 필드 | DB 컬럼 | 설명 |
+|----------|---------|------|
+| reservation_code | reservation_code | 예약 고유 코드 (PK, 정산 JOIN 키) |
+| stay_code | stay_code | 연장 예약 묶음 코드 |
+| property_id | property_id | Hostex 숙소 ID |
+| channel_type | channel_type | 채널 코드 (airbnb, booking 등) |
+| check_in_date | check_in_date | 체크인 날짜 |
+| check_out_date | check_out_date | 체크아웃 날짜 |
+| number_of_guests | number_of_guests | 게스트 수 |
+| status | status | 예약 상태 (accepted/cancelled) |
+| stay_status | stay_status | 투숙 상태 (checkin_pending/in_house/checked_out) |
+| guest_name | guest_name | 게스트 이름 |
+| guest_phone | guest_phone | 게스트 전화번호 |
+| booked_at | booked_at | 예약 생성 시점 (매출 기준일) |
+| cancelled_at | cancelled_at | 취소 시점 |
+| conversation_id | conversation_id | 메시지 대화 ID |
+| rates.total_rate.amount | total_rate | 총 매출 (원) |
+| rates.total_commission.amount | total_commission | 수수료 (원) |
+| custom_channel.name | channel_name | 채널 표시명 |
+
+### 미사용 필드 (확장 가능)
+| 필드 | 활용 아이디어 |
+|------|--------------|
+| number_of_pets | 펫 청소 추가비 자동 부과 |
+| guests[].country | 외국인 비율 분석, 다국어 안내 |
+| check_in_details.lock_code | 체크인 안내 메시지 자동 생성 |
+| rates.details[CLEANING_FEE] | 게스트 부담 청소비 vs 실제 청소비 비교 |
+| additional_fees[] | 추가 요금 자동 정산 |
+| created_at | booked_at 이상값 감지 (싱크 시점 덮어쓰기 버그)` },
     ],
   },
   cleaning: {
@@ -402,6 +582,27 @@ Dashboard → 캘린더 → 청소 → 이슈 → 메시지
   revenue: {
     title: "매출 현황 매뉴얼",
     sections: [
+      { key: "data-arch", label: "이 페이지의 데이터", defaultContent: `## 매출현황 페이지 데이터
+
+> 전체 아키텍처는 대시보드 매뉴얼 > "데이터 아키텍처 (전체)" 참조
+
+### 이 페이지가 보여주는 것
+Data 3 (예약 + 정산 JOIN) 기준으로 분석 뷰를 제공합니다.
+
+### KPI 카드 (상단)
+- 발생 매출 / 입금 예정 / 실제 입금 / 순이익
+- 수수료 / 배분 비용 / 예약 건수 / 평균 ADR
+
+### 기간별 추이 (차트)
+- 일별/주별/월별 매출·순수익 바 차트
+- 기존 Data 1 기반 (check_in_date 기준 집계)
+
+### 채널별 분석
+- 채널별 매출, 수수료, 순수익, 건수, ADR, 비중
+
+### API
+- \`GET /admin/revenue/summary\` — 기간별/채널별 (Data 1 기반)
+- \`GET /admin/data3/summary\` — 3대 금액 KPI (Data 3 기반)` },
       { key: "interpret", label: "매출 데이터 해석", defaultContent: `## 매출 데이터 해석 방법
 
 ### 핵심 용어
@@ -481,6 +682,23 @@ Dashboard → 캘린더 → 청소 → 이슈 → 메시지
   settlement: {
     title: "정산 관리 매뉴얼",
     sections: [
+      { key: "data-arch", label: "이 페이지의 데이터", defaultContent: `## 정산 페이지 데이터
+
+> 전체 아키텍처는 대시보드 매뉴얼 > "데이터 아키텍처 (전체)" 참조
+
+### 이 페이지가 보여주는 것
+Data 2 (Hostex CSV) 원본 기준의 정산 데이터입니다.
+
+### CSV 업로드
+- Hostex > 재무 > 거래 내역 > CSV 다운로드
+- 이 페이지 또는 \`POST /admin/transactions/upload\`로 업로드
+- 컬럼: 날짜, 유형, 항목, 금액, 결제방법, 관련 예약, 체크인, 체크아웃, 게스트, 채널, 숙박시설, 운영자, 비고
+
+### 비용 유형
+청소비, 월세, 관리비, 수리비, 소모품비, 운영비, 노동비, 인테리어, 배당, 임대이자, 기타
+
+### 원본 추적
+cost_allocations → raw_cost_id → cost_raw.source_file_name + source_row_number` },
       { key: "cycle", label: "정산 주기와 방법", defaultContent: `## 정산 주기와 방법
 
 ### 정산 주기

@@ -20,6 +20,14 @@ import {
   type PropertyListQuery,
   type CreatePropertyPayload,
   type UpdatePropertyPayload,
+  OPERATION_TYPES,
+  TAX_CATEGORIES,
+  LICENSE_STATUSES,
+  CONTRACT_TYPES,
+  OPERATION_TYPE_LABELS,
+  TAX_CATEGORY_LABELS,
+  LICENSE_STATUS_LABELS,
+  CONTRACT_TYPE_LABELS,
 } from "../utils/property-api";
 
 // --- Status badge styles ---
@@ -508,6 +516,11 @@ function PropertyFormModal({
     deposit: property?.deposit || 0,
     check_in_time: property?.check_in_time || "15:00",
     check_out_time: property?.check_out_time || "11:00",
+    operation_type: property?.operation_type || "",
+    tax_category: property?.tax_category || "",
+    license_status: property?.license_status || "NONE",
+    contract_type: property?.contract_type || "",
+    owner_name: property?.owner_name || "",
     memo: property?.memo || "",
   });
 
@@ -734,6 +747,38 @@ function PropertyFormModal({
               placeholder="운영 관련 메모"
               className={inputClass()}
             />
+          </FormField>
+        </Section>
+
+        <Section title="세무·회계">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="운영유형">
+              <select value={form.operation_type} onChange={(e) => updateField("operation_type", e.target.value)} className={inputClass()}>
+                <option value="">미지정</option>
+                {OPERATION_TYPES.map((t) => <option key={t} value={t}>{OPERATION_TYPE_LABELS[t] || t}</option>)}
+              </select>
+            </FormField>
+            <FormField label="세금구분">
+              <select value={form.tax_category} onChange={(e) => updateField("tax_category", e.target.value)} className={inputClass()}>
+                <option value="">미지정</option>
+                {TAX_CATEGORIES.map((t) => <option key={t} value={t}>{TAX_CATEGORY_LABELS[t] || t}</option>)}
+              </select>
+            </FormField>
+            <FormField label="허가상태">
+              <select value={form.license_status} onChange={(e) => updateField("license_status", e.target.value)} className={inputClass()}>
+                <option value="">미지정</option>
+                {LICENSE_STATUSES.map((t) => <option key={t} value={t}>{LICENSE_STATUS_LABELS[t] || t}</option>)}
+              </select>
+            </FormField>
+            <FormField label="계약유형">
+              <select value={form.contract_type} onChange={(e) => updateField("contract_type", e.target.value)} className={inputClass()}>
+                <option value="">미지정</option>
+                {CONTRACT_TYPES.map((t) => <option key={t} value={t}>{CONTRACT_TYPE_LABELS[t] || t}</option>)}
+              </select>
+            </FormField>
+          </div>
+          <FormField label="임대인(집주인)">
+            <input type="text" value={form.owner_name} onChange={(e) => updateField("owner_name", e.target.value)} placeholder="집주인 이름" className={inputClass()} />
           </FormField>
         </Section>
 

@@ -139,6 +139,11 @@ func (s *PropertyService) Update(id uint, req dto.UpdatePropertyRequest) (models
 	property.Deposit = req.Deposit
 	property.CheckInTime = req.CheckInTime
 	property.CheckOutTime = req.CheckOutTime
+	property.OperationType = req.OperationType
+	property.TaxCategory = req.TaxCategory
+	property.LicenseStatus = req.LicenseStatus
+	property.ContractType = req.ContractType
+	property.OwnerName = req.OwnerName
 	property.Memo = req.Memo
 
 	if err := config.DB.Save(&property).Error; err != nil {

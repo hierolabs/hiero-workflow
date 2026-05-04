@@ -34,7 +34,7 @@ const PRESETS: { key: PresetKey; label: string }[] = [
 
 function getPresetDates(key: PresetKey): { start: string; end: string } {
   const now = new Date();
-  const fmtD = (d: Date) => d.toISOString().slice(0, 10);
+  const fmtD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   switch (key) {
     case "this_month":
       return { start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, end: fmtD(now) };
@@ -67,6 +67,8 @@ interface MonthlySummary {
   revenue: number;
   other_revenue: number;
   refund: number;
+  commission: number;
+  airbnb_vat: number;
   net_revenue: number;
   cleaning_fee: number;
   mgmt_fee: number;
@@ -108,6 +110,8 @@ export default function Settlement() {
   const [showIssues, setShowIssues] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ message: string; imported: number; skipped: number } | null>(null);
 
   // 필터 (다중 선택)
   const [filterPropIds, setFilterPropIds] = useState<string[]>([]);
@@ -251,7 +255,37 @@ export default function Settlement() {
     const last = new Date(parseInt(y), parseInt(m), 0);
     setPreset("custom");
     setCustomStart(`${month}-01`);
-    setCustomEnd(last.toISOString().slice(0, 10));
+    setCustomEnd(`${y}-${m.padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const token = localStorage.getItem("token");
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${API_URL}/transactions/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUploadResult(data);
+        loadSettlement();
+        loadMonths();
+      } else {
+        setUploadResult({ message: data.error || "업로드 실패", imported: 0, skipped: 0 });
+      }
+    } catch {
+      setUploadResult({ message: "업로드 중 오류 발생", imported: 0, skipped: 0 });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   const handleCreate = async (data: { title: string; description: string; priority: string }) => {
@@ -282,6 +316,10 @@ export default function Settlement() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <label className={`cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+              {uploading ? "업로드 중..." : "CSV 업로드"}
+              <input type="file" accept=".csv" className="hidden" onChange={handleUpload} disabled={uploading} />
+            </label>
             <button onClick={() => setShowExport(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
               내보내기
             </button>
@@ -293,6 +331,13 @@ export default function Settlement() {
             </button>
           </div>
         </div>
+
+        {uploadResult && (
+          <div className={`mt-2 rounded-md px-3 py-2 text-xs flex items-center justify-between ${uploadResult.imported > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+            <span>{uploadResult.message} — {uploadResult.imported}건 저장, {uploadResult.skipped}건 스킵</span>
+            <button onClick={() => setUploadResult(null)} className="ml-2 font-bold hover:opacity-70">✕</button>
+          </div>
+        )}
 
         {/* 기간 프리셋 + 월 퀵 선택 */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -344,18 +389,40 @@ export default function Settlement() {
           )}
         </div>
 
-        {/* 데이터 있는 월 퀵 선택 */}
-        {availableMonths.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-gray-400 mr-1">월별:</span>
-            {availableMonths.slice(0, 12).map((m) => (
-              <button key={m} onClick={() => handleMonthClick(m)}
-                className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100">
-                {m}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* 데이터 있는 월 퀵 선택 (연도별 그룹) */}
+        {availableMonths.length > 0 && (() => {
+          const byYear: Record<string, string[]> = {};
+          availableMonths.forEach((m) => {
+            const y = m.slice(0, 4);
+            if (!byYear[y]) byYear[y] = [];
+            byYear[y].push(m);
+          });
+          const currentRange = getDateRange();
+          const activeMonth = currentRange.start.slice(0, 7);
+          const isMonthExact = currentRange.start.endsWith("-01") && preset === "custom";
+          return (
+            <div className="mt-2 space-y-1">
+              {Object.entries(byYear).sort(([a], [b]) => b.localeCompare(a)).map(([year, months]) => (
+                <div key={year} className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-500 w-10">{year}</span>
+                  {months.map((m) => {
+                    const isActive = isMonthExact && activeMonth === m;
+                    return (
+                      <button key={m} onClick={() => handleMonthClick(m)}
+                        className={`rounded px-2 py-0.5 text-xs transition-colors ${
+                          isActive
+                            ? "bg-gray-900 text-white"
+                            : "border border-gray-200 text-gray-600 hover:bg-gray-100"
+                        }`}>
+                        {parseInt(m.slice(5))}월
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* 연도별 월간 그리드 */}
@@ -595,75 +662,327 @@ export default function Settlement() {
   );
 }
 
+type SortKey = "property_name" | "revenue" | "other_revenue" | "refund" | "commission" | "airbnb_vat" | "net_revenue" | "cleaning_fee" | "mgmt_fee" | "rent_out" | "rent_in" | "operation_fee" | "labor_fee" | "supplies_fee" | "maintenance" | "interior_fee" | "interest_fee" | "dividend_fee" | "property_fee" | "other_cost" | "total_cost" | "profit" | "profit_rate";
+type SortDir = "asc" | "desc";
+
+const COLUMNS: { key: SortKey; label: string; align: "left" | "right" }[] = [
+  { key: "property_name", label: "숙소", align: "left" },
+  { key: "revenue", label: "매출", align: "right" },
+  { key: "other_revenue", label: "기타수입", align: "right" },
+  { key: "refund", label: "환불", align: "right" },
+  { key: "commission", label: "플랫폼수수료", align: "right" },
+  { key: "airbnb_vat", label: "에어비앤비VAT", align: "right" },
+  { key: "net_revenue", label: "순매출", align: "right" },
+  { key: "cleaning_fee", label: "청소비", align: "right" },
+  { key: "mgmt_fee", label: "관리비", align: "right" },
+  { key: "rent_out", label: "월세", align: "right" },
+  { key: "rent_in", label: "임대수입", align: "right" },
+  { key: "operation_fee", label: "운영비", align: "right" },
+  { key: "labor_fee", label: "인건비", align: "right" },
+  { key: "supplies_fee", label: "소모품", align: "right" },
+  { key: "maintenance", label: "유지보수", align: "right" },
+  { key: "interior_fee", label: "인테리어", align: "right" },
+  { key: "interest_fee", label: "이자", align: "right" },
+  { key: "dividend_fee", label: "배당", align: "right" },
+  { key: "property_fee", label: "숙소경비", align: "right" },
+  { key: "other_cost", label: "기타비용", align: "right" },
+  { key: "total_cost", label: "총비용", align: "right" },
+  { key: "profit", label: "순이익", align: "right" },
+  { key: "profit_rate", label: "이익률", align: "right" },
+];
+
+function getSortValue(p: MonthlySummary, key: SortKey): number | string {
+  if (key === "property_name") return p.property_name || "";
+  return p[key] || 0;
+}
+
+// SortKey → API query params (category, type)
+const FIELD_TO_QUERY: Record<string, { category?: string; type?: string } | null> = {
+  revenue: { category: "객실 요금", type: "수입" },
+  other_revenue: { type: "수입" }, // category != 객실요금, != 환불 → 서버에서 필터
+  refund: { category: "객실 요금 환불", type: "수입" },
+  cleaning_fee: { category: "청소 비용", type: "비용" },
+  mgmt_fee: { category: "관리비", type: "비용" },
+  rent_out: { category: "Rent_out", type: "비용" },
+  rent_in: { category: "Rent_in", type: "비용" },
+  operation_fee: { category: "운영 비용", type: "비용" },
+  labor_fee: { category: "노동 비용", type: "비용" },
+  supplies_fee: { category: "소모품 비용", type: "비용" },
+  maintenance: { category: "유지 보수", type: "비용" },
+  interior_fee: { category: "인테리어", type: "비용" },
+  interest_fee: { category: "임대이자", type: "비용" },
+  dividend_fee: { category: "배당및월세", type: "비용" },
+  property_fee: { category: "재산 요금", type: "비용" },
+  other_cost: { type: "비용" }, // 기타 비용도 서버에서 필터
+};
+
+// 드릴다운 가능한 필드인지 (합산/계산 필드는 제외)
+const isDrillable = (key: string) => key in FIELD_TO_QUERY;
+
+interface DrilldownInfo {
+  propertyId: number;
+  propertyName: string;
+  field: SortKey;
+  fieldLabel: string;
+}
+
 function PropertyTable({ result }: { result: SettlementResult }) {
+  const [sortKey, setSortKey] = useState<SortKey>("profit");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [drilldown, setDrilldown] = useState<DrilldownInfo | null>(null);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "property_name" ? "asc" : "desc"); }
+  };
+
+  const sorted = [...result.properties].sort((a, b) => {
+    const va = getSortValue(a, sortKey);
+    const vb = getSortValue(b, sortKey);
+    const cmp = typeof va === "string" ? (va as string).localeCompare(vb as string, "ko") : (va as number) - (vb as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const arrow = (key: SortKey) => sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="sticky left-0 bg-gray-50 px-3 py-2.5 text-left text-xs font-medium text-gray-500">숙소</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">매출</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">환불</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">순매출</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">청소비</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">관리비</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">월세</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">운영비</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">기타</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">총비용</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">순이익</th>
-            <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">이익률</th>
+            {COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                onClick={() => handleSort(col.key)}
+                className={`${col.key === "property_name" ? "sticky left-0 bg-gray-50 " : ""}px-3 py-2.5 text-${col.align} text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-900 select-none whitespace-nowrap`}
+              >
+                {col.label}{arrow(col.key)}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {result.properties
-            .sort((a, b) => b.profit - a.profit)
-            .map((p) => (
+          <tr className="border-b-2 border-gray-300 bg-gray-50 font-bold">
+            <td className="sticky left-0 bg-gray-50 px-3 py-2.5 text-gray-900 whitespace-nowrap">합계 ({result.properties.length}개)</td>
+            {COLUMNS.slice(1).map((col) => {
+              const v = result.total[col.key as keyof MonthlySummary] as number || 0;
+              const isProfit = col.key === "profit" || col.key === "profit_rate";
+              const isCost = col.key === "total_cost";
+              const isRefund = col.key === "refund";
+              const color = isProfit ? (v >= 0 ? "text-green-700" : "text-red-700") : isCost ? "text-red-700" : isRefund && v ? "text-red-600" : "text-gray-900";
+              return (
+                <td key={col.key} className={`px-3 py-2.5 text-right ${color}`}>
+                  {col.key === "profit_rate" ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
+                </td>
+              );
+            })}
+          </tr>
+          {sorted.map((p) => (
             <tr key={`${p.property_id}-${p.property_name}`} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="sticky left-0 bg-white px-3 py-2 font-medium text-gray-900 whitespace-nowrap max-w-[200px] truncate">
                 {p.property_name || `#${p.property_id}`}
               </td>
-              <td className="px-3 py-2 text-right text-gray-700">{fmt(p.revenue)}</td>
-              <td className="px-3 py-2 text-right text-red-500">{p.refund ? `-${fmt(p.refund)}` : "—"}</td>
-              <td className="px-3 py-2 text-right font-medium text-gray-900">{fmt(p.net_revenue)}</td>
-              <td className="px-3 py-2 text-right text-gray-600">{p.cleaning_fee ? fmt(p.cleaning_fee) : "—"}</td>
-              <td className="px-3 py-2 text-right text-gray-600">{p.mgmt_fee ? fmt(p.mgmt_fee) : "—"}</td>
-              <td className="px-3 py-2 text-right text-gray-600">{p.rent_out ? fmt(p.rent_out) : "—"}</td>
-              <td className="px-3 py-2 text-right text-gray-600">{p.operation_fee ? fmt(p.operation_fee) : "—"}</td>
-              <td className="px-3 py-2 text-right text-gray-600">
-                {((p.labor_fee || 0) + (p.supplies_fee || 0) + (p.maintenance || 0) + (p.interior_fee || 0) + (p.interest_fee || 0) + (p.dividend_fee || 0) + (p.property_fee || 0) + (p.other_cost || 0)) ? fmt((p.labor_fee || 0) + (p.supplies_fee || 0) + (p.maintenance || 0) + (p.interior_fee || 0) + (p.interest_fee || 0) + (p.dividend_fee || 0) + (p.property_fee || 0) + (p.other_cost || 0)) : "—"}
-              </td>
-              <td className="px-3 py-2 text-right font-medium text-red-600">{fmt(p.total_cost)}</td>
-              <td className={`px-3 py-2 text-right font-bold ${p.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
-                {fmt(p.profit)}
-              </td>
-              <td className={`px-3 py-2 text-right font-medium ${p.profit_rate >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {p.profit_rate.toFixed(1)}%
-              </td>
+              {COLUMNS.slice(1).map((col) => {
+                const v = p[col.key as keyof MonthlySummary] as number || 0;
+                const isProfit = col.key === "profit";
+                const isProfitRate = col.key === "profit_rate";
+                const isCost = col.key === "total_cost";
+                const isRefund = col.key === "refund";
+                const isNet = col.key === "net_revenue";
+                const color = isProfit ? `font-bold ${v >= 0 ? "text-green-700" : "text-red-700"}`
+                  : isProfitRate ? `font-medium ${v >= 0 ? "text-green-600" : "text-red-600"}`
+                  : isCost ? "font-medium text-red-600"
+                  : isRefund && v ? "text-red-500"
+                  : isNet ? "font-medium text-gray-900"
+                  : "text-gray-600";
+                const drillable = isDrillable(col.key) && v !== 0;
+                return (
+                  <td
+                    key={col.key}
+                    onClick={drillable ? () => setDrilldown({ propertyId: p.property_id, propertyName: p.property_name || `#${p.property_id}`, field: col.key, fieldLabel: col.label }) : undefined}
+                    className={`px-3 py-2 text-right ${color} ${drillable ? "cursor-pointer hover:underline hover:bg-blue-50" : ""}`}
+                  >
+                    {isProfitRate ? `${v.toFixed(1)}%` : isRefund && v ? `-${fmt(v)}` : v ? fmt(v) : "—"}
+                  </td>
+                );
+              })}
             </tr>
           ))}
-          <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
-            <td className="sticky left-0 bg-gray-50 px-3 py-2.5 text-gray-900">합계 ({result.properties.length}개)</td>
-            <td className="px-3 py-2.5 text-right text-gray-900">{fmt(result.total.revenue)}</td>
-            <td className="px-3 py-2.5 text-right text-red-600">{result.total.refund ? `-${fmt(result.total.refund)}` : "—"}</td>
-            <td className="px-3 py-2.5 text-right text-gray-900">{fmt(result.total.net_revenue)}</td>
-            <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.cleaning_fee)}</td>
-            <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.mgmt_fee)}</td>
-            <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.rent_out)}</td>
-            <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.operation_fee)}</td>
-            <td className="px-3 py-2.5 text-right text-gray-700">
-              {fmt((result.total.labor_fee || 0) + (result.total.supplies_fee || 0) + (result.total.maintenance || 0) + (result.total.interior_fee || 0) + (result.total.interest_fee || 0) + (result.total.dividend_fee || 0) + (result.total.property_fee || 0) + (result.total.other_cost || 0))}
-            </td>
-            <td className="px-3 py-2.5 text-right text-red-700">{fmt(result.total.total_cost)}</td>
-            <td className={`px-3 py-2.5 text-right ${result.total.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
-              {fmt(result.total.profit)}
-            </td>
-            <td className={`px-3 py-2.5 text-right ${result.total.profit_rate >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {result.total.profit_rate.toFixed(1)}%
-            </td>
-          </tr>
         </tbody>
       </table>
+      {drilldown && (
+        <TransactionDetailModal
+          propertyId={drilldown.propertyId}
+          propertyName={drilldown.propertyName}
+          field={drilldown.field}
+          fieldLabel={drilldown.fieldLabel}
+          startDate={result.start_date}
+          endDate={result.end_date}
+          onClose={() => setDrilldown(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// 카테고리 목록 (변경 드롭다운용)
+const ALL_CATEGORIES = [
+  "객실 요금", "객실 요금 환불",
+  "청소 비용", "관리비", "Rent_out", "Rent_in",
+  "운영 비용", "노동 비용", "소모품 비용", "유지 보수",
+  "인테리어", "재산 요금", "배당및월세", "배당", "임대이자",
+];
+
+interface Transaction {
+  id: number;
+  transaction_at: string;
+  type: string;
+  category: string;
+  amount: number;
+  payment_method: string;
+  reservation_ref: string;
+  check_in: string;
+  check_out: string;
+  guest_name: string;
+  channel: string;
+  property_name: string;
+  note: string;
+}
+
+function TransactionDetailModal({ propertyId, propertyName, field, fieldLabel, startDate, endDate, onClose }: {
+  propertyId: number;
+  propertyName: string;
+  field: SortKey;
+  fieldLabel: string;
+  startDate: string;
+  endDate: string;
+  onClose: () => void;
+}) {
+  const [txs, setTxs] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadTxs = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const q = FIELD_TO_QUERY[field];
+    if (!q) return;
+    const params = new URLSearchParams({
+      property_id: String(propertyId),
+      start_date: startDate,
+      end_date: endDate,
+    });
+    if (q.category) params.set("category", q.category);
+    if (q.type) params.set("type", q.type);
+
+    try {
+      const res = await fetch(`${API_URL}/transactions/list?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setTxs(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadTxs(); }, []);
+
+  const handleCategoryChange = async (txId: number, newCategory: string) => {
+    setSaving(true);
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_URL}/transactions/${txId}/category`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ category: newCategory }),
+      });
+      if (res.ok) {
+        setTxs((prev) => prev.map((t) => t.id === txId ? { ...t, category: newCategory } : t));
+        setEditingId(null);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const total = txs.reduce((s, t) => s + t.amount, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[80vh] rounded-lg bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">{propertyName}</h3>
+            <p className="text-sm text-gray-500">{fieldLabel} · {startDate} ~ {endDate} · {txs.length}건 · 합계 {fmt(total)}원</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+        </div>
+        <div className="overflow-auto flex-1 px-5 py-3">
+          {loading ? (
+            <p className="py-10 text-center text-gray-400">불러오는 중...</p>
+          ) : txs.length === 0 ? (
+            <p className="py-10 text-center text-gray-400">해당 거래가 없습니다</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-xs text-gray-500">
+                  <th className="px-2 py-2 text-left">날짜</th>
+                  <th className="px-2 py-2 text-left">유형</th>
+                  <th className="px-2 py-2 text-left">항목</th>
+                  <th className="px-2 py-2 text-right">금액</th>
+                  <th className="px-2 py-2 text-left">결제방법</th>
+                  <th className="px-2 py-2 text-left">예약코드</th>
+                  <th className="px-2 py-2 text-left">게스트</th>
+                  <th className="px-2 py-2 text-left">채널</th>
+                  <th className="px-2 py-2 text-left">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txs.map((t) => (
+                  <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{t.transaction_at?.slice(0, 10)}</td>
+                    <td className="px-2 py-1.5 text-gray-600">{t.type}</td>
+                    <td className="px-2 py-1.5">
+                      {editingId === t.id ? (
+                        <select
+                          defaultValue={t.category}
+                          onChange={(e) => handleCategoryChange(t.id, e.target.value)}
+                          disabled={saving}
+                          className="rounded border border-blue-300 px-1.5 py-0.5 text-xs bg-blue-50"
+                          autoFocus
+                          onBlur={() => setEditingId(null)}
+                        >
+                          {ALL_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          onClick={() => setEditingId(t.id)}
+                          className="cursor-pointer rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                          title="클릭하여 항목 변경"
+                        >
+                          {t.category}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-medium text-gray-900">{fmt(t.amount)}</td>
+                    <td className="px-2 py-1.5 text-gray-500 text-xs">{t.payment_method}</td>
+                    <td className="px-2 py-1.5 text-gray-500 text-xs truncate max-w-[120px]">{t.reservation_ref || "—"}</td>
+                    <td className="px-2 py-1.5 text-gray-500 text-xs truncate max-w-[100px]">{t.guest_name || "—"}</td>
+                    <td className="px-2 py-1.5 text-gray-500 text-xs">{t.channel}</td>
+                    <td className="px-2 py-1.5 text-gray-400 text-xs truncate max-w-[120px]">{t.note || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="border-t px-5 py-3 text-right">
+          <p className="text-xs text-gray-400">항목을 클릭하면 카테고리를 변경할 수 있습니다. 변경 후 정산 페이지를 새로고침하면 반영됩니다.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -815,9 +1134,9 @@ function ExportModal({ onClose, getDateRange, availableMonths }: {
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button onClick={() => { setStartDate("2025-01-01"); setEndDate("2025-12-31"); }}
                 className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100">2025년 전체</button>
-              <button onClick={() => { setStartDate("2026-01-01"); setEndDate(new Date().toISOString().slice(0, 10)); }}
+              <button onClick={() => { const n = new Date(); setStartDate("2026-01-01"); setEndDate(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`); }}
                 className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100">2026년 ~현재</button>
-              <button onClick={() => { setStartDate("2025-01-01"); setEndDate(new Date().toISOString().slice(0, 10)); }}
+              <button onClick={() => { const n = new Date(); setStartDate("2025-01-01"); setEndDate(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`); }}
                 className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100">전체 기간</button>
             </div>
           </div>

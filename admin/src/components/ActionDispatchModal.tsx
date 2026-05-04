@@ -58,7 +58,8 @@ export default function ActionDispatchModal({ action, onClose, onSuccess }: Prop
 
     try {
       if (action.dispatch_target === "cleaning") {
-        const date = (payload.date as string) || new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const date = (payload.date as string) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         await generateCleaningTasks(date);
       } else {
         await createIssue({
@@ -161,7 +162,7 @@ export default function ActionDispatchModal({ action, onClose, onSuccess }: Prop
             <div className="rounded-md bg-gray-50 border border-gray-200 p-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">청소 태스크 생성</p>
               <p className="mt-1 text-sm text-gray-700">
-                {(payload.date as string) || new Date().toISOString().slice(0, 10)} 기준으로 체크아웃 숙소의 청소 태스크를 생성합니다.
+                {(payload.date as string) || (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`; })()} 기준으로 체크아웃 숙소의 청소 태스크를 생성합니다.
               </p>
               {action.property_ids && action.property_ids.length > 0 && (
                 <p className="mt-1 text-xs text-gray-500">
