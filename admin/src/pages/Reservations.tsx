@@ -8,6 +8,7 @@ import {
   type ReservationListQuery,
 } from "../utils/reservation-api";
 import ReservationDetailModal from "../components/ReservationDetailModal";
+import MultiSelect from "../components/MultiSelect";
 
 type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
 type PeriodPreset = "today" | "this_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
@@ -85,6 +86,12 @@ export default function Reservations() {
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selectedResId, setSelectedResId] = useState<number | null>(null);
 
+  // 숙소/채널 필터 (다중 선택)
+  const [filterPropIds, setFilterPropIds] = useState<string[]>([]);
+  const [filterChannels, setFilterChannels] = useState<string[]>([]);
+  const [propOptions, setPropOptions] = useState<{ id: number; name: string }[]>([]);
+  const [channelOptions, setChannelOptions] = useState<string[]>([]);
+
   const buildQuery = useCallback((): ReservationListQuery => {
     const range = period === "custom"
       ? { from: customFrom, to: customTo }
@@ -114,9 +121,11 @@ export default function Reservations() {
       q.check_in_to = range.to;
     }
 
+    if (filterPropIds.length > 0) q.internal_prop_ids = filterPropIds.join(",");
+    if (filterChannels.length > 0) q.channel_type = filterChannels.join(",");
     (q as Record<string, unknown>).view_mode = viewMode;
     return q;
-  }, [viewMode, period, customFrom, customTo, page, keyword]);
+  }, [viewMode, period, customFrom, customTo, page, keyword, filterPropIds, filterChannels]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,6 +144,22 @@ export default function Reservations() {
   }, [buildQuery]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 숙소/채널 옵션 로드
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const API_URL = import.meta.env.VITE_API_URL;
+    Promise.all([
+      fetch(`${API_URL}/properties?page_size=200`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+      fetch(`${API_URL}/transactions/channels`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
+    ]).then(([propData, chData]) => {
+      if (propData) {
+        const list = (propData.properties || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+        setPropOptions(list.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
+      }
+      if (chData) setChannelOptions(chData || []);
+    });
+  }, []);
 
   // 각 탭별 카운트 로드
   useEffect(() => {
@@ -269,16 +294,56 @@ export default function Reservations() {
         </div>
       )}
 
-      {/* Search */}
-      <div className="mb-4 flex gap-2">
+      {/* 숙소/채널 필터 + 검색 + 내보내기 */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <MultiSelect
+          options={propOptions.map((p) => ({ value: String(p.id), label: p.name }))}
+          selected={filterPropIds}
+          onChange={(v) => { setFilterPropIds(v); setPage(1); }}
+          placeholder="전체 숙소"
+        />
+        <MultiSelect
+          options={channelOptions.map((ch) => ({ value: ch, label: ch }))}
+          selected={filterChannels}
+          onChange={(v) => { setFilterChannels(v); setPage(1); }}
+          placeholder="전체 채널"
+        />
+        {(filterPropIds.length > 0 || filterChannels.length > 0) && (
+          <button
+            onClick={() => { setFilterPropIds([]); setFilterChannels([]); setPage(1); }}
+            className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-medium text-red-600 hover:bg-red-100"
+          >
+            초기화
+          </button>
+        )}
         <input
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(); } }}
-          placeholder="예약코드, 게스트 이름 검색..."
-          className="block w-64 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none"
+          placeholder="예약코드, 게스트 이름..."
+          className="block w-48 rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none"
         />
+        <button
+          onClick={() => {
+            const range = period === "custom" ? { from: customFrom, to: customTo } : getDateRange(period);
+            const token = localStorage.getItem("token");
+            const API_URL = import.meta.env.VITE_API_URL;
+            const params = new URLSearchParams({ start_date: range.from, end_date: range.to });
+            fetch(`${API_URL}/reservations/export?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.blob())
+              .then(blob => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `reservations_${range.from}_${range.to}.csv`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              });
+          }}
+          className="ml-auto rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100"
+        >
+          CSV 내보내기
+        </button>
       </div>
 
       {/* Table */}
@@ -300,12 +365,13 @@ export default function Reservations() {
                   <Th>상태</Th>
                   <Th>매출</Th>
                   <Th>예약일</Th>
+                  {viewMode === "cancelled" && <Th>취소일</Th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {reservations.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={viewMode === "cancelled" ? 11 : 10} className="px-6 py-12 text-center text-sm text-gray-400">
                       예약이 없습니다.
                     </td>
                   </tr>
@@ -347,6 +413,13 @@ export default function Reservations() {
                           {r.booked_at ? new Date(r.booked_at).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
                         </span>
                       </Td>
+                      {viewMode === "cancelled" && (
+                        <Td>
+                          <span className="text-xs text-red-500">
+                            {r.cancelled_at ? new Date(r.cancelled_at).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                          </span>
+                        </Td>
+                      )}
                     </tr>
                   ))
                 )}

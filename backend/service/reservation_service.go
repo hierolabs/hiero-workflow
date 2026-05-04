@@ -17,7 +17,19 @@ func NewReservationService() *ReservationService {
 }
 
 // UpsertFromHostex — Hostex 예약 데이터를 내부 DB에 저장/업데이트하고 Property 매칭
+// 저장 대상 상태 (wait_pay, timeout, wait_accept, denied 등 제외)
+var validStatuses = map[string]bool{
+	"accepted":  true,
+	"cancelled": true,
+}
+
 func (s *ReservationService) UpsertFromHostex(r hostex.Reservation) models.Reservation {
+	// 무효 상태는 저장하지 않고, 기존 데이터가 있으면 삭제
+	if !validStatuses[r.Status] {
+		config.DB.Where("reservation_code = ?", r.ReservationCode).Delete(&models.Reservation{})
+		return models.Reservation{}
+	}
+
 	channelName := r.ChannelType
 	if r.CustomChannel != nil && r.CustomChannel.Name != "" {
 		channelName = r.CustomChannel.Name
@@ -71,6 +83,14 @@ func (s *ReservationService) UpsertFromHostex(r hostex.Reservation) models.Reser
 	if err := config.DB.Where("reservation_code = ?", r.ReservationCode).First(&existing).Error; err != nil {
 		config.DB.Create(&dbReservation)
 	} else {
+		// 기존 booked_at이 있고, 새 값이 비어있거나 동기화 시점이면 기존 값 유지
+		if existing.BookedAt != "" && (dbReservation.BookedAt == "" || r.Status == "cancelled") {
+			dbReservation.BookedAt = existing.BookedAt
+		}
+		// 기존 remarks 유지 (수동 입력값 보호)
+		if existing.Remarks != "" && dbReservation.Remarks == "" {
+			dbReservation.Remarks = existing.Remarks
+		}
 		dbReservation.ID = existing.ID
 		config.DB.Model(&existing).Updates(dbReservation)
 	}
@@ -139,11 +159,22 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)
+	} else {
+		// 기본: accepted만 (취소 탭에서 명시적 요청 시만 cancelled 표시)
+		db = db.Where("status = ?", "accepted")
 	}
 	if query.ChannelType != "" {
-		db = db.Where("channel_type = ?", query.ChannelType)
+		channels := strings.Split(query.ChannelType, ",")
+		if len(channels) == 1 {
+			db = db.Where("channel_type = ?", channels[0])
+		} else {
+			db = db.Where("channel_type IN ?", channels)
+		}
 	}
-	if query.InternalPropID > 0 {
+	if query.InternalPropIDs != "" {
+		ids := strings.Split(query.InternalPropIDs, ",")
+		db = db.Where("internal_prop_id IN ?", ids)
+	} else if query.InternalPropID > 0 {
 		db = db.Where("internal_prop_id = ?", query.InternalPropID)
 	}
 	if query.HostexPropertyID > 0 {
@@ -428,6 +459,7 @@ type ReservationListQuery struct {
 	Status          string `form:"status"`
 	ChannelType     string `form:"channel_type"`
 	InternalPropID  uint   `form:"internal_prop_id"`
+	InternalPropIDs string `form:"internal_prop_ids"` // 콤마 구분 다중 ID
 	HostexPropertyID int64 `form:"property_id"`
 	CheckInFrom     string `form:"check_in_from"`
 	CheckInTo       string `form:"check_in_to"`

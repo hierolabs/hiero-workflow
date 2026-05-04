@@ -47,6 +47,7 @@ export interface ReservationListQuery {
   status?: string;
   channel_type?: string;
   internal_prop_id?: number;
+  internal_prop_ids?: string; // 콤마 구분 다중 ID
   property_id?: number;
   check_in_from?: string;
   check_in_to?: string;
@@ -120,7 +121,8 @@ function buildQueryString(query: ReservationListQuery): string {
   if (query.page_size) params.set("page_size", String(query.page_size));
   if (query.status) params.set("status", query.status);
   if (query.channel_type) params.set("channel_type", query.channel_type);
-  if (query.internal_prop_id) params.set("internal_prop_id", String(query.internal_prop_id));
+  if (query.internal_prop_ids) params.set("internal_prop_ids", query.internal_prop_ids);
+  else if (query.internal_prop_id) params.set("internal_prop_id", String(query.internal_prop_id));
   if (query.property_id) params.set("property_id", String(query.property_id));
   if (query.check_in_from) params.set("check_in_from", query.check_in_from);
   if (query.check_in_to) params.set("check_in_to", query.check_in_to);

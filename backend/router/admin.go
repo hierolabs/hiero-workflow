@@ -106,6 +106,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/transactions/upload", transactionHandler.Upload)
 			protected.GET("/transactions/summary", transactionHandler.Summary)
 			protected.GET("/transactions/months", transactionHandler.Months)
+			protected.GET("/transactions/channels", transactionHandler.Channels)
 
 			// 5엔진 사업 진단
 			protected.GET("/diagnosis", diagnosisHandler.ListAll)
@@ -119,6 +120,9 @@ func registerAdminRoutes(r *gin.Engine) {
 
 			// 정산 관리 (거래 기반 — 기간별 숙소 정산)
 			protected.GET("/settlement/summary", transactionHandler.Settlement)
+			protected.GET("/settlement/export", transactionHandler.ExportSettlement)
+			protected.GET("/reservations/export", transactionHandler.ExportReservations)
+			protected.GET("/transactions/export", transactionHandler.ExportTransactions)
 
 			// 게스트 메시지 (채팅)
 			protected.GET("/messages/conversations", messageHandler.ListConversations)

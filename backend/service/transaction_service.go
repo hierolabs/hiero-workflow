@@ -168,8 +168,12 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 
 // SettlementQuery — 기간 기반 정산 조회
 type SettlementQuery struct {
-	StartDate string `form:"start_date"` // 2026-04-01
-	EndDate   string `form:"end_date"`   // 2026-04-30
+	StartDate   string `form:"start_date"`   // 2026-04-01
+	EndDate     string `form:"end_date"`     // 2026-04-30
+	PropertyID  uint   `form:"property_id"`  // 특정 숙소만 (단일)
+	PropertyIDs string `form:"property_ids"` // 콤마 구분 다중 숙소
+	Channel     string `form:"channel"`      // 특정 채널만 (단일)
+	Channels    string `form:"channels"`     // 콤마 구분 다중 채널
 }
 
 // SettlementResult — 정산 결과
@@ -197,10 +201,22 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 		Total        int64
 	}
 	var rows []row
-	config.DB.Model(&models.HostexTransaction{}).
+	db := config.DB.Model(&models.HostexTransaction{}).
 		Select("property_id, property_name, category, type, SUM(amount) as total").
-		Where("transaction_at >= ? AND transaction_at <= ?", query.StartDate, query.EndDate+" 23:59:59").
-		Group("property_id, property_name, category, type").
+		Where("transaction_at >= ? AND transaction_at <= ?", query.StartDate, query.EndDate+" 23:59:59")
+	if query.PropertyIDs != "" {
+		ids := strings.Split(query.PropertyIDs, ",")
+		db = db.Where("property_id IN ?", ids)
+	} else if query.PropertyID > 0 {
+		db = db.Where("property_id = ?", query.PropertyID)
+	}
+	if query.Channels != "" {
+		chs := strings.Split(query.Channels, ",")
+		db = db.Where("channel IN ?", chs)
+	} else if query.Channel != "" {
+		db = db.Where("channel = ?", query.Channel)
+	}
+	db.Group("property_id, property_name, category, type").
 		Scan(&rows)
 
 	// 숙소별 집계 (기존 MonthlySummary 로직 재활용)
