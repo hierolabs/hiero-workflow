@@ -27,6 +27,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	data3Handler := handler.NewData3Handler()
 	costHandler := handler.NewCostHandler()
 	checklistHandler := handler.NewChecklistHandler()
+	aiChatHandler := handler.NewAiChatHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -183,6 +184,9 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/costs/monthly", costHandler.MonthlySummary)
 			protected.POST("/costs/import-from-transactions", costHandler.ImportFromTransactions)
 			protected.POST("/costs/reallocate", costHandler.ReallocateAll)
+
+			// AI 채팅
+			protected.POST("/ai/chat", aiChatHandler.Chat)
 
 			// 운영 매뉴얼 (위키)
 			protected.GET("/manual", manualHandler.List)

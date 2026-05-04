@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import OperationManual from "../components/OperationManual";
 import {
   fetchReservations,
@@ -10,6 +10,7 @@ import {
 } from "../utils/reservation-api";
 import ReservationDetailModal from "../components/ReservationDetailModal";
 import MultiSelect from "../components/MultiSelect";
+import AiChat from "../components/AiChat";
 
 type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
 type PeriodPreset = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
@@ -96,6 +97,7 @@ export default function Reservations() {
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selectedResId, setSelectedResId] = useState<number | null>(null);
   const [showManual, setShowManual] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -214,6 +216,22 @@ export default function Reservations() {
     }
     setPage(1);
   };
+
+  const aiContext = useMemo(() => {
+    const range = period === "custom"
+      ? { from: customFrom, to: customTo }
+      : getDateRange(period);
+    return {
+      page: "reservations",
+      view_mode: viewMode,
+      period,
+      date_from: range.from,
+      date_to: range.to,
+      total,
+      sum_rate: sumRate,
+      sum_nights: sumNights,
+    };
+  }, [viewMode, period, customFrom, customTo, total, sumRate, sumNights]);
 
   const formatWon = (value: number) => value.toLocaleString("ko-KR") + "원";
   const getChannelLabel = (r: Reservation) => {
@@ -374,6 +392,7 @@ export default function Reservations() {
         >
           CSV 내보내기
         </button>
+        <AiChatToggle open={aiOpen} onClick={() => setAiOpen(!aiOpen)} />
       </div>
 
       {/* Table */}
@@ -385,17 +404,17 @@ export default function Reservations() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <Th>숙소</Th>
-                  <Th>예약코드</Th>
-                  <SortTh col="guest_name" current={sortBy} order={sortOrder} onClick={handleSort}>게스트</SortTh>
-                  <Th>채널</Th>
-                  <SortTh col="check_in_date" current={sortBy} order={sortOrder} onClick={handleSort}>체크인</SortTh>
-                  <SortTh col="check_out_date" current={sortBy} order={sortOrder} onClick={handleSort}>체크아웃</SortTh>
-                  <SortTh col="nights" current={sortBy} order={sortOrder} onClick={handleSort}>박</SortTh>
-                  <Th>상태</Th>
-                  <SortTh col="total_rate" current={sortBy} order={sortOrder} onClick={handleSort}>매출</SortTh>
-                  <SortTh col="booked_at" current={sortBy} order={sortOrder} onClick={handleSort}>예약일</SortTh>
-                  {viewMode === "cancelled" && <Th>취소일</Th>}
+                  <Th info="Hostex에 등록된 숙소명. 미매칭 시 '-' 표시">숙소</Th>
+                  <Th info="OTA 플랫폼에서 발급된 예약 고유 코드">예약코드</Th>
+                  <SortTh col="guest_name" current={sortBy} order={sortOrder} onClick={handleSort} info="게스트 이름과 연락처. 클릭 시 이름순 정렬">게스트</SortTh>
+                  <Th info="예약이 들어온 OTA 채널 (Airbnb, Booking.com 등)">채널</Th>
+                  <SortTh col="check_in_date" current={sortBy} order={sortOrder} onClick={handleSort} info="게스트 입실일. 보통 15:00~16:00 체크인">체크인</SortTh>
+                  <SortTh col="check_out_date" current={sortBy} order={sortOrder} onClick={handleSort} info="게스트 퇴실일. 보통 11:00 체크아웃">체크아웃</SortTh>
+                  <SortTh col="nights" current={sortBy} order={sortOrder} onClick={handleSort} info="체크인~체크아웃 사이 숙박 일수">박</SortTh>
+                  <Th info="확정: 예약 완료 / 대기: 승인 전 / 취소: 취소됨">상태</Th>
+                  <SortTh col="total_rate" current={sortBy} order={sortOrder} onClick={handleSort} info="OTA 수수료 포함 총 결제 금액 (KRW)">매출</SortTh>
+                  <SortTh col="booked_at" current={sortBy} order={sortOrder} onClick={handleSort} info="게스트가 예약을 완료한 일시">예약일</SortTh>
+                  {viewMode === "cancelled" && <Th info="예약이 취소된 일시">취소일</Th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -481,14 +500,66 @@ export default function Reservations() {
         reservationId={selectedResId}
         onClose={() => setSelectedResId(null)}
       />
+
+      {aiOpen && (
+        <AiChat
+          context={aiContext}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-400">{children}</th>;
+function AiChatToggle({ open, onClick }: { open: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+        open
+          ? "border-slate-800 bg-slate-800 text-white"
+          : "border-gray-300 text-gray-600 hover:bg-gray-100"
+      }`}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        HIERO OAI
+      </span>
+    </button>
+  );
 }
-function SortTh({ children, col, current, order, onClick }: { children: React.ReactNode; col: string; current: string; order: string; onClick: (col: string) => void }) {
+
+function InfoBadge({ tip }: { tip: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex ml-1" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-300 hover:text-gray-500 cursor-help transition-colors">
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <text x="8" y="11.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="currentColor">i</text>
+      </svg>
+      {show && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-48 rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal leading-relaxed text-white shadow-lg whitespace-normal">
+          {tip}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Th({ children, info }: { children: React.ReactNode; info?: string }) {
+  return (
+    <th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-400">
+      <span className="inline-flex items-center">
+        {children}
+        {info && <InfoBadge tip={info} />}
+      </span>
+    </th>
+  );
+}
+function SortTh({ children, col, current, order, onClick, info }: { children: React.ReactNode; col: string; current: string; order: string; onClick: (col: string) => void; info?: string }) {
   const active = current === col;
   return (
     <th
@@ -497,6 +568,7 @@ function SortTh({ children, col, current, order, onClick }: { children: React.Re
     >
       <span className="inline-flex items-center gap-1">
         {children}
+        {info && <InfoBadge tip={info} />}
         <span className={`text-[10px] ${active ? "text-blue-600" : "text-gray-300"}`}>
           {active ? (order === "asc" ? "▲" : "▼") : "⇅"}
         </span>
