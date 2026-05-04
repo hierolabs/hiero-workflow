@@ -51,11 +51,29 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 		codeMap[c.Code] = c
 	}
 
+	// 연장 감지용: 같은 날 같은 숙소에 동일 게스트가 체크인하면 연장
+	var sameDayCheckins []models.Reservation
+	config.DB.Where("check_in_date = ? AND status = ?", date, "accepted").Find(&sameDayCheckins)
+	extensionSet := map[int64]string{} // property_id → checkin guest_name prefix
+	for _, ci := range sameDayCheckins {
+		prefix := extractNamePrefix(ci.GuestName)
+		extensionSet[ci.PropertyID] = prefix
+	}
+
 	created := 0
 	for _, r := range reservations {
 		// 이미 생성된 청소 업무 중복 방지
 		if existingSet[r.ReservationCode] {
 			continue
+		}
+
+		// 연장 감지: 같은 숙소에 동일 이름 게스트가 오늘 체크인 → 청소 불필요
+		if ciPrefix, ok := extensionSet[r.PropertyID]; ok {
+			coPrefix := extractNamePrefix(r.GuestName)
+			if coPrefix != "" && coPrefix == ciPrefix {
+				log.Printf("[Cleaning] 연장 감지, 청소 스킵: %s (%s)", r.ReservationCode, r.GuestName)
+				continue
+			}
 		}
 
 		// 내부 Property 정보 조회 (맵에서)
@@ -424,4 +442,54 @@ func (s *CleaningService) UpdateCleaner(id uint, name, phone, region, memo strin
 
 func (s *CleaningService) DeleteCleaner(id uint) error {
 	return config.DB.Delete(&models.Cleaner{}, id).Error
+}
+
+// extractNamePrefix — 게스트 이름에서 비교용 접두사 추출
+// "장임선_39.6(6.6)" → "장임선", "김관준" → "김관준", "현덕 오" → "현덕 오"
+func extractNamePrefix(name string) string {
+	if name == "" {
+		return ""
+	}
+	// _ 기준 분리 (한글이름_숫자패턴)
+	for i, ch := range name {
+		if ch == '_' {
+			return name[:i]
+		}
+	}
+	return name
+}
+
+// DetectExtensions — 특정 날짜의 연장 건 감지
+func (s *CleaningService) DetectExtensions(date string) []map[string]interface{} {
+	var checkouts []models.Reservation
+	config.DB.Where("check_out_date = ? AND status = ?", date, "accepted").Find(&checkouts)
+
+	var checkins []models.Reservation
+	config.DB.Where("check_in_date = ? AND status = ?", date, "accepted").Find(&checkins)
+
+	// property_id → checkin 매핑
+	ciMap := map[int64]models.Reservation{}
+	for _, ci := range checkins {
+		ciMap[ci.PropertyID] = ci
+	}
+
+	var extensions []map[string]interface{}
+	for _, co := range checkouts {
+		if ci, ok := ciMap[co.PropertyID]; ok {
+			coPrefix := extractNamePrefix(co.GuestName)
+			ciPrefix := extractNamePrefix(ci.GuestName)
+			if coPrefix != "" && coPrefix == ciPrefix {
+				extensions = append(extensions, map[string]interface{}{
+					"property_id":      co.InternalPropID,
+					"guest_name":       coPrefix,
+					"checkout_res":     co.ReservationCode,
+					"checkin_res":      ci.ReservationCode,
+					"checkout_date":    co.CheckOutDate,
+					"new_checkout":     ci.CheckOutDate,
+					"nights_extended":  ci.Nights,
+				})
+			}
+		}
+	}
+	return extensions
 }

@@ -256,6 +256,17 @@ func (h *CleaningHandler) CleanerWorkload(c *gin.Context) {
 	c.JSON(http.StatusOK, workload)
 }
 
+// GET /admin/cleaning/extensions — 연장 감지 알림
+func (h *CleaningHandler) Extensions(c *gin.Context) {
+	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
+	extensions := h.svc.DetectExtensions(date)
+	c.JSON(http.StatusOK, gin.H{
+		"date":       date,
+		"count":      len(extensions),
+		"extensions": extensions,
+	})
+}
+
 func parseUint(s string) (uint, error) {
 	id, err := strconv.ParseUint(s, 10, 32)
 	return uint(id), err

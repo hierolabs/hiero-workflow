@@ -7,57 +7,171 @@ import {
   type Reservation,
   type ReservationListQuery,
 } from "../utils/reservation-api";
-import OperationManual from "../components/OperationManual";
+import ReservationDetailModal from "../components/ReservationDetailModal";
+
+type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
+type PeriodPreset = "today" | "this_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
+
+function getDateRange(preset: PeriodPreset): { from: string; to: string } {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const startOfWeek = (d: Date) => {
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.getFullYear(), d.getMonth(), diff);
+  };
+
+  switch (preset) {
+    case "today":
+      return { from: fmt(now), to: fmt(now) };
+    case "this_week": {
+      const s = startOfWeek(new Date(now));
+      const e = new Date(s); e.setDate(e.getDate() + 6);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "this_month": {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "last_month": {
+      const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const e = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "this_quarter": {
+      const qStart = Math.floor(now.getMonth() / 3) * 3;
+      const s = new Date(now.getFullYear(), qStart, 1);
+      const e = new Date(now.getFullYear(), qStart + 3, 0);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "last_quarter": {
+      const qStart = Math.floor(now.getMonth() / 3) * 3 - 3;
+      const y = qStart < 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const q = qStart < 0 ? qStart + 12 : qStart;
+      const s = new Date(y, q, 1);
+      const e = new Date(y, q + 3, 0);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "this_year": {
+      const s = new Date(now.getFullYear(), 0, 1);
+      const e = new Date(now.getFullYear(), 11, 31);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    case "last_year": {
+      const s = new Date(now.getFullYear() - 1, 0, 1);
+      const e = new Date(now.getFullYear() - 1, 11, 31);
+      return { from: fmt(s), to: fmt(e) };
+    }
+    default:
+      return { from: fmt(now), to: fmt(now) };
+  }
+}
 
 export default function Reservations() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [query, setQuery] = useState<ReservationListQuery>({
-    page: 1,
-    page_size: 20,
-  });
+  const [sumRate, setSumRate] = useState(0);
+  const [sumNights, setSumNights] = useState(0);
+
+  const [viewMode, setViewMode] = useState<ViewMode>("booked");
+  const [period, setPeriod] = useState<PeriodPreset>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState("");
-  const [showManual, setShowManual] = useState(false);
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const [selectedResId, setSelectedResId] = useState<number | null>(null);
+
+  const buildQuery = useCallback((): ReservationListQuery => {
+    const range = period === "custom"
+      ? { from: customFrom, to: customTo }
+      : getDateRange(period);
+
+    const q: ReservationListQuery = {
+      page,
+      page_size: 30,
+      keyword: keyword || undefined,
+    };
+
+    if (viewMode === "booked") {
+      q.booked_from = range.from;
+      q.booked_to = range.to;
+    } else if (viewMode === "checkin") {
+      q.check_in_from = range.from;
+      q.check_in_to = range.to;
+    } else if (viewMode === "checkout") {
+      q.check_out_from = range.from;
+      q.check_out_to = range.to;
+    } else if (viewMode === "extension") {
+      q.check_in_from = range.from;
+      q.check_in_to = range.to;
+    } else if (viewMode === "cancelled") {
+      q.status = "cancelled";
+      q.check_in_from = range.from;
+      q.check_in_to = range.to;
+    }
+
+    (q as Record<string, unknown>).view_mode = viewMode;
+    return q;
+  }, [viewMode, period, customFrom, customTo, page, keyword]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchReservations(query);
+      const data = await fetchReservations(buildQuery());
       setReservations(data.reservations || []);
       setTotal(data.total);
       setTotalPages(data.total_pages);
+      setSumRate(data.sum_rate || 0);
+      setSumNights(data.sum_nights || 0);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [buildQuery]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // 각 탭별 카운트 로드
   useEffect(() => {
-    load();
-  }, [load]);
+    const range = period === "custom"
+      ? { from: customFrom, to: customTo }
+      : getDateRange(period);
+    if (!range.from || !range.to) return;
 
-  const handleSearch = () => {
-    setQuery((prev) => ({ ...prev, page: 1, keyword: keyword || undefined }));
-  };
+    const token = localStorage.getItem("token");
+    const API_URL = import.meta.env.VITE_API_URL;
+    const modes = ["booked", "checkin", "checkout", "extension", "cancelled"] as const;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSearch();
-  };
+    Promise.all(modes.map(async (m) => {
+      const params = new URLSearchParams({ page: "1", page_size: "1", view_mode: m });
+      if (m === "booked") { params.set("booked_from", range.from); params.set("booked_to", range.to); }
+      else if (m === "checkin") { params.set("check_in_from", range.from); params.set("check_in_to", range.to); }
+      else if (m === "checkout") { params.set("check_out_from", range.from); params.set("check_out_to", range.to); }
+      else if (m === "extension") { params.set("check_in_from", range.from); params.set("check_in_to", range.to); }
+      else { params.set("status", "cancelled"); params.set("check_in_from", range.from); params.set("check_in_to", range.to); }
+      const res = await fetch(`${API_URL}/reservations?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const d = await res.json(); return { mode: m, count: d.total || 0 }; }
+      return { mode: m, count: 0 };
+    })).then((results) => {
+      const counts: Record<string, number> = {};
+      results.forEach((r) => { counts[r.mode] = r.count; });
+      setViewCounts(counts);
+    });
+  }, [period, customFrom, customTo]);
 
-  const handleFilterChange = (key: keyof ReservationListQuery, value: string) => {
-    setQuery((prev) => ({ ...prev, page: 1, [key]: value || undefined }));
-  };
+  const handleViewChange = (v: ViewMode) => { setViewMode(v); setPage(1); };
+  const handlePeriodChange = (p: PeriodPreset) => { setPeriod(p); setPage(1); };
 
   const formatWon = (value: number) => value.toLocaleString("ko-KR") + "원";
-
   const getChannelLabel = (r: Reservation) => {
     if (r.channel_name && r.channel_name !== r.channel_type) return r.channel_name;
     return CHANNEL_LABELS[r.channel_type] || r.channel_type;
   };
-
   const getChannelStyle = (channelType: string) => {
     const styles: Record<string, string> = {
       airbnb: "bg-rose-100 text-rose-800",
@@ -67,114 +181,125 @@ export default function Reservations() {
     return styles[channelType] || "bg-gray-100 text-gray-700";
   };
 
+  const viewModes: { value: ViewMode; label: string }[] = [
+    { value: "booked", label: "예약" },
+    { value: "checkin", label: "체크인" },
+    { value: "checkout", label: "체크아웃" },
+    { value: "extension", label: "연장" },
+    { value: "cancelled", label: "취소" },
+  ];
+
+  const periodPresets: { value: PeriodPreset; label: string }[] = [
+    { value: "today", label: "오늘" },
+    { value: "this_week", label: "이번주" },
+    { value: "this_month", label: "이번달" },
+    { value: "last_month", label: "지난달" },
+    { value: "this_quarter", label: "이번 분기" },
+    { value: "last_quarter", label: "지난 분기" },
+    { value: "this_year", label: "올해" },
+    { value: "last_year", label: "작년" },
+    { value: "custom", label: "기간설정" },
+  ];
+
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            전체 {total}건의 예약이 있습니다.
-          </p>
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
+        <div className="mt-2 flex flex-wrap gap-4 text-sm">
+          <span className="text-gray-500">총 <strong className="text-gray-900">{total}건</strong></span>
+          <span className="text-gray-500">총 <strong className="text-gray-900">{sumNights.toLocaleString()}박</strong></span>
+          <span className="text-gray-500">매출 <strong className="text-blue-600">{sumRate.toLocaleString("ko-KR")}원</strong></span>
         </div>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-4 space-y-3">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="예약코드, 게스트 이름으로 검색..."
-            className="block w-72 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none"
-          />
+      {/* View Mode Tabs */}
+      <div className="mb-3 flex gap-1">
+        {viewModes.map((m) => (
           <button
-            onClick={handleSearch}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            key={m.value}
+            onClick={() => handleViewChange(m.value)}
+            className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === m.value
+                ? "bg-slate-800 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
           >
-            검색
+            {m.label}
+            {viewCounts[m.value] != null && (
+              <span className="ml-1 opacity-70">({viewCounts[m.value]})</span>
+            )}
           </button>
-        </div>
+        ))}
+      </div>
 
-        <div className="flex flex-wrap gap-2">
-          <FilterSelect
-            label="상태"
-            value={query.status || ""}
-            onChange={(v) => handleFilterChange("status", v)}
-            options={[
-              { value: "accepted", label: "확정" },
-              { value: "pending", label: "대기" },
-              { value: "cancelled", label: "취소" },
-            ]}
+      {/* Period Presets */}
+      <div className="mb-3 flex flex-wrap items-center gap-1">
+        {periodPresets.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => handlePeriodChange(p.value)}
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              period === p.value
+                ? "bg-blue-600 text-white"
+                : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom Date Range */}
+      {period === "custom" && (
+        <div className="mb-3 flex items-center gap-2">
+          <input
+            type="date"
+            value={customFrom}
+            onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           />
-          <FilterSelect
-            label="채널"
-            value={query.channel_type || ""}
-            onChange={(v) => handleFilterChange("channel_type", v)}
-            options={[
-              { value: "airbnb", label: "Airbnb" },
-              { value: "booking.com", label: "Booking.com" },
-              { value: "agoda", label: "Agoda" },
-            ]}
+          <span className="text-gray-400">~</span>
+          <input
+            type="date"
+            value={customTo}
+            onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           />
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">체크인:</label>
-            <input
-              type="date"
-              value={query.check_in_from || ""}
-              onChange={(e) => handleFilterChange("check_in_from", e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            />
-            <span className="text-gray-400">~</span>
-            <input
-              type="date"
-              value={query.check_in_to || ""}
-              onChange={(e) => handleFilterChange("check_in_to", e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            />
-          </div>
-          <label className="flex items-center gap-1.5 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={query.unmatched_only || false}
-              onChange={(e) =>
-                setQuery((prev) => ({
-                  ...prev,
-                  page: 1,
-                  unmatched_only: e.target.checked || undefined,
-                }))
-              }
-              className="accent-slate-900"
-            />
-            미매칭만
-          </label>
         </div>
+      )}
+
+      {/* Search */}
+      <div className="mb-4 flex gap-2">
+        <input
+          type="text"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(); } }}
+          placeholder="예약코드, 게스트 이름 검색..."
+          className="block w-64 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none"
+        />
       </div>
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <p className="text-gray-500">로딩 중...</p>
-        </div>
+        <div className="flex items-center justify-center py-20 text-gray-500">로딩 중...</div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <Th>숙소</Th>
                   <Th>예약코드</Th>
                   <Th>게스트</Th>
                   <Th>채널</Th>
                   <Th>체크인</Th>
                   <Th>체크아웃</Th>
                   <Th>박</Th>
-                  <Th>인원</Th>
                   <Th>상태</Th>
-                  <Th>매칭</Th>
                   <Th>매출</Th>
+                  <Th>예약일</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -186,21 +311,22 @@ export default function Reservations() {
                   </tr>
                 ) : (
                   reservations.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
+                    <tr key={r.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedResId(r.id)}>
                       <Td>
-                        <span className="font-mono text-xs text-slate-700">
+                        <span className="text-xs font-medium text-gray-700 max-w-[150px] truncate block" title={r.property_name}>
+                          {r.property_name || "-"}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="font-mono text-xs text-slate-500">
                           {r.reservation_code.length > 12
                             ? r.reservation_code.slice(0, 12) + "..."
                             : r.reservation_code}
                         </span>
                       </Td>
                       <Td>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{r.guest_name || "-"}</p>
-                          {r.guest_phone && (
-                            <p className="text-xs text-gray-400">{r.guest_phone}</p>
-                          )}
-                        </div>
+                        <p className="text-sm font-medium text-gray-900">{r.guest_name || "-"}</p>
+                        {r.guest_phone && <p className="text-xs text-gray-400">{r.guest_phone}</p>}
                       </Td>
                       <Td>
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getChannelStyle(r.channel_type)}`}>
@@ -210,24 +336,17 @@ export default function Reservations() {
                       <Td>{r.check_in_date}</Td>
                       <Td>{r.check_out_date}</Td>
                       <Td>{r.nights}박</Td>
-                      <Td>{r.number_of_guests}명</Td>
                       <Td>
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[r.status] || "bg-gray-100 text-gray-600"}`}>
                           {STATUS_LABELS[r.status] || r.status}
                         </span>
                       </Td>
-                      <Td>
-                        {r.internal_prop_id ? (
-                          <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            연결됨
-                          </span>
-                        ) : (
-                          <span className="inline-flex rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                            미매칭
-                          </span>
-                        )}
-                      </Td>
                       <Td>{formatWon(r.total_rate)}</Td>
+                      <Td>
+                        <span className="text-xs text-gray-400">
+                          {r.booked_at ? new Date(r.booked_at).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                        </span>
+                      </Td>
                     </tr>
                   ))
                 )}
@@ -239,109 +358,39 @@ export default function Reservations() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-3">
               <p className="text-sm text-gray-500">
-                {total}건 중 {(query.page! - 1) * query.page_size! + 1}-
-                {Math.min(query.page! * query.page_size!, total)}
+                {total}건 중 {(page - 1) * 30 + 1}-{Math.min(page * 30, total)}
               </p>
               <div className="flex gap-1">
-                <PaginationButton
-                  disabled={query.page === 1}
-                  onClick={() => setQuery((prev) => ({ ...prev, page: prev.page! - 1 }))}
-                >
-                  이전
-                </PaginationButton>
+                <PgBtn disabled={page === 1} onClick={() => setPage(page - 1)}>이전</PgBtn>
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => Math.abs(p - query.page!) <= 2)
+                  .filter((p) => Math.abs(p - page) <= 2)
                   .map((p) => (
-                    <PaginationButton
-                      key={p}
-                      active={p === query.page}
-                      onClick={() => setQuery((prev) => ({ ...prev, page: p }))}
-                    >
-                      {p}
-                    </PaginationButton>
+                    <PgBtn key={p} active={p === page} onClick={() => setPage(p)}>{p}</PgBtn>
                   ))}
-                <PaginationButton
-                  disabled={query.page === totalPages}
-                  onClick={() => setQuery((prev) => ({ ...prev, page: prev.page! + 1 }))}
-                >
-                  다음
-                </PaginationButton>
+                <PgBtn disabled={page === totalPages} onClick={() => setPage(page + 1)}>다음</PgBtn>
               </div>
             </div>
           )}
         </div>
       )}
-      {showManual && <OperationManual page="reservations" onClose={() => setShowManual(false)} />}
+
+      <ReservationDetailModal
+        reservationId={selectedResId}
+        onClose={() => setSelectedResId(null)}
+      />
     </div>
   );
 }
 
-// --- Shared UI ---
-
 function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-      {children}
-    </th>
-  );
+  return <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{children}</th>;
 }
-
 function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
-      {children}
-    </td>
-  );
+  return <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">{children}</td>;
 }
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
+function PgBtn({ children, active, disabled, onClick }: { children: React.ReactNode; active?: boolean; disabled?: boolean; onClick: () => void }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none"
-    >
-      <option value="">{label} 전체</option>
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  );
-}
-
-function PaginationButton({
-  children,
-  active,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-        active
-          ? "bg-slate-900 text-white"
-          : disabled
-            ? "text-gray-300 cursor-not-allowed"
-            : "text-gray-600 hover:bg-gray-200"
-      }`}
-    >
+    <button onClick={onClick} disabled={disabled} className={`rounded px-3 py-1 text-sm font-medium transition-colors ${active ? "bg-slate-900 text-white" : disabled ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:bg-gray-200"}`}>
       {children}
     </button>
   );

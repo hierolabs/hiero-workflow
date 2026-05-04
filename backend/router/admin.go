@@ -61,6 +61,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			// 예약 관리
 			protected.GET("/reservations", reservationHandler.List)
 			protected.GET("/reservations/:id", reservationHandler.Get)
+			protected.PATCH("/reservations/:id", reservationHandler.UpdateRemarks)
 			protected.POST("/reservations/rematch", reservationHandler.Rematch)
 
 			// 매출 집계
@@ -85,6 +86,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			// 청소코드
 			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
 			protected.GET("/cleaning/workload", cleaningHandler.CleanerWorkload)
+			protected.GET("/cleaning/extensions", cleaningHandler.Extensions)
 
 			// 청소자 관리
 			protected.GET("/cleaners", cleaningHandler.ListCleaners)

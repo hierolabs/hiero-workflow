@@ -79,3 +79,27 @@ func (h *AdminReservationHandler) Rematch(c *gin.Context) {
 		"matched": matched,
 	})
 }
+
+// PATCH /admin/reservations/:id — 예약 메모 수정
+func (h *AdminReservationHandler) UpdateRemarks(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "유효하지 않은 ID"})
+		return
+	}
+
+	var req struct {
+		Remarks string `json:"remarks"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청"})
+		return
+	}
+
+	if err := h.svc.UpdateRemarks(uint(id), req.Remarks); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "수정 실패"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "저장됨"})
+}

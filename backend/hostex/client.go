@@ -157,11 +157,11 @@ type Reservation struct {
 	GuestEmail      string          `json:"guest_email"`
 	BookedAt        string          `json:"booked_at"`
 	CancelledAt     *string         `json:"cancelled_at"`
-	Remarks         string          `json:"remarks"`
-	ConversationID  string          `json:"conversation_id"`
+	Remarks         string           `json:"remarks"`
+	ConversationID  string           `json:"conversation_id"`
 	Rates           *ReservationRate `json:"rates"`
-	CustomChannel   *CustomChannel  `json:"custom_channel"`
-	Tags            []Tag           `json:"tags"`
+	CustomChannel   *CustomChannel   `json:"custom_channel"`
+	Tags            json.RawMessage  `json:"tags"`
 }
 
 type ReservationRate struct {
@@ -170,8 +170,8 @@ type ReservationRate struct {
 }
 
 type Money struct {
-	Currency string `json:"currency"`
-	Amount   int64  `json:"amount"`
+	Currency string  `json:"currency"`
+	Amount   float64 `json:"amount"`
 }
 
 type CustomChannel struct {
@@ -405,8 +405,8 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 	var todayRevenue, todayCommission int64
 	for _, r := range checkIns {
 		if r.Rates != nil {
-			todayRevenue += r.Rates.TotalRate.Amount
-			todayCommission += r.Rates.TotalCommission.Amount
+			todayRevenue += int64(r.Rates.TotalRate.Amount)
+			todayCommission += int64(r.Rates.TotalCommission.Amount)
 		}
 	}
 
@@ -415,7 +415,7 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 		if r.Rates != nil {
 			nights := dateDiffDays(r.CheckInDate, r.CheckOutDate)
 			if nights > 0 {
-				inHouseRevenue += r.Rates.TotalRate.Amount / int64(nights)
+				inHouseRevenue += int64(r.Rates.TotalRate.Amount) / int64(nights)
 			}
 		}
 	}
@@ -441,7 +441,7 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 		if r.Rates != nil {
 			nights := dateDiffDays(r.CheckInDate, r.CheckOutDate)
 			if nights > 0 {
-				propertyADR[r.PropertyID] = r.Rates.TotalRate.Amount / int64(nights)
+				propertyADR[r.PropertyID] = int64(r.Rates.TotalRate.Amount) / int64(nights)
 			}
 		}
 	}
@@ -457,7 +457,7 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 			}
 			nights := dateDiffDays(r.CheckInDate, r.CheckOutDate)
 			if nights > 0 {
-				adr := r.Rates.TotalRate.Amount / int64(nights)
+				adr := int64(r.Rates.TotalRate.Amount) / int64(nights)
 				channelADRSum[ch] += adr
 				channelADRCount[ch]++
 			}
@@ -528,7 +528,7 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 		}
 		channelCount[ch]++
 		if r.Rates != nil {
-			channelRevenue[ch] += r.Rates.TotalRate.Amount
+			channelRevenue[ch] += int64(r.Rates.TotalRate.Amount)
 		}
 	}
 
@@ -548,7 +548,7 @@ func (c *Client) GetCEODashboard() (map[string]interface{}, error) {
 		if r.Rates != nil {
 			nights := dateDiffDays(r.CheckInDate, r.CheckOutDate)
 			if nights > 0 {
-				totalADR += r.Rates.TotalRate.Amount / int64(nights)
+				totalADR += int64(r.Rates.TotalRate.Amount) / int64(nights)
 				adrCount++
 			}
 		}

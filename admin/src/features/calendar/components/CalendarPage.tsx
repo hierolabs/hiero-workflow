@@ -6,7 +6,7 @@ import { triggerSync } from "../api/calendarApi";
 import type { CalendarReservation } from "../types/calendar";
 import CalendarToolbar from "./CalendarToolbar";
 import CalendarGrid from "./CalendarGrid";
-import ReservationDetailModal from "./ReservationDetailModal";
+import ReservationDetailModal from "../../../components/ReservationDetailModal";
 
 export default function CalendarPage() {
   const dateRange = useDateRange();
@@ -43,8 +43,7 @@ export default function CalendarPage() {
     return counts;
   }, [data?.properties]);
 
-  const [selectedReservation, setSelectedReservation] =
-    useState<CalendarReservation | null>(null);
+  const [selectedResId, setSelectedResId] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const handleSync = useCallback(async () => {
@@ -96,13 +95,13 @@ export default function CalendarPage() {
           properties={filteredProperties}
           reservations={filteredReservations}
           dates={dateRange.dates}
-          onReservationClick={setSelectedReservation}
+          onReservationClick={(r: CalendarReservation) => setSelectedResId(r.id)}
         />
       )}
 
       <ReservationDetailModal
-        reservation={selectedReservation}
-        onClose={() => setSelectedReservation(null)}
+        reservationId={selectedResId}
+        onClose={() => setSelectedResId(null)}
       />
     </div>
   );

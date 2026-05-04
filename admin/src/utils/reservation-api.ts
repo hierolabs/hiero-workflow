@@ -25,6 +25,8 @@ export interface Reservation {
   cancelled_at: string | null;
   remarks: string;
   conversation_id: string;
+  property_name: string;
+  property_code: string;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +37,8 @@ export interface ReservationListResponse {
   page: number;
   page_size: number;
   total_pages: number;
+  sum_rate: number;
+  sum_nights: number;
 }
 
 export interface ReservationListQuery {
@@ -48,6 +52,9 @@ export interface ReservationListQuery {
   check_in_to?: string;
   check_out_from?: string;
   check_out_to?: string;
+  booked_from?: string;
+  booked_to?: string;
+  view_mode?: string;
   keyword?: string;
   unmatched_only?: boolean;
 }
@@ -119,6 +126,9 @@ function buildQueryString(query: ReservationListQuery): string {
   if (query.check_in_to) params.set("check_in_to", query.check_in_to);
   if (query.check_out_from) params.set("check_out_from", query.check_out_from);
   if (query.check_out_to) params.set("check_out_to", query.check_out_to);
+  if (query.booked_from) params.set("booked_from", query.booked_from);
+  if (query.booked_to) params.set("booked_to", query.booked_to);
+  if (query.view_mode) params.set("view_mode", query.view_mode);
   if (query.keyword) params.set("keyword", query.keyword);
   if (query.unmatched_only) params.set("unmatched_only", "true");
   return params.toString();

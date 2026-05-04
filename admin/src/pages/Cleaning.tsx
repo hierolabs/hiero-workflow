@@ -63,6 +63,16 @@ export default function Cleaning() {
 }
 
 // ===================== Dashboard Tab =====================
+interface Extension {
+  property_id: number | null;
+  guest_name: string;
+  checkout_res: string;
+  checkin_res: string;
+  checkout_date: string;
+  new_checkout: string;
+  nights_extended: number;
+}
+
 function DashboardTab() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
@@ -70,6 +80,7 @@ function DashboardTab() {
   const [summary, setSummary] = useState<CleaningSummary | null>(null);
   const [cleaners, setCleaners] = useState<Cleaner[]>([]);
   const [workload, setWorkload] = useState<CleanerWorkload[]>([]);
+  const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [assigningId, setAssigningId] = useState<number | null>(null);
@@ -79,21 +90,29 @@ function DashboardTab() {
   const [statusFilter, setStatusFilter] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "region">("region");
 
+  const API_URL = import.meta.env.VITE_API_URL;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = { cleaning_date: date, page_size: "200" };
       if (statusFilter) params.status = statusFilter;
-      const [taskData, summaryData, cleanerData, workloadData] = await Promise.all([
+      const token = localStorage.getItem("token");
+      const [taskData, summaryData, cleanerData, workloadData, extRes] = await Promise.all([
         fetchCleaningTasks(params),
         fetchCleaningSummary(date),
         fetchCleaners(),
         fetchCleanerWorkload(date),
+        fetch(`${API_URL}/cleaning/extensions?date=${date}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       setTasks(taskData.tasks || []);
       setSummary(summaryData);
       setCleaners(cleanerData || []);
       setWorkload(workloadData || []);
+      if (extRes.ok) {
+        const extData = await extRes.json();
+        setExtensions(extData.extensions || []);
+      }
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -187,6 +206,18 @@ function DashboardTab() {
           {unassignedCount > 0 && (
             <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <span className="font-semibold">미배정 {unassignedCount}건</span> — 청소자 배정이 필요합니다.
+            </div>
+          )}
+          {extensions.length > 0 && (
+            <div className="mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+              <span className="font-semibold">연장 감지 {extensions.length}건</span> — 청소 불필요 (자동 제외됨)
+              <div className="mt-2 space-y-1">
+                {extensions.map((ext, i) => (
+                  <div key={i} className="text-xs text-purple-700">
+                    • {ext.guest_name} — ~{ext.new_checkout} ({ext.nights_extended}박 연장)
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

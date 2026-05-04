@@ -33,8 +33,8 @@ func (s *ReservationService) UpsertFromHostex(r hostex.Reservation) models.Reser
 	var totalRate, totalCommission int64
 	currency := "KRW"
 	if r.Rates != nil {
-		totalRate = r.Rates.TotalRate.Amount
-		totalCommission = r.Rates.TotalCommission.Amount
+		totalRate = int64(r.Rates.TotalRate.Amount)
+		totalCommission = int64(r.Rates.TotalCommission.Amount)
 		currency = r.Rates.TotalRate.Currency
 	}
 
@@ -161,6 +161,41 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 	if query.CheckOutTo != "" {
 		db = db.Where("check_out_date <= ?", query.CheckOutTo)
 	}
+	if query.BookedFrom != "" || query.BookedTo != "" {
+		// booked_at은 UTC ISO 문자열. KST 기준 필터 → UTC로 변환 (-9h)
+		if query.BookedFrom != "" {
+			// KST 00:00 = UTC 전날 15:00
+			utcFrom := query.BookedFrom + "T-1" // 문자열 비교로는 부정확하므로 직접 계산
+			t, err := time.Parse("2006-01-02", query.BookedFrom)
+			if err == nil {
+				utcFrom = t.Add(-9 * time.Hour).Format("2006-01-02T15:04:05+00:00")
+			}
+			db = db.Where("booked_at >= ?", utcFrom)
+		}
+		if query.BookedTo != "" {
+			// KST 23:59:59 = UTC 당일 14:59:59 → 다음날 15:00 미만
+			t, err := time.Parse("2006-01-02", query.BookedTo)
+			if err == nil {
+				utcTo := t.Add(24*time.Hour - 9*time.Hour).Format("2006-01-02T15:04:05+00:00")
+				db = db.Where("booked_at < ?", utcTo)
+			}
+		}
+	}
+	// view_mode shortcuts
+	if query.ViewMode == "cancelled" {
+		db = db.Where("status = 'cancelled'")
+	} else if query.ViewMode == "checkin" || query.ViewMode == "checkout" {
+		db = db.Where("status != 'cancelled'")
+	} else if query.ViewMode == "extension" {
+		// 연장: 체크인 예약 중, 같은 숙소에서 동일 게스트 이름(prefix)으로 체크아웃도 있는 건
+		db = db.Where("status != 'cancelled'")
+		db = db.Where(`property_id IN (
+			SELECT co.property_id FROM reservations co
+			WHERE co.check_out_date = reservations.check_in_date
+			AND co.status = 'accepted'
+			AND SUBSTRING_INDEX(co.guest_name, '_', 1) = SUBSTRING_INDEX(reservations.guest_name, '_', 1)
+		)`)
+	}
 	if query.Keyword != "" {
 		kw := "%" + strings.TrimSpace(query.Keyword) + "%"
 		db = db.Where("guest_name LIKE ? OR reservation_code LIKE ?", kw, kw)
@@ -176,11 +211,48 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 
 	var reservations []models.Reservation
 	offset := (query.Page - 1) * query.PageSize
-	if err := db.Order("check_in_date DESC, created_at DESC").
+	orderBy := "booked_at DESC, created_at DESC"
+	if query.ViewMode == "checkin" {
+		orderBy = "check_in_date DESC"
+	} else if query.ViewMode == "checkout" {
+		orderBy = "check_out_date DESC"
+	}
+	if err := db.Order(orderBy).
 		Offset(offset).Limit(query.PageSize).
 		Find(&reservations).Error; err != nil {
 		return ReservationListResult{}, err
 	}
+
+	// Property 이름 매핑
+	propIDs := make([]uint, 0)
+	for _, r := range reservations {
+		if r.InternalPropID != nil {
+			propIDs = append(propIDs, *r.InternalPropID)
+		}
+	}
+	propMap := map[uint]models.Property{}
+	if len(propIDs) > 0 {
+		var props []models.Property
+		config.DB.Where("id IN ?", propIDs).Select("id, name, code").Find(&props)
+		for _, p := range props {
+			propMap[p.ID] = p
+		}
+	}
+	for i, r := range reservations {
+		if r.InternalPropID != nil {
+			if p, ok := propMap[*r.InternalPropID]; ok {
+				reservations[i].PropertyName = p.Name
+				reservations[i].PropertyCode = p.Code
+			}
+		}
+	}
+
+	// 합산 통계 (전체 필터 기준, 페이징 무관)
+	var sumResult struct {
+		TotalRate   int64 `gorm:"column:total_rate"`
+		TotalNights int64 `gorm:"column:total_nights"`
+	}
+	db.Select("COALESCE(SUM(total_rate), 0) as total_rate, COALESCE(SUM(nights), 0) as total_nights").Scan(&sumResult)
 
 	totalPages := int(total) / query.PageSize
 	if int(total)%query.PageSize > 0 {
@@ -193,6 +265,8 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 		Page:         query.Page,
 		PageSize:     query.PageSize,
 		TotalPages:   totalPages,
+		SumRate:      sumResult.TotalRate,
+		SumNights:    sumResult.TotalNights,
 	}, nil
 }
 
@@ -342,6 +416,10 @@ func (s *ReservationService) RevenueSummary(query RevenueSummaryQuery) (RevenueS
 	}, nil
 }
 
+func (s *ReservationService) UpdateRemarks(id uint, remarks string) error {
+	return config.DB.Model(&models.Reservation{}).Where("id = ?", id).Update("remarks", remarks).Error
+}
+
 // --- Query/Result types ---
 
 type ReservationListQuery struct {
@@ -355,6 +433,9 @@ type ReservationListQuery struct {
 	CheckInTo       string `form:"check_in_to"`
 	CheckOutFrom    string `form:"check_out_from"`
 	CheckOutTo      string `form:"check_out_to"`
+	BookedFrom      string `form:"booked_from"`
+	BookedTo        string `form:"booked_to"`
+	ViewMode        string `form:"view_mode"` // booked, checkin, checkout, cancelled
 	Keyword         string `form:"keyword"`
 	UnmatchedOnly   bool   `form:"unmatched_only"`
 }
@@ -374,6 +455,8 @@ type ReservationListResult struct {
 	Page         int                  `json:"page"`
 	PageSize     int                  `json:"page_size"`
 	TotalPages   int                  `json:"total_pages"`
+	SumRate      int64                `json:"sum_rate"`
+	SumNights    int64                `json:"sum_nights"`
 }
 
 // --- Revenue Summary types ---

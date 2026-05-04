@@ -29,4 +29,8 @@ type Reservation struct {
 	ConversationID  string    `json:"conversation_id" gorm:"size:100;index"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+
+	// 조회 시 매핑 (DB 컬럼 아님)
+	PropertyName string `json:"property_name" gorm:"-"`
+	PropertyCode string `json:"property_code" gorm:"-"`
 }
