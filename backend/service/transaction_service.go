@@ -85,20 +85,28 @@ type MonthlySummary struct {
 	PropertyID   uint   `json:"property_id"`
 	PropertyName string `json:"property_name"`
 	YearMonth    string `json:"year_month"`
-	Revenue      int64  `json:"revenue"`       // 객실 요금
-	Refund       int64  `json:"refund"`        // 환불
-	NetRevenue   int64  `json:"net_revenue"`   // 순매출
-	CleaningFee  int64  `json:"cleaning_fee"`  // 청소 비용
-	MgmtFee      int64  `json:"mgmt_fee"`      // 관리비
-	RentOut      int64  `json:"rent_out"`       // 월세
-	OperationFee int64  `json:"operation_fee"`  // 운영비
-	LaborFee     int64  `json:"labor_fee"`      // 노동비
-	SuppliesFee  int64  `json:"supplies_fee"`   // 소모품
-	Maintenance  int64  `json:"maintenance"`    // 유지보수
-	OtherCost    int64  `json:"other_cost"`     // 기타 비용
-	TotalCost    int64  `json:"total_cost"`     // 총 비용
-	Profit       int64  `json:"profit"`         // 순이익
-	ProfitRate   float64 `json:"profit_rate"`   // 이익률
+	// 매출
+	Revenue      int64  `json:"revenue"`         // 객실 요금
+	OtherRevenue int64  `json:"other_revenue"`   // 기타 수입 (배당및월세, 기타 등)
+	Refund       int64  `json:"refund"`          // 환불
+	NetRevenue   int64  `json:"net_revenue"`     // 순매출 (Revenue + OtherRevenue - Refund)
+	// 비용
+	CleaningFee  int64  `json:"cleaning_fee"`    // 청소 비용
+	MgmtFee      int64  `json:"mgmt_fee"`        // 관리비
+	RentOut      int64  `json:"rent_out"`         // 월세 지출
+	RentIn       int64  `json:"rent_in"`          // 임대 수입 (비용 항목이지만 마이너스 비용)
+	OperationFee int64  `json:"operation_fee"`    // 운영비
+	LaborFee     int64  `json:"labor_fee"`        // 노동비
+	SuppliesFee  int64  `json:"supplies_fee"`     // 소모품
+	Maintenance  int64  `json:"maintenance"`      // 유지보수
+	InteriorFee  int64  `json:"interior_fee"`     // 인테리어
+	InterestFee  int64  `json:"interest_fee"`     // 임대이자
+	DividendFee  int64  `json:"dividend_fee"`     // 배당
+	PropertyFee  int64  `json:"property_fee"`     // 재산 요금
+	OtherCost    int64  `json:"other_cost"`       // 기타 비용
+	TotalCost    int64  `json:"total_cost"`       // 총 비용
+	Profit       int64  `json:"profit"`           // 순이익
+	ProfitRate   float64 `json:"profit_rate"`     // 이익률
 }
 
 func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySummary, error) {
@@ -142,39 +150,12 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 			summaryMap[k] = sm
 		}
 
-		if r.Type == models.TxTypeIncome {
-			switch r.Category {
-			case models.TxCatRoomRate:
-				sm.Revenue += r.Total
-			case models.TxCatRoomRefund:
-				sm.Refund += r.Total
-			}
-		} else {
-			switch r.Category {
-			case models.TxCatCleaning:
-				sm.CleaningFee += r.Total
-			case models.TxCatMgmt:
-				sm.MgmtFee += r.Total
-			case models.TxCatRentOut:
-				sm.RentOut += r.Total
-			case models.TxCatOperation:
-				sm.OperationFee += r.Total
-			case models.TxCatLabor:
-				sm.LaborFee += r.Total
-			case models.TxCatSupplies:
-				sm.SuppliesFee += r.Total
-			case models.TxCatMaintenance:
-				sm.Maintenance += r.Total
-			default:
-				sm.OtherCost += r.Total
-			}
-		}
+		mapCategoryToSummary(sm, r.Type, r.Category, r.Total)
 	}
 
 	results := make([]MonthlySummary, 0, len(summaryMap))
 	for _, sm := range summaryMap {
-		sm.NetRevenue = sm.Revenue - sm.Refund
-		sm.TotalCost = sm.CleaningFee + sm.MgmtFee + sm.RentOut + sm.OperationFee + sm.LaborFee + sm.SuppliesFee + sm.Maintenance + sm.OtherCost
+		calcSummaryTotals(sm)
 		sm.Profit = sm.NetRevenue - sm.TotalCost
 		if sm.NetRevenue > 0 {
 			sm.ProfitRate = float64(sm.Profit) / float64(sm.NetRevenue) * 100
@@ -245,33 +226,7 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 			summaryMap[k] = sm
 		}
 
-		if r.Type == models.TxTypeIncome {
-			switch r.Category {
-			case models.TxCatRoomRate:
-				sm.Revenue += r.Total
-			case models.TxCatRoomRefund:
-				sm.Refund += r.Total
-			}
-		} else {
-			switch r.Category {
-			case models.TxCatCleaning:
-				sm.CleaningFee += r.Total
-			case models.TxCatMgmt:
-				sm.MgmtFee += r.Total
-			case models.TxCatRentOut:
-				sm.RentOut += r.Total
-			case models.TxCatOperation:
-				sm.OperationFee += r.Total
-			case models.TxCatLabor:
-				sm.LaborFee += r.Total
-			case models.TxCatSupplies:
-				sm.SuppliesFee += r.Total
-			case models.TxCatMaintenance:
-				sm.Maintenance += r.Total
-			default:
-				sm.OtherCost += r.Total
-			}
-		}
+		mapCategoryToSummary(sm, r.Type, r.Category, r.Total)
 	}
 
 	// 결과 + 합계
@@ -280,28 +235,9 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 	results := make([]MonthlySummary, 0, len(summaryMap))
 
 	for _, sm := range summaryMap {
-		sm.NetRevenue = sm.Revenue - sm.Refund
-		sm.TotalCost = sm.CleaningFee + sm.MgmtFee + sm.RentOut + sm.OperationFee + sm.LaborFee + sm.SuppliesFee + sm.Maintenance + sm.OtherCost
-		sm.Profit = sm.NetRevenue - sm.TotalCost
-		if sm.NetRevenue > 0 {
-			sm.ProfitRate = float64(sm.Profit) / float64(sm.NetRevenue) * 100
-		}
+		calcSummaryTotals(sm)
 		results = append(results, *sm)
-
-		// 합계 누적
-		total.Revenue += sm.Revenue
-		total.Refund += sm.Refund
-		total.NetRevenue += sm.NetRevenue
-		total.CleaningFee += sm.CleaningFee
-		total.MgmtFee += sm.MgmtFee
-		total.RentOut += sm.RentOut
-		total.OperationFee += sm.OperationFee
-		total.LaborFee += sm.LaborFee
-		total.SuppliesFee += sm.SuppliesFee
-		total.Maintenance += sm.Maintenance
-		total.OtherCost += sm.OtherCost
-		total.TotalCost += sm.TotalCost
-		total.Profit += sm.Profit
+		addToTotal(&total, sm)
 	}
 	if total.NetRevenue > 0 {
 		total.ProfitRate = float64(total.Profit) / float64(total.NetRevenue) * 100
@@ -313,6 +249,86 @@ func (s *TransactionService) GetSettlement(query SettlementQuery) (*SettlementRe
 		Properties: results,
 		Total:      total,
 	}, nil
+}
+
+// ─── 카테고리 매핑 헬퍼 ──────────────────────────────────────
+
+// mapCategoryToSummary 수입/비용 카테고리를 MonthlySummary 필드에 매핑
+func mapCategoryToSummary(sm *MonthlySummary, txType, category string, amount int64) {
+	if txType == models.TxTypeIncome {
+		switch category {
+		case models.TxCatRoomRate:
+			sm.Revenue += amount
+		case models.TxCatRoomRefund:
+			sm.Refund += amount
+		default:
+			sm.OtherRevenue += amount
+		}
+	} else {
+		switch category {
+		case models.TxCatCleaning:
+			sm.CleaningFee += amount
+		case models.TxCatMgmt:
+			sm.MgmtFee += amount
+		case models.TxCatRentOut:
+			sm.RentOut += amount
+		case models.TxCatRentIn:
+			sm.RentIn += amount
+		case models.TxCatOperation:
+			sm.OperationFee += amount
+		case models.TxCatLabor:
+			sm.LaborFee += amount
+		case models.TxCatSupplies:
+			sm.SuppliesFee += amount
+		case models.TxCatMaintenance:
+			sm.Maintenance += amount
+		case models.TxCatInterior:
+			sm.InteriorFee += amount
+		case models.TxCatInterest:
+			sm.InterestFee += amount
+		case models.TxCatDividend, models.TxCatDividendOnly:
+			sm.DividendFee += amount
+		case models.TxCatPropertyFee:
+			sm.PropertyFee += amount
+		default:
+			sm.OtherCost += amount
+		}
+	}
+}
+
+// calcSummaryTotals 순매출/총비용/이익 계산
+func calcSummaryTotals(sm *MonthlySummary) {
+	sm.NetRevenue = sm.Revenue + sm.OtherRevenue - sm.Refund
+	sm.TotalCost = sm.CleaningFee + sm.MgmtFee + sm.RentOut + sm.RentIn +
+		sm.OperationFee + sm.LaborFee + sm.SuppliesFee + sm.Maintenance +
+		sm.InteriorFee + sm.InterestFee + sm.DividendFee + sm.PropertyFee + sm.OtherCost
+	sm.Profit = sm.NetRevenue - sm.TotalCost
+	if sm.NetRevenue > 0 {
+		sm.ProfitRate = float64(sm.Profit) / float64(sm.NetRevenue) * 100
+	}
+}
+
+// addToTotal 합계 누적
+func addToTotal(total *MonthlySummary, sm *MonthlySummary) {
+	total.Revenue += sm.Revenue
+	total.OtherRevenue += sm.OtherRevenue
+	total.Refund += sm.Refund
+	total.NetRevenue += sm.NetRevenue
+	total.CleaningFee += sm.CleaningFee
+	total.MgmtFee += sm.MgmtFee
+	total.RentOut += sm.RentOut
+	total.RentIn += sm.RentIn
+	total.OperationFee += sm.OperationFee
+	total.LaborFee += sm.LaborFee
+	total.SuppliesFee += sm.SuppliesFee
+	total.Maintenance += sm.Maintenance
+	total.InteriorFee += sm.InteriorFee
+	total.InterestFee += sm.InterestFee
+	total.DividendFee += sm.DividendFee
+	total.PropertyFee += sm.PropertyFee
+	total.OtherCost += sm.OtherCost
+	total.TotalCost += sm.TotalCost
+	total.Profit += sm.Profit
 }
 
 // ─── 내부 헬퍼 ───────────────────────────────────────────────

@@ -42,6 +42,8 @@ func main() {
 		&models.HostexTransaction{},
 		&models.ManualEntry{},
 		&models.CleaningCode{},
+		&models.PropertyCost{},
+		&models.MonthlyPropertyReport{},
 	)
 	seedAdminUser()
 	seedProperties()

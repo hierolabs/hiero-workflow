@@ -44,15 +44,21 @@ interface MonthlySummary {
   property_name: string;
   year_month: string;
   revenue: number;
+  other_revenue: number;
   refund: number;
   net_revenue: number;
   cleaning_fee: number;
   mgmt_fee: number;
   rent_out: number;
+  rent_in: number;
   operation_fee: number;
   labor_fee: number;
   supplies_fee: number;
   maintenance: number;
+  interior_fee: number;
+  interest_fee: number;
+  dividend_fee: number;
+  property_fee: number;
   other_cost: number;
   total_cost: number;
   profit: number;
@@ -270,7 +276,7 @@ export default function Settlement() {
                   <td className="px-3 py-2 text-right text-gray-600">{p.rent_out ? fmt(p.rent_out) : "—"}</td>
                   <td className="px-3 py-2 text-right text-gray-600">{p.operation_fee ? fmt(p.operation_fee) : "—"}</td>
                   <td className="px-3 py-2 text-right text-gray-600">
-                    {(p.labor_fee + p.supplies_fee + p.maintenance + p.other_cost) ? fmt(p.labor_fee + p.supplies_fee + p.maintenance + p.other_cost) : "—"}
+                    {((p.labor_fee || 0) + (p.supplies_fee || 0) + (p.maintenance || 0) + (p.interior_fee || 0) + (p.interest_fee || 0) + (p.dividend_fee || 0) + (p.property_fee || 0) + (p.other_cost || 0)) ? fmt((p.labor_fee || 0) + (p.supplies_fee || 0) + (p.maintenance || 0) + (p.interior_fee || 0) + (p.interest_fee || 0) + (p.dividend_fee || 0) + (p.property_fee || 0) + (p.other_cost || 0)) : "—"}
                   </td>
                   <td className="px-3 py-2 text-right font-medium text-red-600">{fmt(p.total_cost)}</td>
                   <td className={`px-3 py-2 text-right font-bold ${p.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
@@ -292,7 +298,7 @@ export default function Settlement() {
                 <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.rent_out)}</td>
                 <td className="px-3 py-2.5 text-right text-gray-700">{fmt(result.total.operation_fee)}</td>
                 <td className="px-3 py-2.5 text-right text-gray-700">
-                  {fmt(result.total.labor_fee + result.total.supplies_fee + result.total.maintenance + result.total.other_cost)}
+                  {fmt((result.total.labor_fee || 0) + (result.total.supplies_fee || 0) + (result.total.maintenance || 0) + (result.total.interior_fee || 0) + (result.total.interest_fee || 0) + (result.total.dividend_fee || 0) + (result.total.property_fee || 0) + (result.total.other_cost || 0))}
                 </td>
                 <td className="px-3 py-2.5 text-right text-red-700">{fmt(result.total.total_cost)}</td>
                 <td className={`px-3 py-2.5 text-right ${result.total.profit >= 0 ? "text-green-700" : "text-red-700"}`}>

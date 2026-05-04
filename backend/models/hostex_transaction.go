@@ -49,5 +49,6 @@ const (
 	TxCatInterior     = "인테리어"
 	TxCatPropertyFee  = "재산 요금"
 	TxCatDividend     = "배당및월세"
+	TxCatDividendOnly = "배당"
 	TxCatInterest     = "임대이자"
 )
