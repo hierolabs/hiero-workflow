@@ -93,6 +93,8 @@ export interface Issue {
   assignee_name: string;
   property_name: string;
   property_code: string;
+  deadline: string;
+  rule_id: string;
   resolved_at: string | null;
   resolution: string;
   created_by_id: number | null;

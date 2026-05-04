@@ -157,6 +157,7 @@ type PropertyResponse struct {
 	MonthlyRent     int64   `json:"monthly_rent"`
 	ManagementFee   int64   `json:"management_fee"`
 	Deposit         int64   `json:"deposit"`
+	DisplayOrder    int     `json:"display_order"`
 	Status          string  `json:"status"`
 	OperationStatus string  `json:"operation_status"`
 	CheckInTime     string  `json:"check_in_time"`
@@ -185,6 +186,7 @@ func NewPropertyResponse(p models.Property) PropertyResponse {
 		MonthlyRent:     p.MonthlyRent,
 		ManagementFee:   p.ManagementFee,
 		Deposit:         p.Deposit,
+		DisplayOrder:    p.DisplayOrder,
 		Status:          p.Status,
 		OperationStatus: p.OperationStatus,
 		CheckInTime:     p.CheckInTime,

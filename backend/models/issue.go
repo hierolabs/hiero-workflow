@@ -59,6 +59,10 @@ type Issue struct {
 	PropertyName string `gorm:"size:100" json:"property_name"`
 	PropertyCode string `gorm:"size:50" json:"property_code"`
 
+	// 마감
+	Deadline string `gorm:"size:30" json:"deadline"` // "오늘 18:00", "2026-05-07" 등
+	RuleID   string `gorm:"size:30;index" json:"rule_id"` // 액션 엔진 규칙 ID (중복 방지)
+
 	// 해결
 	ResolvedAt *time.Time `json:"resolved_at"`
 	Resolution string     `gorm:"type:text" json:"resolution"`

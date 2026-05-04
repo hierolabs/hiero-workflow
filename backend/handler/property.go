@@ -184,6 +184,27 @@ func parseID(c *gin.Context) (uint, error) {
 	return uint(id), nil
 }
 
+// PATCH /admin/properties/reorder — 순서 변경
+func (h *PropertyHandler) Reorder(c *gin.Context) {
+	var req struct {
+		Orders []struct {
+			ID           uint `json:"id"`
+			DisplayOrder int  `json:"display_order"`
+		} `json:"orders"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 요청입니다"})
+		return
+	}
+
+	if err := h.svc.Reorder(req.Orders); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "순서 변경 실패"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "순서가 변경되었습니다"})
+}
+
 func handleServiceError(c *gin.Context, err error) {
 	if errors.Is(err, service.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "공간을 찾을 수 없습니다"})

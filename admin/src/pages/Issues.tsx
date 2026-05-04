@@ -135,6 +135,11 @@ function IssuesTab() {
                   <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
                     {issue.property_code && <span>{issue.property_code} {issue.property_name}</span>}
                     <span>{new Date(issue.created_at).toLocaleString("ko-KR")}</span>
+                    {issue.deadline && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800 font-medium">
+                        마감: {issue.deadline}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2 ml-4">

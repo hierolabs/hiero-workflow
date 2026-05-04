@@ -19,6 +19,12 @@ export default function DailySummaryBar({ summary }: DailySummaryBarProps) {
       bg: "bg-orange-50",
     },
     {
+      label: "턴오버",
+      value: String(summary.turnover || 0),
+      color: "text-purple-600",
+      bg: "bg-purple-50",
+    },
+    {
       label: "입실 중",
       value: String(summary.in_house),
       color: "text-blue-600",
@@ -51,7 +57,7 @@ export default function DailySummaryBar({ summary }: DailySummaryBarProps) {
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7 sm:gap-2">
+    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8 sm:gap-2">
       {items.map((item) => (
         <div
           key={item.label}

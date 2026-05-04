@@ -13,6 +13,7 @@ export type RoomStatus =
   | "closed"
   | "checkin_today"
   | "checkout_today"
+  | "turnover_today"
   | "needs_cleaning"
   | "cleaning_done"
   | "issue_open";
@@ -53,6 +54,7 @@ export interface CalendarReservation {
 export interface CalendarDailySummary {
   today_checkins: number;
   today_checkouts: number;
+  turnover: number;
   checkin_completed: number;
   checkout_completed: number;
   in_house: number;
@@ -119,6 +121,7 @@ export type StatusFilter =
   | "in_house"
   | "checkin_today"
   | "checkout_today"
+  | "turnover_today"
   | "vacant"
   | "closed";
 

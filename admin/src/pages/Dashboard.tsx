@@ -17,14 +17,15 @@ interface DiagItem {
 }
 
 interface Action {
+  rule_id: string;
   priority: string;
-  type: string;
   title: string;
-  detail: string;
-  action: string;
-  dispatch_target: string;
-  dispatch_payload: Record<string, unknown>;
+  details: string[];
+  assignee: string;
+  deadline: string;
+  issue_type: string;
   property_ids?: number[];
+  properties?: string[];
 }
 
 interface VacantProperty {
@@ -289,38 +290,60 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 🔥 P0: 오늘 해야 할 액션 — 오늘 모드에서만 표시 */}
+      {/* 🔥 오늘 할 일 (Action Engine) */}
       {data.period?.is_today !== false && data.actions.length > 0 && (
         <div className="mb-6 rounded-lg border-2 border-red-300 bg-red-50 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-red-800 uppercase tracking-wider">오늘 해야 할 액션</h2>
-            <span className="text-xs text-red-400">클릭하여 업무 등록</span>
+            <h2 className="text-sm font-bold text-red-800 uppercase tracking-wider">
+              오늘 할 일 (자동 생성)
+            </h2>
+            <button
+              onClick={async () => {
+                const token = localStorage.getItem("token");
+                const res = await fetch(`${API_URL}/dashboard/execute-actions`, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                  const r = await res.json();
+                  setToast(`이슈 ${r.issues_created}건 등록 완료`);
+                } else {
+                  setToast("실행 실패");
+                }
+              }}
+              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors"
+            >
+              전체 실행 → 이슈 등록
+            </button>
           </div>
           <div className="space-y-2">
             {data.actions.map((a, i) => (
               <div
                 key={i}
-                onClick={() => a.dispatch_target && setDispatchAction(a)}
-                className={`rounded-md p-3 transition-all ${
+                className={`rounded-md p-3 ${
                   a.priority === "P0"
-                    ? "bg-red-100 border border-red-200 hover:border-red-400 hover:shadow-md"
-                    : "bg-orange-50 border border-orange-200 hover:border-orange-400 hover:shadow-md"
-                } ${a.dispatch_target ? "cursor-pointer" : ""}`}
+                    ? "bg-red-100 border border-red-200"
+                    : "bg-orange-50 border border-orange-200"
+                }`}
               >
-                <div className="flex items-start gap-2">
-                  <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-xs font-bold ${a.priority === "P0" ? "bg-red-600 text-white" : "bg-orange-500 text-white"}`}>
-                    {a.priority}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-900">{a.title}</p>
-                    <p className="mt-0.5 text-xs text-gray-600">{a.detail}</p>
-                    <p className="mt-1 text-xs font-medium text-blue-700">→ {a.action}</p>
-                  </div>
-                  {a.dispatch_target && (
-                    <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 uppercase">
-                      {a.dispatch_target === "cleaning" ? "청소" : a.dispatch_target === "settlement" ? "정산" : "이슈"}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-xs font-bold ${
+                      a.priority === "P0" ? "bg-red-600 text-white" : "bg-orange-500 text-white"
+                    }`}>
+                      {a.priority}
                     </span>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{a.title}</p>
+                      {a.details?.map((d, j) => (
+                        <p key={j} className="mt-0.5 text-xs text-gray-600">{d}</p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-bold text-gray-900">{a.assignee}</p>
+                    <p className="text-[10px] text-gray-500">{a.deadline}</p>
+                  </div>
                 </div>
               </div>
             ))}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useDateRange } from "../hooks/useDateRange";
 import { useCalendarData } from "../hooks/useCalendarData";
 import { useCalendarFilters } from "../hooks/useCalendarFilters";
@@ -28,6 +28,21 @@ export default function CalendarPage() {
     data?.reservations || []
   );
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const props = data?.properties || [];
+    for (const p of props) {
+      const s = p.today_status || "vacant";
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    counts["all"] = props.length;
+    // 체크인/체크아웃은 턴오버 포함 (중복 카운팅)
+    const turnover = counts["turnover_today"] || 0;
+    counts["checkin_today"] = (counts["checkin_today"] || 0) + turnover;
+    counts["checkout_today"] = (counts["checkout_today"] || 0) + turnover;
+    return counts;
+  }, [data?.properties]);
+
   const [selectedReservation, setSelectedReservation] =
     useState<CalendarReservation | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -55,6 +70,7 @@ export default function CalendarPage() {
         onGoToDate={dateRange.goToDate}
         statusFilter={filters.status}
         onStatusFilterChange={setStatus}
+        statusCounts={statusCounts}
         regions={regions}
         regionFilter={filters.region}
         onRegionFilterChange={setRegion}

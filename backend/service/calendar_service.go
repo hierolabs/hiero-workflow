@@ -16,6 +16,7 @@ func NewCalendarService() *CalendarService {
 type DailySummary struct {
 	TodayCheckins       int `json:"today_checkins"`
 	TodayCheckouts      int `json:"today_checkouts"`
+	Turnover            int `json:"turnover"`
 	CheckinCompleted    int `json:"checkin_completed"`
 	CheckoutCompleted   int `json:"checkout_completed"`
 	InHouse             int `json:"in_house"`
@@ -72,6 +73,15 @@ func (s *CalendarService) GetDailySummary(dateStr string) (*DailySummary, error)
 	config.DB.Model(&models.Reservation{}).
 		Where("check_out_date = ? AND status != 'cancelled'", dateStr).Count(&v)
 	summary.TodayCheckouts = int(v)
+
+	// 턴오버: 같은 숙소에서 체크아웃+체크인 동시 발생
+	config.DB.Raw(`
+		SELECT COUNT(DISTINCT ci.internal_prop_id) FROM reservations ci
+		INNER JOIN reservations co ON ci.internal_prop_id = co.internal_prop_id
+		WHERE ci.check_in_date = ? AND ci.status != 'cancelled'
+		AND co.check_out_date = ? AND co.status != 'cancelled'
+	`, dateStr, dateStr).Scan(&v)
+	summary.Turnover = int(v)
 
 	config.DB.Model(&models.Reservation{}).
 		Where("check_in_date = ? AND stay_status = 'in_house' AND status != 'cancelled'", dateStr).Count(&v)
@@ -212,11 +222,20 @@ func batchCalcTodayStatus(properties []models.Property, dateStr string) map[uint
 		if result[r.InternalPropID] == "closed" {
 			continue
 		}
+		current := result[r.InternalPropID]
 		if r.CheckOutDate == dateStr {
-			result[r.InternalPropID] = "checkout_today"
+			if current == "checkin_today" {
+				result[r.InternalPropID] = "turnover_today"
+			} else {
+				result[r.InternalPropID] = "checkout_today"
+			}
 		} else if r.CheckInDate == dateStr {
-			result[r.InternalPropID] = "checkin_today"
-		} else if result[r.InternalPropID] == "vacant" {
+			if current == "checkout_today" {
+				result[r.InternalPropID] = "turnover_today"
+			} else {
+				result[r.InternalPropID] = "checkin_today"
+			}
+		} else if current == "vacant" {
 			result[r.InternalPropID] = "in_house"
 		}
 	}

@@ -9,12 +9,14 @@ import (
 )
 
 type DashboardHandler struct {
-	svc *service.DashboardService
+	svc       *service.DashboardService
+	actionSvc *service.ActionEngineService
 }
 
 func NewDashboardHandler() *DashboardHandler {
 	return &DashboardHandler{
-		svc: service.NewDashboardService(),
+		svc:       service.NewDashboardService(),
+		actionSvc: service.NewActionEngineService(),
 	}
 }
 
@@ -31,4 +33,19 @@ func (h *DashboardHandler) GetCEODashboard(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, data)
+}
+
+// POST /admin/dashboard/execute-actions — 액션 → 이슈 자동 등록
+func (h *DashboardHandler) ExecuteActions(c *gin.Context) {
+	actions := h.actionSvc.EvaluateAll()
+	created, err := h.actionSvc.ExecuteActions(actions)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "액션 실행 완료",
+		"total_actions":  len(actions),
+		"issues_created": created,
+	})
 }

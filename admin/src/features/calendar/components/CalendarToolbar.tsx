@@ -11,6 +11,7 @@ interface CalendarToolbarProps {
   onGoToDate: (date: string) => void;
   statusFilter: StatusFilterType;
   onStatusFilterChange: (value: StatusFilterType) => void;
+  statusCounts?: Record<string, number>;
   regions: string[];
   regionFilter: string;
   onRegionFilterChange: (value: string) => void;
@@ -29,6 +30,7 @@ export default function CalendarToolbar({
   onGoToDate,
   statusFilter,
   onStatusFilterChange,
+  statusCounts,
   regions,
   regionFilter,
   onRegionFilterChange,
@@ -66,7 +68,7 @@ export default function CalendarToolbar({
       {/* Row 2 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="overflow-x-auto">
-          <StatusFilter value={statusFilter} onChange={onStatusFilterChange} />
+          <StatusFilter value={statusFilter} onChange={onStatusFilterChange} counts={statusCounts} />
         </div>
         <div className="flex items-center gap-2">
           <RegionFilter regions={regions} value={regionFilter} onChange={onRegionFilterChange} />

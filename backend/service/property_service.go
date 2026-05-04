@@ -49,7 +49,7 @@ func (s *PropertyService) List(query dto.PropertyListQuery) (dto.PropertyListRes
 
 	var properties []models.Property
 	offset := (query.Page - 1) * query.PageSize
-	if err := db.Order("created_at DESC").Offset(offset).Limit(query.PageSize).Find(&properties).Error; err != nil {
+	if err := db.Order("display_order ASC, name ASC").Offset(offset).Limit(query.PageSize).Find(&properties).Error; err != nil {
 		return dto.PropertyListResponse{}, err
 	}
 
@@ -185,6 +185,21 @@ func (s *PropertyService) UpdateOperationStatus(id uint, operationStatus string)
 }
 
 // Sentinel errors
+// Reorder — 순서 일괄 변경
+func (s *PropertyService) Reorder(orders []struct {
+	ID           uint `json:"id"`
+	DisplayOrder int  `json:"display_order"`
+}) error {
+	tx := config.DB.Begin()
+	for _, o := range orders {
+		if err := tx.Model(&models.Property{}).Where("id = ?", o.ID).Update("display_order", o.DisplayOrder).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit().Error
+}
+
 var (
 	ErrNotFound      = errors.New("not_found")
 	ErrDuplicateCode = errors.New("duplicate_code")

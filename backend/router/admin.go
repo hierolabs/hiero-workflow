@@ -23,6 +23,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	leadHandler := handler.NewLeadHandler()
 	manualHandler := handler.NewManualHandler()
 	transactionHandler := handler.NewTransactionHandler()
+	dashboardHandler := handler.NewDashboardHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -51,6 +52,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.DELETE("/properties/:id", propertyHandler.Delete)
 			protected.PATCH("/properties/:id/status", propertyHandler.UpdateStatus)
 			protected.PATCH("/properties/:id/operation-status", propertyHandler.UpdateOperationStatus)
+			protected.PATCH("/properties/reorder", propertyHandler.Reorder)
 
 			// 운영 캘린더
 			protected.GET("/calendar", calendarHandler.GetCalendar)
@@ -109,6 +111,9 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/diagnosis/generate", diagnosisHandler.Generate)
 			protected.GET("/diagnosis/:property_id", diagnosisHandler.GetOne)
 			protected.PUT("/diagnosis/:property_id", diagnosisHandler.Update)
+
+			// 액션 엔진 — 오늘 할 일 자동 생성 → 이슈 등록
+			protected.POST("/dashboard/execute-actions", dashboardHandler.ExecuteActions)
 
 			// 정산 관리 (거래 기반 — 기간별 숙소 정산)
 			protected.GET("/settlement/summary", transactionHandler.Settlement)

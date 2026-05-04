@@ -13,6 +13,7 @@ import Diagnosis from "./pages/Diagnosis";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import Users from "./pages/Users";
+import Settings from "./pages/Settings";
 import Messages from "./pages/Messages";
 import MessageAnalysis from "./pages/MessageAnalysis";
 import CalendarPage from "./features/calendar/components/CalendarPage";
@@ -54,7 +55,7 @@ function App() {
             <Route path="/leads" element={<Leads />} />
             <Route path="/leads/:id" element={<LeadDetail />} />
             <Route path="/users" element={<Users />} />
-            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
       </Routes>
