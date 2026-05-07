@@ -223,5 +223,38 @@ func (h *MultidataHandler) Overview(c *gin.Context) {
 		},
 	})
 
+	// 14. 근태/활동 (LocalDB)
+	var sessionTotal, sessionToday int64
+	var activityTotal int64
+	config.LocalDB.Model(&models.UserSession{}).Count(&sessionTotal)
+	config.LocalDB.Model(&models.UserSession{}).Where("DATE(login_at) = ?", today).Count(&sessionToday)
+	config.LocalDB.Model(&models.UserActivity{}).Count(&activityTotal)
+	var actLogTotal int64
+	config.LocalDB.Model(&models.ActivityLog{}).Count(&actLogTotal)
+	folders = append(folders, DataFolder{
+		Key: "attendance", Label: "근태/활동", Desc: "로컬 SQLite 저장",
+		Total: sessionTotal,
+		Metrics: []DataMetric{
+			{Label: "세션 누적", Value: sessionTotal, Unit: "건"},
+			{Label: "오늘 세션", Value: sessionToday, Unit: "건"},
+			{Label: "활동 기록", Value: activityTotal, Unit: "건"},
+			{Label: "업무 로그", Value: actLogTotal, Unit: "건"},
+			{Label: "저장소", Value: "로컬 SQLite", Unit: ""},
+		},
+	})
+
+	// 15. 이슈 감지
+	var detTotal, detPending int64
+	config.DB.Model(&models.IssueDetection{}).Count(&detTotal)
+	config.DB.Model(&models.IssueDetection{}).Where("status = ?", "pending").Count(&detPending)
+	folders = append(folders, DataFolder{
+		Key: "detections", Label: "이슈 감지", Desc: "고객 메시지 자동 감지",
+		Total: detTotal,
+		Metrics: []DataMetric{
+			{Label: "누적 감지", Value: detTotal, Unit: "건"},
+			{Label: "미처리", Value: detPending, Unit: "건"},
+		},
+	})
+
 	c.JSON(http.StatusOK, gin.H{"folders": folders})
 }

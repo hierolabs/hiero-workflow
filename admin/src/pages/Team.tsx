@@ -164,8 +164,19 @@ function KpiBar({ value, max, color }: { value: number; max: number; color: stri
   );
 }
 
+interface AttendanceUser {
+  user_id: number;
+  user_name: string;
+  role_title: string;
+  login_at: string;
+  last_seen?: string;
+  duration?: number;
+  is_online: boolean;
+}
+
 export default function Team() {
   const [members, setMembers] = useState<TeamMemberStat[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [logModal, setLogModal] = useState<{ name: string } | null>(null);
@@ -174,18 +185,39 @@ export default function Team() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch(`${API_URL}/users/team-stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => setMembers(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch(`${API_URL}/users/team-stats`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch(`${API_URL}/attendance/today`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+    ]).then(([statsData, attendData]) => {
+      setMembers(Array.isArray(statsData) ? statsData : []);
+      setAttendance(attendData.users || []);
+    }).finally(() => setLoading(false));
   }, []);
+
+  const [memberAttendance, setMemberAttendance] = useState<{ login_at: string; logout_at: string | null; duration: number }[]>([]);
 
   const openLogModal = async (name: string) => {
     setLogModal({ name });
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API_URL}/activity-logs?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setLogs((data.logs || []).filter((l: ActivityLog) => l.user_name === name));
+    // 업무 로그 + 근태 이력 동시 조회
+    const [logRes, attRes] = await Promise.all([
+      fetch(`${API_URL}/activity-logs?limit=50`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API_URL}/attendance/report?start=${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}&end=${new Date().toISOString().slice(0, 10)}`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    const logData = await logRes.json();
+    const attData = await attRes.json();
+    setLogs((logData.logs || []).filter((l: ActivityLog) => l.user_name === name));
+    // 근태 데이터에서 해당 팀원 필터
+    const member = members.find(m => m.name === name);
+    if (member && attData.attendance) {
+      setMemberAttendance(
+        (attData.attendance as { user_id: number; login_at: string; logout_at: string | null; duration: number }[])
+          .filter(a => a.user_id === member.user_id)
+          .slice(0, 14)
+      );
+    } else {
+      setMemberAttendance([]);
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-500">로딩 중...</div>;
@@ -204,6 +236,26 @@ export default function Team() {
         <h1 className="text-2xl font-bold text-gray-900">팀 관리</h1>
         <p className="text-sm text-gray-500 mt-1">조직 온톨로지 · 역할 · 권한 · KPI · 업무 통계</p>
       </div>
+
+      {/* 오늘 근태 현황 */}
+      {attendance.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+          <h2 className="text-sm font-bold text-gray-700 mb-3">오늘 접속 현황</h2>
+          <div className="flex flex-wrap gap-2">
+            {members.map(m => {
+              const att = attendance.find(a => a.user_id === m.user_id);
+              const onto = ROLE_ONTOLOGY[m.role_title];
+              return (
+                <div key={m.user_id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm ${att ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50 opacity-50'}`}>
+                  <span className={`w-2 h-2 rounded-full ${att ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                  <span className="font-medium text-gray-900">{onto?.label || m.role_title}</span>
+                  {att && <span className="text-xs text-gray-500">{new Date(att.login_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}~</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 역할 상세 (선택 시) */}
       {selectedOntology && (
@@ -286,7 +338,7 @@ export default function Team() {
                         className={`px-2 py-0.5 rounded text-xs font-bold ${onto?.color || 'bg-gray-100'}`}>
                         {onto?.label || m.role_title}
                       </button>
-                      <div className="text-sm font-semibold text-gray-900 mt-1">{m.name}</div>
+                      <div className="text-sm font-semibold text-gray-900 mt-1 cursor-pointer hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openLogModal(m.name); }}>{m.name}</div>
                     </div>
                     {m.stats.unread_notifications > 0 && (
                       <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -363,38 +415,106 @@ export default function Team() {
       ))}
 
       {/* 활동 로그 모달 */}
-      {logModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setLogModal(null)}>
-          <div className="bg-white rounded-xl w-[500px] max-h-[70vh] overflow-hidden shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h3 className="text-sm font-bold text-gray-900">{logModal.name} — 활동 로그</h3>
-              <button onClick={() => setLogModal(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <div className="overflow-y-auto max-h-[55vh] p-4">
-              {logs.length === 0 ? (
-                <div className="text-center text-gray-400 text-sm py-8">기록된 활동이 없습니다</div>
-              ) : (
-                <div className="space-y-2">
-                  {logs.map(l => (
-                    <div key={l.id} className="flex items-start gap-3 text-sm">
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-400 mt-2 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                            {ACTION_LABELS[l.action] || l.action}
-                          </span>
-                          <span className="text-xs text-gray-400">{new Date(l.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+      {logModal && (() => {
+        const member = members.find(m => m.name === logModal.name);
+        const onto = member ? ROLE_ONTOLOGY[member.role_title] : null;
+        const att = attendance.find(a => a.user_id === member?.user_id);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setLogModal(null)}>
+            <div className="bg-white rounded-xl w-[600px] max-h-[85vh] overflow-hidden shadow-xl" onClick={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <div className="flex items-center gap-3">
+                  {onto && <span className={`px-2 py-1 rounded text-xs font-bold ${onto.color}`}>{onto.label}</span>}
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">{logModal.name}</h3>
+                    <p className="text-xs text-gray-500">{onto?.layerLabel} · {onto?.responsibilities.slice(0, 3).join(' · ')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {att ? <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> : <span className="w-2 h-2 rounded-full bg-gray-300" />}
+                  <span className="text-xs text-gray-500">{att ? '접속 중' : '오프라인'}</span>
+                  <button onClick={() => setLogModal(null)} className="ml-2 text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+              </div>
+
+              <div className="overflow-y-auto max-h-[70vh]">
+                {/* KPI 요약 */}
+                {member && (
+                  <div className="px-5 py-4 border-b bg-gray-50">
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      <div>
+                        <div className="text-lg font-bold text-gray-800">{member.stats.open_issues}</div>
+                        <div className="text-[10px] text-gray-500">미처리</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-emerald-700">{member.stats.resolved_week}</div>
+                        <div className="text-[10px] text-gray-500">주간 해결</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-blue-700">{member.stats.activity_week}</div>
+                        <div className="text-[10px] text-gray-500">주간 활동</div>
+                      </div>
+                      <div>
+                        <div className={`text-lg font-bold ${member.stats.avg_resolve_hours > 24 ? 'text-red-600' : 'text-gray-700'}`}>
+                          {member.stats.avg_resolve_hours > 0 ? `${member.stats.avg_resolve_hours}h` : '-'}
                         </div>
-                        <div className="text-xs text-gray-600 mt-0.5 truncate">{l.detail}</div>
+                        <div className="text-[10px] text-gray-500">평균 해결</div>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                {/* 근태 이력 (최근 14일) */}
+                {memberAttendance.length > 0 && (
+                  <div className="px-5 py-4 border-b">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">근태 이력 (최근 14일)</h4>
+                    <div className="space-y-1">
+                      {memberAttendance.map((a, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600">{new Date(a.login_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
+                          <span className="text-gray-500">
+                            {new Date(a.login_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                            {a.logout_at ? ` ~ ${new Date(a.logout_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : ' ~ 접속 중'}
+                          </span>
+                          <span className="font-medium text-gray-700 w-12 text-right">
+                            {a.duration > 0 ? `${Math.floor(a.duration / 60)}h${a.duration % 60}m` : '-'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 업무 로그 */}
+                <div className="px-5 py-4">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">업무 로그</h4>
+                  {logs.length === 0 ? (
+                    <div className="text-center text-gray-400 text-sm py-6">기록된 활동이 없습니다</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {logs.map(l => (
+                        <div key={l.id} className="flex items-start gap-3 text-sm">
+                          <div className="w-1.5 h-1.5 rounded-full bg-gray-400 mt-2 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                {ACTION_LABELS[l.action] || l.action}
+                              </span>
+                              <span className="text-xs text-gray-400">{new Date(l.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <div className="text-xs text-gray-600 mt-0.5 truncate">{l.detail}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <AiAgentPanel
         page="team"

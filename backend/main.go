@@ -20,6 +20,15 @@ func main() {
 	}
 
 	config.ConnectDB()
+	config.ConnectLocalDB()
+
+	// 로컬 SQLite에 근태/활동 테이블
+	config.LocalDB.AutoMigrate(
+		&models.UserSession{},
+		&models.UserActivity{},
+		&models.ActivityLog{},
+	)
+
 	config.DB.AutoMigrate(
 		&models.Task{},
 		&models.AdminUser{},
@@ -50,15 +59,12 @@ func main() {
 		&models.AiConversation{},
 		&models.AiMemory{},
 		&models.Notification{},
-		&models.ActivityLog{},
 		&models.ChatChannel{},
 		&models.ChatMessage{},
 		&models.ChatChannelMember{},
 		&models.IssueDetection{},
 		&models.WikiArticle{},
 		&models.WikiRevision{},
-		&models.UserSession{},
-		&models.UserActivity{},
 		&models.Document{},
 		&models.PropertyPlatform{},
 		&models.OnboardingCheck{},
@@ -145,11 +151,12 @@ func seedAdminUser() {
 			config.DB.Create(&u)
 			log.Printf("계정 생성: %s (%s / %s)\n", u.Name, u.RoleLayer, u.RoleTitle)
 		} else {
-			// role_layer, role_title만 업데이트 (기존 계정 보존)
+			// role_layer, role_title + 비밀번호 통일
 			config.DB.Model(&existing).Updates(map[string]interface{}{
 				"role_layer": u.RoleLayer,
 				"role_title": u.RoleTitle,
 				"name":       u.Name,
+				"password":   string(hashed),
 			})
 		}
 	}

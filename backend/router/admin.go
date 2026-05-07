@@ -35,6 +35,8 @@ func registerAdminRoutes(r *gin.Engine) {
 	teamChatHandler := handler.NewTeamChatHandler()
 	issueDetectionHandler := handler.NewIssueDetectionHandler()
 	opsFeedHandler := handler.NewOpsFeedHandler()
+	opsPulseHandler := handler.NewOpsPulseHandler()
+	csAgentHandler := handler.NewCSAgentHandler()
 	notifHandler := handler.NewNotificationHandler()
 	wikiHandler := handler.NewWikiHandler()
 	multidataHandler := handler.NewMultidataHandler()
@@ -106,6 +108,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/cleaning/weekly-settlement", cleaningHandler.WeeklySettlement)
 			protected.GET("/cleaning/records", cleaningHandler.AllRecords)
 			protected.GET("/cleaning/export", cleaningHandler.ExportCSV)
+			protected.GET("/cleaning/cost-match", cleaningHandler.CostMatch)
 
 			// 청소코드
 			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
@@ -226,6 +229,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			{
 				attendance.POST("/heartbeat", attendanceHandler.Heartbeat)
 				attendance.POST("/logout", attendanceHandler.Logout)
+				attendance.POST("/logout-others", attendanceHandler.LogoutOthers)
 				attendance.GET("/today", attendanceHandler.Today)
 				attendance.GET("/report", attendanceHandler.Report)
 				attendance.GET("/productivity", attendanceHandler.Productivity)
@@ -291,6 +295,7 @@ func registerAdminRoutes(r *gin.Engine) {
 
 			// 오늘 운영 피드
 			protected.GET("/ops/feed", opsFeedHandler.Feed)
+			protected.GET("/ops/pulse", opsPulseHandler.Pulse)
 
 			// 팀 채팅
 			protected.GET("/chat/channels", teamChatHandler.ListChannels)
@@ -304,6 +309,9 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/issue-detections/scan", issueDetectionHandler.Scan)
 			protected.POST("/issue-detections/:id/create-issue", issueDetectionHandler.CreateIssue)
 			protected.POST("/issue-detections/:id/dismiss", issueDetectionHandler.Dismiss)
+
+			// CS Agent (민원 대응 AI)
+			protected.POST("/cs-agent/suggest", csAgentHandler.Suggest)
 
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)

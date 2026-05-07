@@ -34,7 +34,7 @@ const (
 
 // DefaultDashboard — role_title별 기본 대시보드
 var DefaultDashboards = map[RoleTitle]string{
-	RoleTitleFounder:          "/founder",
+	RoleTitleFounder:          "/",
 	RoleTitleCEO:              "/etf-board/ceo",
 	RoleTitleCTO:              "/etf-board/cto",
 	RoleTitleCFO:              "/etf-board/cfo",

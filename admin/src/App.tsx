@@ -16,6 +16,7 @@ import LeadDetail from "./pages/LeadDetail";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import PropertyOrder from "./pages/settings/PropertyOrder";
+import SidebarSettings from "./pages/settings/SidebarSettings";
 import Messages from "./pages/Messages";
 import MessageAnalysis from "./pages/MessageAnalysis";
 import CalendarPage from "./features/calendar/components/CalendarPage";
@@ -31,7 +32,9 @@ import CFOBoard from "./pages/etf/CFOBoard";
 import ExecutionDashboard from "./pages/execution/ExecutionDashboard";
 import TeamChat from "./pages/TeamChat";
 import IssueDetections from "./pages/IssueDetections";
+import TodayDashboard from "./pages/TodayDashboard";
 import KnowledgeBase from "./pages/wiki/KnowledgeBase";
+import MyPage from "./pages/MyPage";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -54,6 +57,7 @@ function App() {
         <Route element={<PrivateRoute />}>
           <Route element={<PrivateLayout />}>
             <Route path="/" element={<FounderDashboard />} />
+            <Route path="/today" element={<TodayDashboard />} />
             <Route path="/hiero-dashboard" element={<HieroDashboard />} />
             <Route path="/etf-board" element={<ETFBoard />} />
             <Route path="/etf-board/ceo" element={<CEOBoard />} />
@@ -63,6 +67,7 @@ function App() {
             <Route path="/chat" element={<TeamChat />} />
             <Route path="/issue-detections" element={<IssueDetections />} />
             <Route path="/wiki" element={<KnowledgeBase />} />
+            <Route path="/mypage" element={<MyPage />} />
             <Route path="/dashboard-old" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/tasks" element={<Tasks />} />
@@ -84,6 +89,7 @@ function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/property-order" element={<PropertyOrder />} />
+            <Route path="/settings/sidebar" element={<SidebarSettings />} />
           </Route>
         </Route>
       </Routes>

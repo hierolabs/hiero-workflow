@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
+var LocalDB *gorm.DB // 근태/활동 기록용 로컬 SQLite
 
 func ConnectDB() {
 	dbName := os.Getenv("DB_NAME")
@@ -53,4 +56,21 @@ func ConnectDB() {
 
 	log.Println("DB 연결 성공 (pool: max=50, idle=20)")
 	DB = db
+}
+
+// ConnectLocalDB — 근태/활동 기록용 로컬 SQLite
+func ConnectLocalDB() {
+	dataDir := filepath.Join(".", ".data")
+	os.MkdirAll(dataDir, 0755)
+	dbPath := filepath.Join(dataDir, "local.db")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		log.Printf("[LocalDB] SQLite 연결 실패: %v — MySQL로 fallback", err)
+		LocalDB = DB
+		return
+	}
+
+	log.Printf("[LocalDB] 로컬 SQLite 연결: %s", dbPath)
+	LocalDB = db
 }

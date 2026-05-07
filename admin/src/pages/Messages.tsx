@@ -10,6 +10,7 @@ import {
   createGuestRequest,
   updateGuestRequestStatus,
 } from "../utils/message-api";
+import api from "../utils/api";
 
 interface Conversation {
   id: number;
@@ -73,6 +74,9 @@ export default function Messages() {
   const [newRequestType, setNewRequestType] = useState("special_request");
   const [newRequestNote, setNewRequestNote] = useState("");
   const [showManual, setShowManual] = useState(false);
+  const [rightTab, setRightTab] = useState<'requests' | 'ai' | 'issue'>('requests');
+  const [aiSuggestion, setAiSuggestion] = useState<{category:string; severity:string; suggested_reply:string; assign_to:string; assign_role:string} | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 대화 목록 로드 + URL에서 conv 파라미터 처리
@@ -334,113 +338,211 @@ export default function Messages() {
         )}
       </div>
 
-      {/* Right: 요청사항 */}
+      {/* Right: 요청/AI/이슈 패널 */}
       {selected && (
-        <div className="w-72 border-l border-gray-200 bg-white flex flex-col">
-          <div className="p-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm text-gray-900">요청사항</h3>
-              <button
-                onClick={() => setShowRequestForm(!showRequestForm)}
-                className="text-xs px-2 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100"
-              >
-                + 추가
+        <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+          {/* 탭 */}
+          <div className="flex border-b border-gray-200">
+            {[
+              { key: 'requests' as const, label: '요청', count: requests.length },
+              { key: 'ai' as const, label: 'AI 대응' },
+              { key: 'issue' as const, label: '이슈 등록' },
+            ].map(t => (
+              <button key={t.key} onClick={() => setRightTab(t.key)}
+                className={`flex-1 py-2 text-xs font-medium ${rightTab === t.key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}>
+                {t.label}{t.count ? ` (${t.count})` : ''}
               </button>
-            </div>
+            ))}
           </div>
 
-
-          {/* 요청 추가 폼 */}
-          {showRequestForm && (
-            <div className="p-3 border-b border-gray-100 space-y-2">
-              <select
-                value={newRequestType}
-                onChange={(e) => setNewRequestType(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded"
-              >
-                {REQUEST_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                value={newRequestNote}
-                onChange={(e) => setNewRequestNote(e.target.value)}
-                placeholder="상세 내용..."
-                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded resize-none"
-                rows={2}
-              />
-              <div className="flex gap-1">
-                <button
-                  onClick={handleCreateRequest}
-                  className="flex-1 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-                >
-                  저장
-                </button>
-                <button
-                  onClick={() => setShowRequestForm(false)}
-                  className="flex-1 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 요청 목록 */}
           <div className="flex-1 overflow-y-auto">
-            {requests.length === 0 ? (
-              <div className="p-4 text-xs text-gray-400 text-center">
-                등록된 요청이 없습니다
-              </div>
-            ) : (
-              requests.map((req) => (
-                <div key={req.id} className="px-3 py-2 border-b border-gray-50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">
-                      {getRequestLabel(req.request_type)}
-                    </span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded ${
-                        STATUS_COLORS[req.status] || "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {req.status}
-                    </span>
+            {/* 요청사항 탭 */}
+            {rightTab === 'requests' && (
+              <>
+                <div className="p-2 border-b border-gray-100">
+                  <button onClick={() => setShowRequestForm(!showRequestForm)}
+                    className="w-full text-xs py-1.5 rounded bg-green-50 text-green-600 hover:bg-green-100">+ 요청 추가</button>
+                </div>
+                {showRequestForm && (
+                  <div className="p-3 border-b border-gray-100 space-y-2">
+                    <select value={newRequestType} onChange={(e) => setNewRequestType(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded">
+                      {REQUEST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    <textarea value={newRequestNote} onChange={(e) => setNewRequestNote(e.target.value)}
+                      placeholder="상세 내용..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded resize-none" rows={2} />
+                    <div className="flex gap-1">
+                      <button onClick={handleCreateRequest} className="flex-1 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600">저장</button>
+                      <button onClick={() => setShowRequestForm(false)} className="flex-1 py-1 text-xs bg-gray-100 text-gray-600 rounded">취소</button>
+                    </div>
                   </div>
-                  {req.note && (
-                    <p className="text-xs text-gray-500 mt-0.5">{req.note}</p>
-                  )}
-                  {req.status === "pending" && (
-                    <div className="flex gap-1 mt-1">
+                )}
+                {requests.length === 0 ? (
+                  <div className="p-4 text-xs text-gray-400 text-center">등록된 요청이 없습니다</div>
+                ) : requests.map((req) => (
+                  <div key={req.id} className="px-3 py-2 border-b border-gray-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">{getRequestLabel(req.request_type)}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_COLORS[req.status] || "bg-gray-100"}`}>{req.status}</span>
+                    </div>
+                    {req.note && <p className="text-xs text-gray-500 mt-0.5">{req.note}</p>}
+                    {req.status === "pending" && (
+                      <div className="flex gap-1 mt-1">
+                        <button onClick={() => handleRequestStatus(req.id, "confirmed")} className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">확인</button>
+                        <button onClick={() => handleRequestStatus(req.id, "rejected")} className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded">거절</button>
+                        <button onClick={() => handleRequestStatus(req.id, "completed")} className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-600 rounded">완료</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* AI 대응 탭 */}
+            {rightTab === 'ai' && (
+              <div className="p-3 space-y-3">
+                <button
+                  onClick={async () => {
+                    const lastGuest = [...messages].reverse().find(m => m.sender_type === 'guest');
+                    if (!lastGuest) return;
+                    setAiLoading(true);
+                    try {
+                      const res = await api.post('/admin/cs-agent/suggest', {
+                        message: lastGuest.content,
+                        guest_name: convDetail?.guest_name || '',
+                      });
+                      setAiSuggestion(res.data);
+                    } finally { setAiLoading(false); }
+                  }}
+                  disabled={aiLoading}
+                  className="w-full py-2 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {aiLoading ? '분석 중...' : '마지막 게스트 메시지 분석'}
+                </button>
+
+                {aiSuggestion && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        aiSuggestion.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                        aiSuggestion.severity === 'high' ? 'bg-orange-100 text-orange-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>{aiSuggestion.severity}</span>
+                      <span className="text-xs font-medium text-gray-700">{aiSuggestion.category}</span>
+                      <span className="text-[10px] text-gray-400">→ {aiSuggestion.assign_to}</span>
+                    </div>
+
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                      <div className="text-[10px] text-indigo-600 font-medium mb-1">추천 응답</div>
+                      <div className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed">{aiSuggestion.suggested_reply}</div>
+                    </div>
+
+                    <div className="flex gap-1">
                       <button
-                        onClick={() => handleRequestStatus(req.id, "confirmed")}
-                        className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                        onClick={() => {
+                          setInput(aiSuggestion.suggested_reply);
+                          setRightTab('requests');
+                        }}
+                        className="flex-1 py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
                       >
-                        확인
+                        입력창에 복사
                       </button>
                       <button
-                        onClick={() => handleRequestStatus(req.id, "rejected")}
-                        className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded hover:bg-red-100"
+                        onClick={async () => {
+                          if (!selected) return;
+                          await sendMessage(selected, aiSuggestion.suggested_reply);
+                          const data = await getConversation(selected);
+                          setMessages(data.messages || []);
+                          loadConversations();
+                        }}
+                        className="flex-1 py-1.5 text-xs bg-green-500 text-white rounded hover:bg-green-600"
                       >
-                        거절
-                      </button>
-                      <button
-                        onClick={() => handleRequestStatus(req.id, "completed")}
-                        className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-600 rounded hover:bg-green-100"
-                      >
-                        완료
+                        바로 전송
                       </button>
                     </div>
-                  )}
-                </div>
-              ))
+                  </div>
+                )}
+
+                {!aiSuggestion && !aiLoading && (
+                  <div className="text-xs text-gray-400 text-center py-4">
+                    게스트 메시지를 분석하여<br/>카테고리 감지 + 응답 초안을 제안합니다
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 이슈 등록 탭 */}
+            {rightTab === 'issue' && (
+              <div className="p-3 space-y-3">
+                <div className="text-xs text-gray-500">이 대화에서 이슈를 바로 생성합니다</div>
+                <IssueCreateForm
+                  conversationId={selected}
+                  guestName={convDetail?.guest_name || ''}
+                  lastMessage={[...messages].reverse().find(m => m.sender_type === 'guest')?.content || ''}
+                  onCreated={() => { setRightTab('requests'); }}
+                />
+              </div>
             )}
           </div>
         </div>
       )}
       {showManual && <OperationManual page="messages" onClose={() => setShowManual(false)} />}
+    </div>
+  );
+}
+
+// --- 이슈 생성 폼 ---
+function IssueCreateForm({ conversationId, guestName, lastMessage, onCreated }: {
+  conversationId: string; guestName: string; lastMessage: string; onCreated: () => void;
+}) {
+  const [title, setTitle] = useState(`[게스트] ${guestName}: `);
+  const [issueType, setIssueType] = useState('guest');
+  const [priority, setPriority] = useState('P2');
+  const [desc, setDesc] = useState(lastMessage);
+  const [creating, setCreating] = useState(false);
+
+  const issueTypes = [
+    { value: 'guest', label: '게스트 응대' },
+    { value: 'cleaning', label: '청소 문제' },
+    { value: 'facility', label: '시설 문제' },
+    { value: 'settlement', label: '정산/환불' },
+    { value: 'decision', label: '의사결정' },
+  ];
+
+  async function handleCreate() {
+    if (!title.trim()) return;
+    setCreating(true);
+    try {
+      await api.post('/admin/issues', {
+        title, description: `대화: ${conversationId}\n게스트: ${guestName}\n\n${desc}`,
+        issue_type: issueType, priority,
+      });
+      alert('이슈가 생성되었습니다');
+      onCreated();
+    } finally { setCreating(false); }
+  }
+
+  return (
+    <div className="space-y-2">
+      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="이슈 제목"
+        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded" />
+      <div className="flex gap-2">
+        <select value={issueType} onChange={e => setIssueType(e.target.value)}
+          className="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded">
+          {issueTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <select value={priority} onChange={e => setPriority(e.target.value)}
+          className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded">
+          {['P0','P1','P2','P3'].map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+      <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="상세 내용"
+        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded resize-none" rows={4} />
+      <button onClick={handleCreate} disabled={creating || !title.trim()}
+        className="w-full py-2 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+        {creating ? '생성 중...' : '이슈 생성 (자동 배정)'}
+      </button>
+      <div className="text-[10px] text-gray-400 text-center">이슈 유형에 따라 담당자가 자동 배정됩니다</div>
     </div>
   );
 }

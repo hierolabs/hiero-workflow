@@ -31,6 +31,8 @@ type TeamStat struct {
 	OpenIssues     int64  `json:"open_issues"`
 	ResolvedToday  int64  `json:"resolved_today"`
 	CompletionRate int    `json:"completion_rate"`
+	IsOnline       bool   `json:"is_online"`
+	LoginAt        string `json:"login_at"`
 }
 
 func (s *ETFBoardService) GetCEOBoard() CEOBoardData {
@@ -58,6 +60,16 @@ func (s *ETFBoardService) GetCEOBoard() CEOBoardData {
 	var users []models.AdminUser
 	config.DB.Where("role_layer IN (?, ?)", "etf", "execution").Find(&users)
 
+	// 근태 정보 조회 (LocalDB)
+	attSvc := NewAttendanceService()
+	activeUsers := attSvc.GetTodayActive()
+	onlineMap := map[uint]string{}
+	for _, au := range activeUsers {
+		if au.IsOnline {
+			onlineMap[au.UserID] = au.LoginAt
+		}
+	}
+
 	teamStats := make([]TeamStat, 0, len(users))
 	for _, u := range users {
 		var openCount, resolvedToday int64
@@ -74,12 +86,16 @@ func (s *ETFBoardService) GetCEOBoard() CEOBoardData {
 			rate = int(resolvedToday * 100 / total)
 		}
 
+		loginAt, isOnline := onlineMap[u.ID]
+
 		teamStats = append(teamStats, TeamStat{
 			Name:           u.Name,
 			RoleTitle:      u.RoleTitle,
 			OpenIssues:     openCount,
 			ResolvedToday:  resolvedToday,
 			CompletionRate: rate,
+			IsOnline:       isOnline,
+			LoginAt:        loginAt,
 		})
 	}
 
@@ -190,6 +206,7 @@ type CEOCardData struct {
 	DelayedTasks    int64 `json:"delayed_tasks"`
 	ApprovalPending int64 `json:"approval_pending"`
 	TeamCount       int   `json:"team_count"`
+	OnlineCount     int   `json:"online_count"`
 }
 
 type CTOCardData struct {
@@ -216,6 +233,7 @@ func (s *ETFBoardService) GetOverview() ETFBoardOverview {
 			DelayedTasks:    ceo.TotalDelayed,
 			ApprovalPending: ceo.TotalApproval,
 			TeamCount:       len(ceo.TeamCompletion),
+			OnlineCount:     countOnline(ceo.TeamCompletion),
 		},
 		CTO: CTOCardData{
 			TotalTasks:    cto.TotalTasks,
@@ -229,4 +247,14 @@ func (s *ETFBoardService) GetOverview() ETFBoardOverview {
 			TotalTasks:     cfo.TotalTasks,
 		},
 	}
+}
+
+func countOnline(stats []TeamStat) int {
+	n := 0
+	for _, s := range stats {
+		if s.IsOnline {
+			n++
+		}
+	}
+	return n
 }

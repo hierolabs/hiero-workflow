@@ -43,6 +43,13 @@ func (h *AttendanceHandler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
+// POST /admin/attendance/logout-others — 나 외 전체 로그아웃
+func (h *AttendanceHandler) LogoutOthers(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	count := h.svc.LogoutAllExcept(userID.(uint))
+	c.JSON(http.StatusOK, gin.H{"message": "완료", "logged_out": count})
+}
+
 // GET /admin/attendance/today — 오늘 접속 현황
 func (h *AttendanceHandler) Today(c *gin.Context) {
 	active := h.svc.GetTodayActive()

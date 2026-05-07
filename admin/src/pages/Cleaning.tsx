@@ -25,7 +25,7 @@ import {
   type CleaningCode,
 } from "../utils/cleaning-api";
 
-type Tab = "dashboard" | "cleaners" | "settlement" | "records" | "codes";
+type Tab = "dashboard" | "cleaners" | "settlement" | "records" | "costmatch" | "codes";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   walk: "도보",
@@ -55,12 +55,14 @@ export default function Cleaning() {
         <TabBtn active={tab === "cleaners"} onClick={() => setTab("cleaners")}>청소자 관리</TabBtn>
         <TabBtn active={tab === "settlement"} onClick={() => setTab("settlement")}>주간 정산</TabBtn>
         <TabBtn active={tab === "records"} onClick={() => setTab("records")}>전체 기록</TabBtn>
+        <TabBtn active={tab === "costmatch"} onClick={() => setTab("costmatch")}>비용 매칭</TabBtn>
         <TabBtn active={tab === "codes"} onClick={() => setTab("codes")}>청소코드</TabBtn>
       </div>
       {tab === "dashboard" && <DashboardTab />}
       {tab === "cleaners" && <CleanersTab />}
       {tab === "settlement" && <SettlementTab />}
       {tab === "records" && <RecordsTab />}
+      {tab === "costmatch" && <CostMatchTab />}
       {tab === "codes" && <CodesTab />}
       {showManual && <OperationManual page="cleaning" onClose={() => setShowManual(false)} />}
 
@@ -893,6 +895,141 @@ function RecordsTab() {
           <span className="text-sm text-gray-600">{page} / {totalPages}</span>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
             className="rounded border px-3 py-1 text-sm disabled:opacity-30">다음</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================== Cost Match Tab — Data2 vs CleaningTask 매칭 =====================
+interface CostMatchRow {
+  property_id: number; property_name: string;
+  csv_total: number; csv_count: number;
+  task_total: number; task_count: number;
+  diff: number; status: string;
+}
+
+function CostMatchTab() {
+  const [data, setData] = useState<{
+    matches: CostMatchRow[]; total_csv: number; total_task: number; total_diff: number;
+    match_count: number; mismatch_count: number; property_count: number;
+  } | null>(null);
+  const [yearMonth, setYearMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [loading, setLoading] = useState(true);
+  const API_URL = import.meta.env.VITE_API_URL;
+  const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
+
+  useEffect(() => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/cleaning/cost-match?year_month=${yearMonth}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, [yearMonth]);
+
+  const STATUS_STYLE: Record<string, string> = {
+    match: 'bg-emerald-100 text-emerald-700',
+    over: 'bg-blue-100 text-blue-700',
+    under: 'bg-red-100 text-red-700',
+    csv_only: 'bg-amber-100 text-amber-700',
+    task_only: 'bg-purple-100 text-purple-700',
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    match: '일치', over: 'DB 초과', under: 'DB 부족', csv_only: 'CSV만', task_only: 'DB만',
+  };
+
+  if (loading) return <div className="text-center text-gray-400 py-8">로딩 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      {/* 월 선택 */}
+      <div className="flex items-center gap-3">
+        <input type="month" value={yearMonth} onChange={e => setYearMonth(e.target.value)}
+          className="rounded border px-3 py-1.5 text-sm" />
+        <span className="text-sm text-gray-500">Data 2 (CSV 정산) vs 청소 DB 비교</span>
+      </div>
+
+      {/* 요약 */}
+      {data && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">숙소 수</div>
+            <div className="text-xl font-bold">{data.property_count}</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">CSV 청소비</div>
+            <div className="text-xl font-bold text-gray-800">{fmt(data.total_csv)}원</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">DB 청소비</div>
+            <div className="text-xl font-bold text-blue-700">{fmt(data.total_task)}원</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-emerald-600">일치</div>
+            <div className="text-xl font-bold text-emerald-700">{data.match_count}건</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-red-600">불일치</div>
+            <div className="text-xl font-bold text-red-700">{data.mismatch_count}건</div>
+          </div>
+        </div>
+      )}
+
+      {/* 매칭 테이블 */}
+      {data && data.matches && data.matches.length > 0 ? (
+        <div className="bg-white border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-2 text-xs text-gray-500">숙소</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">CSV 건수</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">CSV 금액</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">DB 건수</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">DB 금액</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">차이</th>
+                <th className="text-center px-3 py-2 text-xs text-gray-500">상태</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.matches.map(m => (
+                <tr key={m.property_id} className={`hover:bg-gray-50 ${m.status !== 'match' ? 'bg-red-50/30' : ''}`}>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-900">{m.property_name}</td>
+                  <td className="px-3 py-2 text-right text-xs">{m.csv_count}</td>
+                  <td className="px-3 py-2 text-right text-xs">{fmt(m.csv_total)}</td>
+                  <td className="px-3 py-2 text-right text-xs">{m.task_count}</td>
+                  <td className="px-3 py-2 text-right text-xs">{fmt(m.task_total)}</td>
+                  <td className={`px-3 py-2 text-right text-xs font-semibold ${m.diff > 0 ? 'text-blue-600' : m.diff < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                    {m.diff > 0 ? '+' : ''}{fmt(m.diff)}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLE[m.status] || ''}`}>
+                      {STATUS_LABEL[m.status] || m.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 border-t-2 font-semibold text-sm">
+                <td className="px-4 py-2">합계</td>
+                <td className="px-3 py-2"></td>
+                <td className="px-3 py-2 text-right">{fmt(data.total_csv)}</td>
+                <td className="px-3 py-2"></td>
+                <td className="px-3 py-2 text-right">{fmt(data.total_task)}</td>
+                <td className={`px-3 py-2 text-right ${data.total_diff > 0 ? 'text-blue-600' : data.total_diff < 0 ? 'text-red-600' : ''}`}>
+                  {data.total_diff > 0 ? '+' : ''}{fmt(data.total_diff)}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white border rounded-xl p-8 text-center text-gray-400">
+          해당 월 매칭 데이터가 없습니다
         </div>
       )}
     </div>

@@ -2,6 +2,16 @@ import { Link } from "react-router-dom";
 
 const settingsMenus = [
   {
+    to: "/settings/sidebar",
+    title: "사이드바 설정",
+    description: "사이드바 그룹·메뉴 이름과 순서를 변경합니다",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+      </svg>
+    ),
+  },
+  {
     to: "/settings/property-order",
     title: "숙소 표시 순서",
     description: "캘린더·공간관리에서 숙소가 표시되는 순서를 조정합니다",

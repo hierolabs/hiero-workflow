@@ -17,6 +17,14 @@ export async function apiRequest(path: string, options?: RequestInit) {
     headers,
   });
 
+  // 401 → 토큰 만료 → 로그인 페이지로
+  if (response.status === 401 && path !== '/login') {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('session_id');
+    window.location.href = '/login';
+  }
+
   return response;
 }
 

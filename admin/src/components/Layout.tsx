@@ -7,69 +7,97 @@ interface User {
   name: string;
 }
 
-// 업무 비중 기반 사이드바 (70% 운영 → 20% 청소 → 10% 시설 → 영업 → 재무 → 경영 → 시스템)
-const navGroups = [
+// 아이콘 매핑 (설정에서 복원할 때 사용)
+const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
+  ChecklistIcon, CalendarIcon, ReservationsIcon, MessagesIcon, CleaningIcon,
+  IssuesIcon, LeadsIcon, PropertiesIcon, SettlementIcon, RevenueIcon,
+  DashboardIcon, UsersIcon, DiagnosisIcon, HostexIcon, SettingsIcon,
+};
+
+interface NavItem { to: string; label: string; iconName: string }
+interface NavGroup { label: string; items: NavItem[] }
+
+const DEFAULT_NAV: NavGroup[] = [
   {
-    label: '매일 운영',
+    label: '운영',
     items: [
-      { to: "/calendar", label: "운영 캘린더", icon: CalendarIcon },
-      { to: "/reservations", label: "예약 관리", icon: ReservationsIcon },
-      { to: "/messages", label: "게스트 메시지", icon: MessagesIcon },
-    ],
-  },
-  {
-    label: '청소',
-    items: [
-      { to: "/cleaning", label: "청소 관리", icon: CleaningIcon },
-    ],
-  },
-  {
-    label: '시설',
-    items: [
-      { to: "/issues", label: "민원/하자", icon: IssuesIcon },
+      { to: "/today", label: "오늘의 업무", iconName: "ChecklistIcon" },
+      { to: "/calendar", label: "운영 캘린더", iconName: "CalendarIcon" },
+      { to: "/reservations", label: "예약 관리", iconName: "ReservationsIcon" },
+      { to: "/messages", label: "게스트 메시지", iconName: "MessagesIcon" },
+      { to: "/cleaning", label: "청소 관리", iconName: "CleaningIcon" },
+      { to: "/issues", label: "민원/하자", iconName: "IssuesIcon" },
     ],
   },
   {
     label: '신규런칭',
     items: [
-      { to: "/leads", label: "위탁영업", icon: LeadsIcon },
-      { to: "/properties", label: "공간 관리", icon: PropertiesIcon },
+      { to: "/leads", label: "위탁영업", iconName: "LeadsIcon" },
+      { to: "/properties", label: "공간 관리", iconName: "PropertiesIcon" },
+      { to: "/diagnosis", label: "사업 진단", iconName: "DiagnosisIcon" },
     ],
   },
   {
     label: '재무',
     items: [
-      { to: "/settlement", label: "정산 관리", icon: SettlementIcon },
-      { to: "/revenue", label: "매출 현황", icon: RevenueIcon },
-      { to: "/profit", label: "수익성 분석", icon: RevenueIcon },
+      { to: "/settlement", label: "정산 관리", iconName: "SettlementIcon" },
+      { to: "/revenue", label: "매출 현황", iconName: "RevenueIcon" },
+      { to: "/profit", label: "수익성 분석", iconName: "RevenueIcon" },
     ],
   },
   {
     label: '경영',
     items: [
-      { to: "/", label: "경영 대시보드", icon: DashboardIcon },
-      { to: "/etf-board", label: "ETF Board", icon: DashboardIcon },
-      { to: "/team", label: "팀 관리", icon: UsersIcon },
-      { to: "/diagnosis", label: "사업 진단", icon: DiagnosisIcon },
+      { to: "/", label: "경영 대시보드", iconName: "DashboardIcon" },
+      { to: "/etf-board", label: "ETF Board", iconName: "DashboardIcon" },
+      { to: "/team", label: "팀 관리", iconName: "UsersIcon" },
     ],
   },
   {
     label: '시스템',
     items: [
-      { to: "/chat", label: "팀 채팅", icon: MessagesIcon },
-      { to: "/wiki", label: "Hestory", icon: DiagnosisIcon },
-      { to: "/hostex", label: "Hostex 연동", icon: HostexIcon },
-      { to: "/settings", label: "설정", icon: SettingsIcon },
+      { to: "/chat", label: "팀 채팅", iconName: "MessagesIcon" },
+      { to: "/wiki", label: "Hestory", iconName: "DiagnosisIcon" },
+      { to: "/hostex", label: "Hostex 연동", iconName: "HostexIcon" },
+      { to: "/settings", label: "설정", iconName: "SettingsIcon" },
+      { to: "/mypage", label: "마이페이지", iconName: "UsersIcon" },
     ],
   },
 ];
 
+export { DEFAULT_NAV, ICON_MAP };
+export type { NavGroup, NavItem };
+
+function loadNavConfig(): NavGroup[] {
+  try {
+    const saved = localStorage.getItem("sidebar_config");
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return DEFAULT_NAV;
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [navGroups, setNavGroups] = useState<NavGroup[]>(loadNavConfig);
 
   const stored = localStorage.getItem("user");
   const user: User | null = stored ? JSON.parse(stored) : null;
+
+  // sidebar_config 변경 감지 (설정 페이지에서 저장 시 반영)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "sidebar_config") setNavGroups(loadNavConfig());
+    };
+    window.addEventListener("storage", onStorage);
+    // 같은 탭에서도 반영하기 위한 커스텀 이벤트
+    const onCustom = () => setNavGroups(loadNavConfig());
+    window.addEventListener("sidebar-config-changed", onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("sidebar-config-changed", onCustom);
+    };
+  }, []);
 
   // 알림
   const [unreadCount, setUnreadCount] = useState(0);
@@ -235,7 +263,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mx-3 my-2 border-t border-slate-700" />
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) => (
+                {group.items.map((item) => {
+                  const IconComp = ICON_MAP[item.iconName] || DashboardIcon;
+                  return (
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -248,10 +278,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       }`
                     }
                   >
-                    <item.icon className="h-5 w-5 shrink-0" />
+                    <IconComp className="h-5 w-5 shrink-0" />
                     {sidebarOpen && <span>{item.label}</span>}
                   </NavLink>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

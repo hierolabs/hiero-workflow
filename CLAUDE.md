@@ -1,5 +1,10 @@
 # HIERO-WORKFLOW - 팀 워크플로우 시스템
 
+## ⚠️ 핵심 문서 (작업 전 반드시 참조)
+- **SYSTEM_MAP.md** — 전체 시스템 흐름 + 연결 구조 + 데이터 아키텍처 + 계정
+- **DEVELOPMENT_RULES.md** — 개발 10대 원칙 (State Transition, 로그, 알림, 드릴다운)
+- docs/08_development/ — 미구현 기능 개발 지시서
+
 ## Token Rules (최우선 준수)
 - CLAUDE.md를 먼저 읽고 프로젝트 구조를 파악한 뒤 작업 시작
 - 전체 파일을 무작정 읽지 말고, Grep/Glob으로 필요한 파일만 찾아라

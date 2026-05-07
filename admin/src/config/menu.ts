@@ -6,6 +6,9 @@ const FINANCE: UserRole[] = ['super_admin', 'ceo', 'cfo'];
 const OPS: UserRole[] = ['super_admin', 'ceo', 'operations', 'cleaning_manager', 'field_manager'];
 
 export const menuItems: MenuItem[] = [
+  // 오늘의 업무
+  { path: '/today', label: '오늘의 업무', icon: '📌', roles: ALL_ROLES },
+
   // Founder OS
   { path: '/founder', label: 'Founder', icon: '🎯', roles: ['super_admin'] },
   { path: '/etf-board', label: 'ETF Board', icon: '📊', roles: ['super_admin', 'ceo', 'cto', 'cfo'] },

@@ -89,7 +89,7 @@ func (s *NotificationService) MarkAllRead(userID uint) error {
 // --- 업무 로그 ---
 
 func LogActivity(userID *uint, userName, action, targetType string, targetID *uint, detail string) {
-	config.DB.Create(&models.ActivityLog{
+	config.LocalDB.Create(&models.ActivityLog{
 		UserID:     userID,
 		UserName:   userName,
 		Action:     action,
@@ -103,7 +103,7 @@ func ListActivityLogs(limit int, action string, userID *uint) []models.ActivityL
 	if limit <= 0 {
 		limit = 50
 	}
-	db := config.DB.Model(&models.ActivityLog{})
+	db := config.LocalDB.Model(&models.ActivityLog{})
 	if action != "" {
 		db = db.Where("action = ?", action)
 	}
