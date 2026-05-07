@@ -19,3 +19,22 @@ export async function apiRequest(path: string, options?: RequestInit) {
 
   return response;
 }
+
+// axios-like wrapper for convenience
+const api = {
+  async get(path: string) {
+    const res = await apiRequest(path);
+    const data = await res.json();
+    return { data };
+  },
+  async post(path: string, body?: unknown) {
+    const res = await apiRequest(path, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    return { data };
+  },
+};
+
+export default api;

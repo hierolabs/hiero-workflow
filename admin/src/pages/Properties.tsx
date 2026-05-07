@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import OperationManual from "../components/OperationManual";
+import AiAgentPanel from "../components/AiAgentPanel";
 import {
   fetchProperties,
   createProperty,
@@ -482,6 +483,14 @@ export default function Properties() {
         />
       )}
       {showManual && <OperationManual page="properties" onClose={() => setShowManual(false)} />}
+
+      <AiAgentPanel page="properties" pageLabel="숙소 관리" getPageData={() => {
+        if (!properties.length) return '숙소 데이터 없음';
+        const active = properties.filter((p: { status?: string }) => p.status === 'active').length;
+        const regions: Record<string, number> = {};
+        properties.forEach((p: { region?: string }) => { const r = p.region || '미지정'; regions[r] = (regions[r] || 0) + 1; });
+        return `총 ${properties.length}개 숙소 (운영중 ${active}개)\n권역별: ${Object.entries(regions).map(([k, v]) => `${k}=${v}`).join(', ')}`;
+      }} />
     </div>
   );
 }

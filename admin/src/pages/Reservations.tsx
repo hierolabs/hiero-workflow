@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import OperationManual from "../components/OperationManual";
+import AiAgentPanel from "../components/AiAgentPanel";
 import {
   fetchReservations,
   STATUS_LABELS,
@@ -507,6 +508,14 @@ export default function Reservations() {
           onClose={() => setAiOpen(false)}
         />
       )}
+
+      <AiAgentPanel page="reservations" pageLabel="예약 관리" getPageData={() => {
+        if (!reservations.length) return '예약 데이터 없음';
+        const total = reservations.reduce((s: number, r: { total_rate?: number }) => s + (r.total_rate || 0), 0);
+        const channels: Record<string, number> = {};
+        reservations.forEach((r: { channel_name?: string; channel_type?: string }) => { const ch = r.channel_name || r.channel_type || '기타'; channels[ch] = (channels[ch] || 0) + 1; });
+        return `총 ${reservations.length}건, 총매출 ${total}원\n채널별: ${Object.entries(channels).map(([k, v]) => `${k}=${v}건`).join(', ')}`;
+      }} />
     </div>
   );
 }

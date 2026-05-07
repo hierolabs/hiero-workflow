@@ -807,12 +807,32 @@ type ConversationGuest struct {
 }
 
 type HostexMessage struct {
-	ID          string  `json:"id"`
-	SenderRole  string  `json:"sender_role"` // guest, host
-	DisplayType string  `json:"display_type"` // Text, Image
-	Content     string  `json:"content"`
-	Attachment  *string `json:"attachment"`
-	CreatedAt   string  `json:"created_at"`
+	ID          string          `json:"id"`
+	SenderRole  string          `json:"sender_role"` // guest, host
+	DisplayType string          `json:"display_type"` // Text, Image
+	Content     string          `json:"content"`
+	Attachment  json.RawMessage `json:"attachment"`
+	CreatedAt   string          `json:"created_at"`
+}
+
+// GetAttachmentURL — attachment에서 URL 추출 (string 또는 object 대응)
+func (m *HostexMessage) GetAttachmentURL() string {
+	if len(m.Attachment) == 0 || string(m.Attachment) == "null" {
+		return ""
+	}
+	// string인 경우: "https://..."
+	var s string
+	if err := json.Unmarshal(m.Attachment, &s); err == nil {
+		return s
+	}
+	// object인 경우: {"url": "https://..."}
+	var obj struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(m.Attachment, &obj); err == nil {
+		return obj.URL
+	}
+	return ""
 }
 
 // GetConversations — 대화 목록 조회

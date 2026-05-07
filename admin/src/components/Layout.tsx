@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
 interface User {
@@ -7,24 +7,61 @@ interface User {
   name: string;
 }
 
-const navItems = [
-  { to: "/", label: "Dashboard", icon: DashboardIcon },
-  { to: "/calendar", label: "운영 캘린더", icon: CalendarIcon },
-  { to: "/properties", label: "공간 관리", icon: PropertiesIcon },
-  { to: "/reservations", label: "예약 관리", icon: ReservationsIcon },
-  { to: "/hostex", label: "Hostex 연동", icon: HostexIcon },
-  { to: "/messages", label: "게스트 메시지", icon: MessagesIcon },
-  { to: "/messages/analysis", label: "이슈 분석", icon: AnalysisIcon },
-  { to: "/cleaning", label: "청소 관리", icon: CleaningIcon },
-  { to: "/issues", label: "이슈 & 멀티박스", icon: IssuesIcon },
-  { to: "/revenue", label: "매출 현황", icon: RevenueIcon },
-  { to: "/settlement", label: "정산 관리", icon: SettlementIcon },
-  { to: "/diagnosis", label: "사업 진단", icon: DiagnosisIcon },
-  { to: "/leads", label: "위탁영업", icon: LeadsIcon },
-  { to: "/checklist", label: "체크리스트", icon: ChecklistIcon },
-  { to: "/tasks", label: "Tasks", icon: TasksIcon },
-  { to: "/users", label: "Users", icon: UsersIcon },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
+// 업무 비중 기반 사이드바 (70% 운영 → 20% 청소 → 10% 시설 → 영업 → 재무 → 경영 → 시스템)
+const navGroups = [
+  {
+    label: '매일 운영',
+    items: [
+      { to: "/calendar", label: "운영 캘린더", icon: CalendarIcon },
+      { to: "/reservations", label: "예약 관리", icon: ReservationsIcon },
+      { to: "/messages", label: "게스트 메시지", icon: MessagesIcon },
+    ],
+  },
+  {
+    label: '청소',
+    items: [
+      { to: "/cleaning", label: "청소 관리", icon: CleaningIcon },
+    ],
+  },
+  {
+    label: '시설',
+    items: [
+      { to: "/issues", label: "민원/하자", icon: IssuesIcon },
+    ],
+  },
+  {
+    label: '신규런칭',
+    items: [
+      { to: "/leads", label: "위탁영업", icon: LeadsIcon },
+      { to: "/properties", label: "공간 관리", icon: PropertiesIcon },
+    ],
+  },
+  {
+    label: '재무',
+    items: [
+      { to: "/settlement", label: "정산 관리", icon: SettlementIcon },
+      { to: "/revenue", label: "매출 현황", icon: RevenueIcon },
+      { to: "/profit", label: "수익성 분석", icon: RevenueIcon },
+    ],
+  },
+  {
+    label: '경영',
+    items: [
+      { to: "/", label: "경영 대시보드", icon: DashboardIcon },
+      { to: "/etf-board", label: "ETF Board", icon: DashboardIcon },
+      { to: "/team", label: "팀 관리", icon: UsersIcon },
+      { to: "/diagnosis", label: "사업 진단", icon: DiagnosisIcon },
+    ],
+  },
+  {
+    label: '시스템',
+    items: [
+      { to: "/chat", label: "팀 채팅", icon: MessagesIcon },
+      { to: "/wiki", label: "Hestory", icon: DiagnosisIcon },
+      { to: "/hostex", label: "Hostex 연동", icon: HostexIcon },
+      { to: "/settings", label: "설정", icon: SettingsIcon },
+    ],
+  },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -34,9 +71,104 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const stored = localStorage.getItem("user");
   const user: User | null = stored ? JSON.parse(stored) : null;
 
+  // 알림
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifs, setNotifs] = useState<{ id: number; type: string; title: string; content: string; from_name: string; is_read: boolean; created_at: string }[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const token = localStorage.getItem("token");
+
+  const fetchUnread = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/notifications/unread`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setUnreadCount(data.count || 0);
+    } catch { /* ignore */ }
+  }, [API_URL, token]);
+
+  const fetchNotifs = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/notifications`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setNotifs(data.notifications || []);
+    } catch { /* ignore */ }
+  }, [API_URL, token]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000); // 30초 폴링
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
+
+  // 자동 근태: 5분마다 하트비트 전송
+  useEffect(() => {
+    if (!token) return;
+    const sendHeartbeat = () => {
+      fetch(`${API_URL}/attendance/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ page: window.location.pathname }),
+      }).catch(() => {});
+    };
+    sendHeartbeat(); // 즉시 1회
+    const hbInterval = setInterval(sendHeartbeat, 5 * 60 * 1000); // 5분
+    return () => clearInterval(hbInterval);
+  }, [API_URL, token]);
+
+  useEffect(() => {
+    if (notifOpen) fetchNotifs();
+  }, [notifOpen, fetchNotifs]);
+
+  // 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const markRead = async (id: number) => {
+    await fetch(`${API_URL}/notifications/${id}/read`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+    fetchNotifs();
+    fetchUnread();
+  };
+
+  const markAllRead = async () => {
+    await fetch(`${API_URL}/notifications/read-all`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+    fetchNotifs();
+    fetchUnread();
+  };
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return '방금';
+    if (min < 60) return `${min}분 전`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}시간 전`;
+    return `${Math.floor(hr / 24)}일 전`;
+  };
+
+  const NOTIF_TYPE_LABEL: Record<string, string> = {
+    assigned: '업무 배정', escalated: '에스컬레이트', resolved: '해결됨', delegated: '업무지시', message: '메시지',
+  };
+
   const handleLogout = () => {
+    // 세션 종료 (근태 기록)
+    if (token) {
+      fetch(`${API_URL}/attendance/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("session_id");
     navigate("/login");
   };
 
@@ -91,23 +223,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="mt-4 flex-1 space-y-1 px-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-slate-800 text-white"
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                }`
-              }
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {sidebarOpen && <span>{item.label}</span>}
-            </NavLink>
+        <nav className="mt-2 flex-1 overflow-y-auto px-2 pb-4">
+          {navGroups.map((group, gi) => (
+            <div key={group.label} className={gi > 0 ? "mt-3" : ""}>
+              {sidebarOpen && (
+                <div className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  {group.label}
+                </div>
+              )}
+              {!sidebarOpen && gi > 0 && (
+                <div className="mx-3 my-2 border-t border-slate-700" />
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-slate-800 text-white"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    {sidebarOpen && <span>{item.label}</span>}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -135,7 +281,57 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
             <h2 className="text-sm font-semibold text-gray-700">Hiero</h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* 알림 벨 */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="relative rounded-md p-1.5 text-gray-500 hover:bg-gray-100 transition"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center min-w-[18px] px-1">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-[400px] overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">알림</span>
+                    {unreadCount > 0 && (
+                      <button onClick={markAllRead} className="text-xs text-blue-600 hover:text-blue-800">전체 읽음</button>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {notifs.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-gray-400">알림이 없습니다</div>
+                    ) : (
+                      notifs.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => { if (!n.is_read) markRead(n.id); }}
+                          className={`px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition ${!n.is_read ? 'bg-blue-50/50' : ''}`}
+                        >
+                          <div className="flex items-center gap-2 mb-0.5">
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                            <span className="text-xs font-medium text-gray-500">{NOTIF_TYPE_LABEL[n.type] || n.type}</span>
+                            {n.from_name && <span className="text-xs text-gray-400">· {n.from_name}</span>}
+                          </div>
+                          <div className="text-sm font-medium text-gray-900">{n.title}</div>
+                          {n.content && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{n.content}</div>}
+                          <div className="text-xs text-gray-300 mt-1">{timeAgo(n.created_at)}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {user && (
               <span className="text-sm text-gray-600">
                 {user.name}{" "}

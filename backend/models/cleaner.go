@@ -37,6 +37,11 @@ type Cleaner struct {
 	CanDry     bool `gorm:"default:false" json:"can_dry"`     // 건조 가능
 	MaxDaily   int  `gorm:"default:5" json:"max_daily"`       // 일일 최대 건수
 
+	// 정산
+	BankName    string `gorm:"size:50" json:"bank_name"`
+	BankAccount string `gorm:"size:50" json:"bank_account"`
+	AccountHolder string `gorm:"size:50" json:"account_holder"`
+
 	Active bool   `gorm:"default:true;index" json:"active"`
 	Memo   string `gorm:"type:text" json:"memo"`
 

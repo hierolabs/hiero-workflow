@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AiAgentPanel from "../components/AiAgentPanel";
 import {
   fetchIssues,
   createIssue,
@@ -128,6 +129,12 @@ export default function Settlement() {
   const [yearLoading, setYearLoading] = useState(false);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string | null>(null);
 
+  // 입금 예정
+  type ForecastPeriod = 'today' | 'tomorrow' | 'd3' | 'w1' | 'd10' | 'month';
+  const [forecastPeriod, setForecastPeriod] = useState<ForecastPeriod>('w1');
+  const [forecastData, setForecastData] = useState<{ deposit: number; cost: number; net: number; startLabel: string; endLabel: string } | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+
   const isYearPreset = preset === "year_2025" || preset === "year_2026";
   const selectedYear = preset === "year_2025" ? 2025 : preset === "year_2026" ? 2026 : null;
 
@@ -241,6 +248,47 @@ export default function Settlement() {
     } catch { /* ignore */ }
   };
 
+  const getForecastRange = (period: ForecastPeriod) => {
+    const today = new Date();
+    const fmtD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const shortLabel = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
+    const todayStr = fmtD(today);
+    const end = new Date(today);
+
+    switch (period) {
+      case 'today': break;
+      case 'tomorrow': end.setDate(end.getDate() + 1); break;
+      case 'd3': end.setDate(end.getDate() + 3); break;
+      case 'w1': end.setDate(end.getDate() + 7); break;
+      case 'd10': end.setDate(end.getDate() + 10); break;
+      case 'month': end.setMonth(end.getMonth() + 1); end.setDate(0); break;
+    }
+    return { start: todayStr, end: fmtD(end), startLabel: shortLabel(today), endLabel: shortLabel(end) };
+  };
+
+  const loadForecast = async (period: ForecastPeriod) => {
+    setForecastLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const range = getForecastRange(period);
+      const res = await fetch(`${API_URL}/data3/summary?start_date=${range.start}&end_date=${range.end}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const deposit = data.expected_deposit || 0;
+      const cost = data.allocated_cost || 0;
+      setForecastData({
+        deposit,
+        cost,
+        net: deposit - cost,
+        startLabel: range.startLabel,
+        endLabel: range.endLabel,
+      });
+    } catch { /* ignore */ }
+    finally { setForecastLoading(false); }
+  };
+
+  useEffect(() => { loadForecast(forecastPeriod); }, [forecastPeriod]);
   useEffect(() => { Promise.all([loadMonths(), loadIssues(), loadFilters()]); }, []);
   useEffect(() => {
     if (isYearPreset && selectedYear) {
@@ -342,6 +390,56 @@ export default function Settlement() {
             <button onClick={() => setUploadResult(null)} className="ml-2 font-bold hover:opacity-70">✕</button>
           </div>
         )}
+
+        {/* 입금 예정 */}
+        <div className="mt-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-gray-800">입금 예정 (deposit_date 기준)</h2>
+            <div className="flex items-center gap-1">
+              {([
+                { key: 'today', label: '오늘' },
+                { key: 'tomorrow', label: '내일' },
+                { key: 'd3', label: '3일' },
+                { key: 'w1', label: '1주일' },
+                { key: 'd10', label: '10일' },
+                { key: 'month', label: '이번달' },
+              ] as { key: ForecastPeriod; label: string }[]).map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => setForecastPeriod(p.key)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
+                    forecastPeriod === p.key
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {forecastLoading ? (
+            <div className="text-center text-gray-400 text-sm py-4">로딩 중...</div>
+          ) : forecastData ? (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                <div className="text-xs text-blue-600 mb-1">입금 예정</div>
+                <div className="text-lg font-bold text-blue-800">{fmtMan(forecastData.deposit)}만원</div>
+                <div className="text-xs text-blue-500">{forecastData.startLabel} ~ {forecastData.endLabel}</div>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <div className="text-xs text-red-600 mb-1">예상 비용</div>
+                <div className="text-lg font-bold text-red-800">{fmtMan(forecastData.cost)}만원</div>
+                <div className="text-xs text-red-500">cost_allocations 기준</div>
+              </div>
+              <div className={`border rounded-lg p-3 text-center ${forecastData.net >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className={`text-xs mb-1 ${forecastData.net >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>예상 순이익</div>
+                <div className={`text-lg font-bold ${forecastData.net >= 0 ? 'text-emerald-800' : 'text-amber-800'}`}>{fmtMan(forecastData.net)}만원</div>
+                <div className={`text-xs ${forecastData.net >= 0 ? 'text-emerald-500' : 'text-amber-500'}`}>입금 - 비용</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         {/* 기간 프리셋 + 월 퀵 선택 */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -664,6 +762,18 @@ export default function Settlement() {
       {showCreate && <CreateSettlementModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
       {showManual && <OperationManual page="settlement" onClose={() => setShowManual(false)} />}
       {showExport && <ExportModal onClose={() => setShowExport(false)} getDateRange={getDateRange} availableMonths={availableMonths} />}
+
+      <AiAgentPanel page="settlement" pageLabel="정산 관리" getPageData={() => {
+        const lines: string[] = [];
+        if (forecastData) lines.push(`입금예정(${forecastPeriod}): ${forecastData.deposit}원, 비용: ${forecastData.cost}원, 순이익: ${forecastData.net}원`);
+        if (result?.total) {
+          const t = result.total;
+          lines.push(`기간: ${result.start_date}~${result.end_date}`);
+          lines.push(`총매출: ${t.revenue}, 수수료: ${t.commission}, 순매출: ${t.net_revenue}, 청소비: ${t.cleaning_fee}, 관리비: ${t.mgmt_fee}, 월세: ${t.rent_out}, 총비용: ${t.total_cost}, 순이익: ${t.profit}, 마진: ${t.profit_rate}%`);
+        }
+        if (result?.properties) lines.push(`숙소 ${result.properties.length}개: ` + result.properties.slice(0, 10).map(p => `${p.property_name}(매출${p.revenue},이익${p.profit})`).join(', '));
+        return lines.join('\n');
+      }} />
     </div>
   );
 }

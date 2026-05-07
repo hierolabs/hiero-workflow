@@ -20,6 +20,18 @@ import Messages from "./pages/Messages";
 import MessageAnalysis from "./pages/MessageAnalysis";
 import CalendarPage from "./features/calendar/components/CalendarPage";
 import Layout from "./components/Layout";
+import HieroDashboard from "./pages/HieroDashboard";
+import Profit from "./pages/Profit";
+import Team from "./pages/Team";
+import FounderDashboard from "./pages/founder/FounderDashboard";
+import ETFBoard from "./pages/etf/ETFBoard";
+import CEOBoard from "./pages/etf/CEOBoard";
+import CTOBoard from "./pages/etf/CTOBoard";
+import CFOBoard from "./pages/etf/CFOBoard";
+import ExecutionDashboard from "./pages/execution/ExecutionDashboard";
+import TeamChat from "./pages/TeamChat";
+import IssueDetections from "./pages/IssueDetections";
+import KnowledgeBase from "./pages/wiki/KnowledgeBase";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -41,7 +53,17 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<PrivateRoute />}>
           <Route element={<PrivateLayout />}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<FounderDashboard />} />
+            <Route path="/hiero-dashboard" element={<HieroDashboard />} />
+            <Route path="/etf-board" element={<ETFBoard />} />
+            <Route path="/etf-board/ceo" element={<CEOBoard />} />
+            <Route path="/etf-board/cto" element={<CTOBoard />} />
+            <Route path="/etf-board/cfo" element={<CFOBoard />} />
+            <Route path="/execution/:role" element={<ExecutionDashboard />} />
+            <Route path="/chat" element={<TeamChat />} />
+            <Route path="/issue-detections" element={<IssueDetections />} />
+            <Route path="/wiki" element={<KnowledgeBase />} />
+            <Route path="/dashboard-old" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/checklist" element={<Checklist />} />
@@ -57,6 +79,8 @@ function App() {
             <Route path="/diagnosis" element={<Diagnosis />} />
             <Route path="/leads" element={<Leads />} />
             <Route path="/leads/:id" element={<LeadDetail />} />
+            <Route path="/profit" element={<Profit />} />
+            <Route path="/team" element={<Team />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/property-order" element={<PropertyOrder />} />

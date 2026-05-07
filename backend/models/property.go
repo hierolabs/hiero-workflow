@@ -56,6 +56,37 @@ const (
 	ContractService  = "SERVICE_CONTRACT"   // 운영관리/컨설팅
 )
 
+// Lifecycle status
+const (
+	LifecycleLead             = "lead"
+	LifecycleMeeting          = "meeting"
+	LifecycleNegotiating      = "negotiating"
+	LifecycleContracted       = "contracted"
+	LifecycleSetting          = "setting"
+	LifecycleFilming          = "filming"
+	LifecycleOTARegistering   = "ota_registering"
+	LifecycleOperationReady   = "operation_ready"
+	LifecyclePartiallyActive  = "partially_active"  // Master(Airbnb) active, 나머지 진행 중
+	LifecycleFullyDistributed = "fully_distributed"  // 전체 플랫폼 등록 완료
+	LifecycleActive           = "active"
+	LifecyclePaused           = "paused"
+	LifecycleClosed           = "closed"
+)
+
+// Setting type
+const (
+	SettingLight      = "light"      // 3일
+	SettingStandard   = "standard"   // 5일
+	SettingRenovation = "renovation" // 14일
+)
+
+// Grade
+const (
+	GradeStandard = "S"
+	GradeDeluxe   = "D"
+	GradePremium  = "P"
+)
+
 var ValidPropertyStatuses = map[string]bool{
 	PropertyStatusPreparing: true,
 	PropertyStatusActive:    true,
@@ -104,6 +135,16 @@ type Property struct {
 	// 상태
 	Status          string `gorm:"size:30;index;default:'preparing'" json:"status"`
 	OperationStatus string `gorm:"size:30;index;default:'inactive'" json:"operation_status"`
+
+	// 라이프사이클
+	LifecycleStatus    string     `gorm:"size:30;index;default:'lead'" json:"lifecycle_status"` // lead,meeting,negotiating,contracted,setting,filming,ota_registering,operation_ready,active,paused,closed
+	SettingType        string     `gorm:"size:20" json:"setting_type"`                          // light,standard,renovation
+	Grade              string     `gorm:"size:5" json:"grade"`                                  // S,D,P
+	ExpectedActiveDate *time.Time `json:"expected_active_date"`
+	ContractedAt       *time.Time `json:"contracted_at"`
+	SettingStartedAt   *time.Time `json:"setting_started_at"`
+	ActiveAt           *time.Time `json:"active_at"`
+	InvestorID         *uint      `gorm:"index" json:"investor_id"`
 
 	// 운영
 	CheckInTime  string `gorm:"size:10" json:"check_in_time"`

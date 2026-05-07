@@ -36,23 +36,62 @@ func (s *MessageService) SyncConversations() (int, error) {
 	return total, nil
 }
 
+// SyncConversationsWithMessages — 대화 + 메시지 본문까지 한 번에 동기화
+func (s *MessageService) SyncConversationsWithMessages() (int, int, error) {
+	convCount, err := s.SyncConversations()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// 메시지 preview가 비어있는 대화만 우선 동기화
+	var emptyConvs []models.Conversation
+	config.DB.Where("last_message_preview = '' OR last_message_preview IS NULL").
+		Order("last_message_at DESC").
+		Limit(50).
+		Find(&emptyConvs)
+
+	msgCount := 0
+	for _, conv := range emptyConvs {
+		count, err := s.SyncConversationMessages(conv.ConversationID)
+		if err != nil {
+			log.Printf("[MessageSync] 메시지 동기화 실패 (%s): %s", conv.ConversationID, err)
+			continue
+		}
+		msgCount += count
+	}
+
+	log.Printf("[MessageSync] 대화 %d건, 빈 preview %d건 메시지 동기화, 새 메시지 %d건", convCount, len(emptyConvs), msgCount)
+	return convCount, msgCount, nil
+}
+
 func (s *MessageService) upsertConversation(c hostex.ConversationSummary) {
-	// 체크인/체크아웃 날짜로 예약 매칭 시도
 	var internalPropID *uint
 	var propertyID int64
 	var reservationCode string
 
-	// property_title로 property 찾기
-	var prop models.Property
-	if c.PropertyTitle != "" {
-		if err := config.DB.Where("name = ?", c.PropertyTitle).First(&prop).Error; err == nil {
-			internalPropID = &prop.ID
-			propertyID = prop.HostexID
+	// 1차: conversation_id로 예약 직접 매칭 (가장 정확)
+	var resByConv models.Reservation
+	if err := config.DB.Where("conversation_id = ?", c.ID).First(&resByConv).Error; err == nil {
+		reservationCode = resByConv.ReservationCode
+		if resByConv.InternalPropID != nil {
+			internalPropID = resByConv.InternalPropID
+		}
+		propertyID = resByConv.PropertyID
+	}
+
+	// 2차: property_title로 property 찾기
+	if internalPropID == nil {
+		var prop models.Property
+		if c.PropertyTitle != "" {
+			if err := config.DB.Where("name = ?", c.PropertyTitle).First(&prop).Error; err == nil {
+				internalPropID = &prop.ID
+				propertyID = prop.HostexID
+			}
 		}
 	}
 
-	// 체크인/체크아웃으로 예약 매칭
-	if internalPropID != nil && c.CheckInDate != "" {
+	// 3차: 체크인/체크아웃으로 예약 매칭
+	if reservationCode == "" && internalPropID != nil && c.CheckInDate != "" {
 		var res models.Reservation
 		if err := config.DB.Where("internal_prop_id = ? AND check_in_date = ?", *internalPropID, c.CheckInDate).
 			First(&res).Error; err == nil {
@@ -115,10 +154,7 @@ func (s *MessageService) SyncConversationMessages(conversationID string) (int, e
 			msgType = "image"
 		}
 
-		imageURL := ""
-		if m.Attachment != nil {
-			imageURL = *m.Attachment
-		}
+		imageURL := m.GetAttachmentURL()
 
 		msg := models.Message{
 			ConversationID:  conversationID,
@@ -189,16 +225,41 @@ func (s *MessageService) HandleIncomingMessage(reservationCode string) {
 		return
 	}
 
-	if res.ConversationID == "" {
-		log.Printf("[Message] conversation_id 없음: %s", reservationCode)
+	conversationID := res.ConversationID
+
+	// conversation_id가 없으면 Hostex API에서 예약 다시 조회해서 가져오기
+	if conversationID == "" {
+		log.Printf("[Message] conversation_id 없음, Hostex에서 재조회: %s", reservationCode)
+		syncSvc := NewHostexSyncService()
+		reservations, err := syncSvc.FetchReservationByCode(reservationCode)
+		if err == nil && len(reservations) > 0 {
+			conversationID = reservations[0].ConversationID
+			if conversationID != "" {
+				// DB에 conversation_id 업데이트
+				config.DB.Model(&res).Update("conversation_id", conversationID)
+				log.Printf("[Message] conversation_id 업데이트: %s → %s", reservationCode, conversationID)
+			}
+		}
+	}
+
+	if conversationID == "" {
+		// 마지막 시도: reservation_code로 대화 DB 검색
+		var conv models.Conversation
+		if err := config.DB.Where("reservation_code = ?", reservationCode).First(&conv).Error; err == nil {
+			conversationID = conv.ConversationID
+		}
+	}
+
+	if conversationID == "" {
+		log.Printf("[Message] conversation_id를 찾을 수 없음: %s", reservationCode)
 		return
 	}
 
 	// 대화가 DB에 없으면 생성
 	var conv models.Conversation
-	if err := config.DB.Where("conversation_id = ?", res.ConversationID).First(&conv).Error; err != nil {
+	if err := config.DB.Where("conversation_id = ?", conversationID).First(&conv).Error; err != nil {
 		conv = models.Conversation{
-			ConversationID:  res.ConversationID,
+			ConversationID:  conversationID,
 			ReservationCode: reservationCode,
 			PropertyID:      res.PropertyID,
 			InternalPropID:  res.InternalPropID,
@@ -209,20 +270,20 @@ func (s *MessageService) HandleIncomingMessage(reservationCode string) {
 	}
 
 	// 최신 메시지 동기화
-	newCount, err := s.SyncConversationMessages(res.ConversationID)
+	newCount, err := s.SyncConversationMessages(conversationID)
 	if err != nil {
-		log.Printf("[Message] 메시지 동기화 실패 (%s): %s", res.ConversationID, err)
+		log.Printf("[Message] 메시지 동기화 실패 (%s): %s", conversationID, err)
 		return
 	}
 
 	// unread_count 증가
 	if newCount > 0 {
 		config.DB.Model(&models.Conversation{}).
-			Where("conversation_id = ?", res.ConversationID).
+			Where("conversation_id = ?", conversationID).
 			Update("unread_count", conv.UnreadCount+newCount)
 	}
 
-	log.Printf("[Message] 새 메시지 %d건 동기화: %s (reservation: %s)", newCount, res.ConversationID, reservationCode)
+	log.Printf("[Message] 새 메시지 %d건 동기화: %s (reservation: %s)", newCount, conversationID, reservationCode)
 }
 
 // SendMessage — 메시지 발송 + DB 저장

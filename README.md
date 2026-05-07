@@ -72,15 +72,20 @@ cd admin && cp .env.example .env
 
 ### 4. 의존성 설치
 
+> ⚠️ **npm 대신 pnpm 사용** — npm은 일부 환경(node v18+)에서 `@vitejs/plugin-react` 설치 오류 발생
+
 ```bash
+# pnpm 없으면 먼저 설치
+brew install pnpm
+
 # Backend
 cd backend && go mod tidy
 
 # Frontend
-cd frontend && npm install
+cd frontend && pnpm install
 
 # Admin
-cd admin && npm install
+cd admin && pnpm install
 ```
 
 ### 5. 전체 서버 시작/종료
@@ -104,14 +109,14 @@ cd admin && npm install
 ### 개별 실행 (수동)
 
 ```bash
-# Backend (Air 핫 리로드)
-cd backend && air
+# Backend
+cd backend && go run .
 
 # Frontend
-cd frontend && npm run dev
+cd frontend && pnpm dev
 
 # Admin
-cd admin && npm run dev
+cd admin && pnpm dev
 ```
 
 ## API 엔드포인트

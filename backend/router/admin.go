@@ -28,6 +28,20 @@ func registerAdminRoutes(r *gin.Engine) {
 	costHandler := handler.NewCostHandler()
 	checklistHandler := handler.NewChecklistHandler()
 	aiChatHandler := handler.NewAiChatHandler()
+	aiAgentHandler := handler.NewAiAgentHandler()
+	founderHandler := handler.NewFounderHandler()
+	etfBoardHandler := handler.NewETFBoardHandler()
+	executionHandler := handler.NewExecutionHandler()
+	teamChatHandler := handler.NewTeamChatHandler()
+	issueDetectionHandler := handler.NewIssueDetectionHandler()
+	opsFeedHandler := handler.NewOpsFeedHandler()
+	notifHandler := handler.NewNotificationHandler()
+	wikiHandler := handler.NewWikiHandler()
+	multidataHandler := handler.NewMultidataHandler()
+	attendanceHandler := handler.NewAttendanceHandler()
+	lifecycleHandler := handler.NewLifecycleHandler()
+	infraHandler := handler.NewInfraHandler()
+	documentHandler := handler.NewDocumentHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -86,6 +100,12 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.PATCH("/cleaning/tasks/:id/start", cleaningHandler.Start)
 			protected.PATCH("/cleaning/tasks/:id/complete", cleaningHandler.Complete)
 			protected.PATCH("/cleaning/tasks/:id/issue", cleaningHandler.ReportIssue)
+			protected.PATCH("/cleaning/tasks/:id/dispatch", cleaningHandler.Dispatch)
+			protected.GET("/cleaning/tasks/:id/message", cleaningHandler.GetDispatchMessage)
+			protected.POST("/cleaning/bulk-dispatch", cleaningHandler.BulkDispatch)
+			protected.GET("/cleaning/weekly-settlement", cleaningHandler.WeeklySettlement)
+			protected.GET("/cleaning/records", cleaningHandler.AllRecords)
+			protected.GET("/cleaning/export", cleaningHandler.ExportCSV)
 
 			// 청소코드
 			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
@@ -105,6 +125,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/issues", issueHandler.Create)
 			protected.PATCH("/issues/:id/status", issueHandler.UpdateStatus)
 			protected.PATCH("/issues/:id/assignee", issueHandler.UpdateAssignee)
+			protected.POST("/issues/:id/escalate", issueHandler.Escalate)
 
 			// Hostex 거래 내역
 			protected.POST("/transactions/upload", transactionHandler.Upload)
@@ -188,14 +209,105 @@ func registerAdminRoutes(r *gin.Engine) {
 			// AI 채팅
 			protected.POST("/ai/chat", aiChatHandler.Chat)
 
+			// AI Agent (페이지별 — 기억 + 크로스페이지)
+			protected.POST("/ai/agent", aiAgentHandler.Ask)
+			protected.GET("/ai/agent/history", aiAgentHandler.GetHistory)
+			protected.DELETE("/ai/agent/history", aiAgentHandler.ClearHistory)
+			protected.GET("/ai/agent/memories", aiAgentHandler.GetMemories)
+
 			// 운영 매뉴얼 (위키)
 			protected.GET("/manual", manualHandler.List)
 			protected.GET("/manual/entry", manualHandler.Get)
 			protected.POST("/manual", manualHandler.Upsert)
 			protected.DELETE("/manual", manualHandler.Delete)
 
+			// 근퇴 + 생산성
+			attendance := protected.Group("/attendance")
+			{
+				attendance.POST("/heartbeat", attendanceHandler.Heartbeat)
+				attendance.POST("/logout", attendanceHandler.Logout)
+				attendance.GET("/today", attendanceHandler.Today)
+				attendance.GET("/report", attendanceHandler.Report)
+				attendance.GET("/productivity", attendanceHandler.Productivity)
+			}
+
+			// Multidata (ETF 데이터 폴더)
+			protected.GET("/multidata", multidataHandler.Overview)
+
+			// 인프라 현황
+			protected.GET("/infra", infraHandler.Overview)
+
+			// 문서 아카이빙
+			docs := protected.Group("/documents")
+			{
+				docs.POST("/upload", documentHandler.Upload)
+				docs.GET("", documentHandler.List)
+				docs.GET("/summary", documentHandler.Summary)
+				docs.GET("/:id/download", documentHandler.Download)
+				docs.DELETE("/:id", documentHandler.Delete)
+			}
+
+			// Knowledge Base (기술백서 위키)
+			wiki := protected.Group("/wiki")
+			{
+				wiki.GET("/toc", wikiHandler.GetTOC)
+				wiki.GET("/progress", wikiHandler.GetProgress)
+				wiki.GET("/articles/:id", wikiHandler.GetArticle)
+				wiki.PUT("/articles/:id", wikiHandler.UpdateArticle)
+				wiki.PATCH("/articles/:id/assign", wikiHandler.AssignArticle)
+				wiki.GET("/articles/:id/revisions", wikiHandler.GetRevisions)
+			}
+
+			// Founder OS
+			protected.GET("/founder/daily-brief", founderHandler.DailyBrief)
+			protected.GET("/founder/top-decisions", founderHandler.TopDecisions)
+			protected.GET("/founder/etf-summary", founderHandler.ETFSummary)
+
+			// ETF Board
+			protected.GET("/etf-board", etfBoardHandler.Overview)
+			protected.GET("/etf-board/ceo", etfBoardHandler.CEOBoard)
+			protected.GET("/etf-board/cto", etfBoardHandler.CTOBoard)
+			protected.GET("/etf-board/cfo", etfBoardHandler.CFOBoard)
+
+			// 알림 + 업무 로그
+			protected.GET("/notifications", notifHandler.List)
+			protected.GET("/notifications/unread", notifHandler.UnreadCount)
+			protected.PATCH("/notifications/:id/read", notifHandler.MarkRead)
+			protected.PATCH("/notifications/read-all", notifHandler.MarkAllRead)
+			protected.GET("/activity-logs", notifHandler.ActivityLogs)
+
+			// Execution Dashboard
+			protected.GET("/execution/:role", executionHandler.Dashboard)
+
+			// 숙소 라이프사이클
+			protected.PATCH("/properties/:id/lifecycle", lifecycleHandler.UpdateStatus)
+			protected.GET("/properties/:id/onboarding", lifecycleHandler.GetOnboarding)
+			protected.PATCH("/properties/:id/onboarding/:checkId", lifecycleHandler.ToggleCheck)
+			protected.GET("/properties/:id/platforms", lifecycleHandler.GetPlatforms)
+			protected.POST("/properties/:id/platforms", lifecycleHandler.UpsertPlatform)
+			protected.GET("/lifecycle/pipeline", lifecycleHandler.Pipeline)
+			protected.GET("/investors", lifecycleHandler.ListInvestors)
+			protected.POST("/investors", lifecycleHandler.CreateInvestor)
+
+			// 오늘 운영 피드
+			protected.GET("/ops/feed", opsFeedHandler.Feed)
+
+			// 팀 채팅
+			protected.GET("/chat/channels", teamChatHandler.ListChannels)
+			protected.POST("/chat/channels", teamChatHandler.CreateChannel)
+			protected.GET("/chat/channels/:id/messages", teamChatHandler.GetMessages)
+			protected.POST("/chat/channels/:id/messages", teamChatHandler.SendMessage)
+			protected.POST("/chat/forward-issue", teamChatHandler.ForwardIssue)
+
+			// 고객 메시지 이슈 감지
+			protected.GET("/issue-detections", issueDetectionHandler.ListPending)
+			protected.POST("/issue-detections/scan", issueDetectionHandler.Scan)
+			protected.POST("/issue-detections/:id/create-issue", issueDetectionHandler.CreateIssue)
+			protected.POST("/issue-detections/:id/dismiss", issueDetectionHandler.Dismiss)
+
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)
+			protected.GET("/users/team-stats", userHandler.TeamStats)
 		}
 
 		// super_admin 전용

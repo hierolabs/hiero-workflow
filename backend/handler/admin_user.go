@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"math"
 	"net/http"
+	"time"
 
 	"hiero-workflow/backend/config"
 	"hiero-workflow/backend/models"
@@ -21,6 +23,69 @@ func (h *AdminUserHandler) GetUsers(c *gin.Context) {
 	var users []models.AdminUser
 	config.DB.Order("created_at DESC").Find(&users)
 	c.JSON(http.StatusOK, users)
+}
+
+// GET /admin/users/team-stats — 팀원별 실시간 KPI 통계
+func (h *AdminUserHandler) TeamStats(c *gin.Context) {
+	var users []models.AdminUser
+	config.DB.Where("role_title != '' AND login_id != 'admin'").Find(&users)
+
+	today := time.Now().Format("2006-01-02")
+	weekAgo := time.Now().AddDate(0, 0, -7)
+	monthAgo := time.Now().AddDate(0, -1, 0)
+
+	type UserStat struct {
+		UserID    uint   `json:"user_id"`
+		Name      string `json:"name"`
+		LoginID   string `json:"login_id"`
+		RoleTitle string `json:"role_title"`
+		RoleLayer string `json:"role_layer"`
+		Stats     struct {
+			OpenIssues       int64   `json:"open_issues"`
+			ResolvedToday    int64   `json:"resolved_today"`
+			ResolvedWeek     int64   `json:"resolved_week"`
+			ResolvedMonth    int64   `json:"resolved_month"`
+			EscalatedUp      int64   `json:"escalated_up"`
+			DelegatedDown    int64   `json:"delegated_down"`
+			AvgResolveHours  float64 `json:"avg_resolve_hours"`
+			ActivityWeek     int64   `json:"activity_week"`
+			UnreadNotifs     int64   `json:"unread_notifications"`
+		} `json:"stats"`
+	}
+
+	results := make([]UserStat, 0, len(users))
+	for _, u := range users {
+		s := UserStat{UserID: u.ID, Name: u.Name, LoginID: u.LoginID, RoleTitle: u.RoleTitle, RoleLayer: u.RoleLayer}
+
+		// 미처리 이슈
+		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?)", u.Name, "open", "in_progress").Count(&s.Stats.OpenIssues)
+		// 오늘 해결
+		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", today).Count(&s.Stats.ResolvedToday)
+		// 주간 해결
+		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", weekAgo).Count(&s.Stats.ResolvedWeek)
+		// 월간 해결
+		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", monthAgo).Count(&s.Stats.ResolvedMonth)
+		// 에스컬레이트 (이 사람이 올린 건)
+		config.DB.Model(&models.Issue{}).Where("escalated_from = ? AND escalation_level IN (?,?)", u.RoleTitle, "etf", "founder").Count(&s.Stats.EscalatedUp)
+		// 업무지시 (이 사람에게 내려온 건)
+		config.DB.Model(&models.ActivityLog{}).Where("action = ? AND detail LIKE ?", models.ActionIssueAssigned, "%→ "+u.Name+"%").Count(&s.Stats.DelegatedDown)
+		// 평균 해결시간 (시간)
+		var avgHours *float64
+		config.DB.Model(&models.Issue{}).Select("AVG(TIMESTAMPDIFF(HOUR, created_at, resolved_at))").
+			Where("assignee_name = ? AND status IN (?,?) AND resolved_at IS NOT NULL", u.Name, "resolved", "closed").
+			Row().Scan(&avgHours)
+		if avgHours != nil {
+			s.Stats.AvgResolveHours = math.Round(*avgHours*10) / 10
+		}
+		// 주간 활동
+		config.DB.Model(&models.ActivityLog{}).Where("user_name = ? AND created_at >= ?", u.Name, weekAgo).Count(&s.Stats.ActivityWeek)
+		// 읽지않은 알림
+		config.DB.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", u.ID, false).Count(&s.Stats.UnreadNotifs)
+
+		results = append(results, s)
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 // 관리자 생성 (super_admin만)

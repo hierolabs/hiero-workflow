@@ -96,14 +96,15 @@ func (h *IssueHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	var req struct {
-		Status string `json:"status"`
+		Status     string `json:"status"`
+		Resolution string `json:"resolution"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "요청 데이터가 올바르지 않습니다"})
 		return
 	}
 
-	issue, err := h.svc.UpdateStatus(id, req.Status)
+	issue, err := h.svc.UpdateStatus(id, req.Status, req.Resolution)
 	if err != nil {
 		if err == service.ErrInvalidStatus {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "유효하지 않은 상태입니다"})
@@ -143,4 +144,35 @@ func (h *IssueHandler) UpdateAssignee(c *gin.Context) {
 func (h *IssueHandler) GetSummary(c *gin.Context) {
 	summary := h.svc.GetSummary()
 	c.JSON(http.StatusOK, summary)
+}
+
+// POST /admin/issues/:id/escalate — 이슈를 한 단계 위로 에스컬레이트
+func (h *IssueHandler) Escalate(c *gin.Context) {
+	id, err := parseUint(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "유효하지 않은 ID"})
+		return
+	}
+
+	roleLayer, _ := c.Get("role_layer")
+	roleTitle, _ := c.Get("role_title")
+	layer, _ := roleLayer.(string)
+	title, _ := roleTitle.(string)
+
+	if layer == "" || title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "역할 정보가 필요합니다"})
+		return
+	}
+
+	issue, err := h.svc.EscalateIssue(id, layer, title)
+	if err != nil {
+		if err.Error() == "cannot_escalate_from_this_layer" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "이 레이어에서는 에스컬레이트할 수 없습니다"})
+			return
+		}
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, issue)
 }

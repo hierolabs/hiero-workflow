@@ -99,12 +99,12 @@ func (h *MessageHandler) MarkRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "읽음 처리 완료"})
 }
 
-// SyncMessages — 대화 목록 동기화
+// SyncMessages — 대화 + 메시지 동기화
 func (h *MessageHandler) SyncMessages(c *gin.Context) {
 	go func() {
-		h.msgSvc.SyncConversations()
+		h.msgSvc.SyncConversationsWithMessages()
 	}()
-	c.JSON(http.StatusOK, gin.H{"message": "대화 동기화 시작됨"})
+	c.JSON(http.StatusOK, gin.H{"message": "대화 + 메시지 동기화 시작됨"})
 }
 
 // SyncAllMessages — 모든 대화의 메시지 전체 동기화

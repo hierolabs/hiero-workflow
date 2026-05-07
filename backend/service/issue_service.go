@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,33 +10,24 @@ import (
 	"hiero-workflow/backend/models"
 )
 
-type IssueService struct{}
+type IssueService struct {
+	notifSvc *NotificationService
+}
 
 func NewIssueService() *IssueService {
-	return &IssueService{}
+	return &IssueService{notifSvc: NewNotificationService()}
 }
 
-// --- 이슈 유형별 자동 배정 규칙 ---
-// 실제 배정은 AdminUser ID 기반이지만, 1차에서는 이름만 저장
-
-var DefaultAssignees = map[string]string{
-	models.IssueTypeCleaning:   "우연",
-	models.IssueTypeFacility:   "김진태",
-	models.IssueTypeGuest:      "오재관",
-	models.IssueTypeSettlement: "박수빈",
-	models.IssueTypeDecision:   "김진우",
-	models.IssueTypeOther:      "",
-}
+// --- 이슈 유형별 자동 배정 규칙 (최신 조직구조) ---
 
 // Create — 이슈 생성 (유형에 따라 자동 배정)
 func (s *IssueService) Create(issue models.Issue) (models.Issue, error) {
 	issue.Status = models.IssueStatusOpen
 
-	// 담당자 자동 배정
+	// 담당자 자동 배정 — AssignIssueByType 사용
 	if issue.AssigneeName == "" {
-		if assignee, ok := DefaultAssignees[issue.IssueType]; ok {
-			issue.AssigneeName = assignee
-		}
+		target := AssignIssueByType(issue.IssueType)
+		issue.AssigneeName = target.Name
 	}
 
 	// 우선순위 기본값
@@ -43,9 +35,48 @@ func (s *IssueService) Create(issue models.Issue) (models.Issue, error) {
 		issue.Priority = models.IssuePriorityP2
 	}
 
+	// 즉결 처리 판정
+	issue.ApprovalLevel = models.CalcApprovalLevel(issue.EstimatedCost)
+	if issue.ApprovalLevel == "auto" && issue.EstimatedCost > 0 {
+		issue.AutoApproved = true
+		issue.Status = models.IssueStatusInProgress // 즉결 → 바로 진행
+	}
+	// 금액 기반 자동 에스컬레이션
+	if issue.ApprovalLevel == "etf" {
+		issue.EscalationLevel = models.EscalationETF
+	} else if issue.ApprovalLevel == "founder" {
+		issue.EscalationLevel = models.EscalationFounder
+		issue.RequiresFinalDecision = true
+	}
+
 	if err := config.DB.Create(&issue).Error; err != nil {
 		return issue, err
 	}
+
+	// 알림: 배정된 담당자에게
+	if issue.AssigneeName != "" {
+		notifTitle := "새 이슈 배정"
+		if issue.AutoApproved {
+			notifTitle = "즉결 처리 이슈"
+		}
+		s.notifSvc.NotifyByName(issue.AssigneeName, models.NotifTypeAssigned,
+			notifTitle, issue.Title, &issue.ID, "시스템")
+	}
+	// 금액 기반 ETF/Founder 자동 알림
+	if issue.ApprovalLevel == "etf" {
+		s.notifSvc.NotifyByRoleTitle("cfo", models.NotifTypeEscalated,
+			"비용 승인 필요", fmt.Sprintf("%s (%d원)", issue.Title, issue.EstimatedCost), &issue.ID, issue.AssigneeName)
+	} else if issue.ApprovalLevel == "founder" {
+		s.notifSvc.NotifyByRoleTitle("founder", models.NotifTypeEscalated,
+			"고액 승인 필요", fmt.Sprintf("%s (%d원)", issue.Title, issue.EstimatedCost), &issue.ID, issue.AssigneeName)
+	}
+	// 로그
+	costInfo := ""
+	if issue.EstimatedCost > 0 {
+		costInfo = fmt.Sprintf(" [%d원, %s]", issue.EstimatedCost, issue.ApprovalLevel)
+	}
+	LogActivity(nil, "시스템", models.ActionIssueCreated, "issue", &issue.ID,
+		"이슈 생성: "+issue.Title+" → "+issue.AssigneeName+costInfo)
 
 	return issue, nil
 }
@@ -148,7 +179,7 @@ func (s *IssueService) List(query IssueListQuery) (IssueListResult, error) {
 
 // --- 상태 변경 ---
 
-func (s *IssueService) UpdateStatus(id uint, status string) (models.Issue, error) {
+func (s *IssueService) UpdateStatus(id uint, status string, resolution string) (models.Issue, error) {
 	var issue models.Issue
 	if err := config.DB.First(&issue, id).Error; err != nil {
 		return issue, ErrNotFound
@@ -158,25 +189,55 @@ func (s *IssueService) UpdateStatus(id uint, status string) (models.Issue, error
 		return issue, ErrInvalidStatus
 	}
 
+	oldStatus := issue.Status
 	issue.Status = status
+	if resolution != "" {
+		issue.Resolution = resolution
+	}
 	if status == models.IssueStatusResolved || status == models.IssueStatusClosed {
 		now := time.Now()
 		issue.ResolvedAt = &now
 	}
 
 	config.DB.Save(&issue)
+
+	// 알림: 해결 시 생성자에게
+	if (status == models.IssueStatusResolved || status == models.IssueStatusClosed) && issue.CreatedByID != nil {
+		s.notifSvc.NotifyUser(*issue.CreatedByID, models.NotifTypeResolved,
+			"이슈 해결됨", issue.Title, &issue.ID, nil, issue.AssigneeName)
+	}
+	// 로그
+	LogActivity(nil, issue.AssigneeName, models.ActionStatusChanged, "issue", &issue.ID,
+		oldStatus+" → "+status+": "+issue.Title)
+
 	return issue, nil
 }
 
-// UpdateAssignee — 담당자 변경
+// UpdateAssignee — 담당자 변경 (+ escalation_level 자동 조정)
 func (s *IssueService) UpdateAssignee(id uint, assigneeName string) (models.Issue, error) {
 	var issue models.Issue
 	if err := config.DB.First(&issue, id).Error; err != nil {
 		return issue, ErrNotFound
 	}
 
+	oldAssignee := issue.AssigneeName
 	issue.AssigneeName = assigneeName
+
+	// 새 담당자의 role_layer를 조회해서 escalation_level 자동 조정
+	var user models.AdminUser
+	if err := config.DB.Where("name = ?", assigneeName).First(&user).Error; err == nil {
+		issue.EscalationLevel = user.RoleLayer
+	}
+
 	config.DB.Save(&issue)
+
+	// 알림: 새 담당자에게
+	s.notifSvc.NotifyByName(assigneeName, models.NotifTypeDelegated,
+		"업무 배정", issue.Title, &issue.ID, oldAssignee)
+	// 로그
+	LogActivity(nil, oldAssignee, models.ActionIssueAssigned, "issue", &issue.ID,
+		"담당자 변경: "+oldAssignee+" → "+assigneeName+": "+issue.Title)
+
 	return issue, nil
 }
 
@@ -224,6 +285,69 @@ func (s *IssueService) GetSummary() IssueSummary {
 	}
 
 	return summary
+}
+
+// EscalateIssue — 이슈를 한 단계 위로 에스컬레이트
+// execution → etf, etf → founder
+func (s *IssueService) EscalateIssue(id uint, currentRoleLayer string, currentRoleTitle string) (models.Issue, error) {
+	var issue models.Issue
+	if err := config.DB.First(&issue, id).Error; err != nil {
+		return issue, ErrNotFound
+	}
+
+	now := time.Now()
+	issue.EscalatedFrom = currentRoleTitle
+	issue.EscalatedAt = &now
+
+	switch currentRoleLayer {
+	case "execution":
+		// execution → etf: 이슈 유형 기반 ETF 담당자 매핑
+		issue.EscalationLevel = models.EscalationETF
+		target := mapToETF(issue.IssueType)
+		// role_title로 실제 사용자 조회
+		var user models.AdminUser
+		if err := config.DB.Where("role_title = ?", target).First(&user).Error; err == nil {
+			issue.AssigneeName = user.Name
+			issue.AssigneeID = &user.ID
+		}
+
+	case "etf":
+		// etf → founder
+		issue.EscalationLevel = models.EscalationFounder
+		var user models.AdminUser
+		if err := config.DB.Where("role_title = ?", "founder").First(&user).Error; err == nil {
+			issue.AssigneeName = user.Name
+			issue.AssigneeID = &user.ID
+		}
+
+	default:
+		return issue, errors.New("cannot_escalate_from_this_layer")
+	}
+
+	config.DB.Save(&issue)
+
+	// 알림: 새 담당자에게
+	s.notifSvc.NotifyByName(issue.AssigneeName, models.NotifTypeEscalated,
+		"에스컬레이트됨", issue.Title, &issue.ID, currentRoleTitle)
+	// 로그
+	LogActivity(nil, currentRoleTitle, models.ActionIssueEscalated, "issue", &issue.ID,
+		currentRoleLayer+" → "+issue.EscalationLevel+": "+issue.Title)
+
+	return issue, nil
+}
+
+// mapToETF — 이슈 유형별 ETF 역할 매핑
+func mapToETF(issueType string) string {
+	switch issueType {
+	case "settlement", "settlement_missing", "transaction_review",
+		"account_mapping_review", "tax_question", "unpaid_rent", "partner_payment_issue":
+		return "cfo"
+	case "research_needed", "message_inconsistent", "business_plan_update",
+		"blog_article_needed", "manual_update_needed", "moro_concept_needed":
+		return "cto"
+	default:
+		return "ceo"
+	}
 }
 
 var ErrInvalidStatus = errors.New("invalid_status")

@@ -47,7 +47,48 @@ const GRADE_COLORS: Record<string, string> = {
   D: "bg-gray-100 text-gray-800",
 };
 
+type LaunchTab = 'investor' | 'property' | 'platform';
+
 export default function Leads() {
+  const [tab, setTab] = useState<LaunchTab>('investor');
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">신규런칭</h1>
+        <p className="mt-1 text-sm text-gray-500">투자자 확보 → 숙소 세팅 → 플랫폼 등록</p>
+      </div>
+
+      <div className="mb-4 flex gap-1 border-b border-gray-200">
+        {([
+          { key: 'investor' as LaunchTab, label: '투자자', desc: '리드·상담·계약' },
+          { key: 'property' as LaunchTab, label: '숙소', desc: '세팅·촬영·등록' },
+          { key: 'platform' as LaunchTab, label: '플랫폼', desc: '온보딩·URL·최적화' },
+        ]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition ${
+              tab === t.key
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {t.label}
+            <span className="ml-1 text-xs text-gray-400">{t.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'investor' && <InvestorTab />}
+      {tab === 'property' && <PropertyTab />}
+      {tab === 'platform' && <PlatformTab />}
+    </div>
+  );
+}
+
+// ===================== 탭 1. 투자자 (기존 Leads) =====================
+function InvestorTab() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filter, setFilter] = useState({ status: "", grade: "" });
@@ -82,8 +123,8 @@ export default function Leads() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Marketing Agent Team</h1>
-          <p className="mt-1 text-sm text-gray-500">위탁운영 ��드 관리 및 영업 자동화</p>
+          <h2 className="text-lg font-bold text-gray-900">투자자 관리</h2>
+          <p className="mt-1 text-sm text-gray-500">위탁운영 리드 관리 및 영업 자동화</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -301,6 +342,176 @@ function CreateLeadModal({
             <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800">등록</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ===================== 탭 2. 숙소 라이프사이클 =====================
+const API_URL = import.meta.env.VITE_API_URL;
+
+const LIFECYCLE_STAGES = [
+  { key: 'lead', label: 'Lead', phase: '공급 확보', color: 'bg-pink-100 text-pink-700' },
+  { key: 'meeting', label: 'Meeting', phase: '공급 확보', color: 'bg-pink-100 text-pink-700' },
+  { key: 'negotiating', label: '협상', phase: '공급 확보', color: 'bg-pink-100 text-pink-700' },
+  { key: 'contracted', label: '계약', phase: '공급 확보', color: 'bg-indigo-100 text-indigo-700' },
+  { key: 'setting', label: '세팅', phase: '공간 제작', color: 'bg-amber-100 text-amber-700' },
+  { key: 'filming', label: '촬영', phase: '공간 제작', color: 'bg-amber-100 text-amber-700' },
+  { key: 'ota_registering', label: 'OTA등록', phase: '디지털 배포', color: 'bg-violet-100 text-violet-700' },
+  { key: 'operation_ready', label: '준비완료', phase: '디지털 배포', color: 'bg-violet-100 text-violet-700' },
+  { key: 'active', label: 'Active', phase: '운영', color: 'bg-emerald-100 text-emerald-700' },
+];
+
+interface PipelineData {
+  lead: number; meeting: number; negotiating: number; contracted: number;
+  setting: number; filming: number; ota_registering: number; operation_ready: number;
+  active: number; paused: number; closed: number; bottleneck_count: number;
+}
+
+function PropertyTab() {
+  const [pipeline, setPipeline] = useState<PipelineData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    fetch(`${API_URL}/lifecycle/pipeline`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(setPipeline)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-center text-gray-400 py-8">로딩 중...</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* 파이프라인 요약 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-gray-700">공급 파이프라인</h2>
+          {pipeline && pipeline.bottleneck_count > 0 && (
+            <span className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+              병목 {pipeline.bottleneck_count}건
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {LIFECYCLE_STAGES.map(stage => {
+            const count = pipeline ? (pipeline as Record<string, number>)[stage.key] || 0 : 0;
+            return (
+              <div key={stage.key} className="flex-1 text-center">
+                <div className={`rounded-lg py-3 ${stage.color} ${count > 0 ? 'font-bold' : 'opacity-40'}`}>
+                  <div className="text-lg">{count}</div>
+                  <div className="text-[10px]">{stage.label}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-1 mt-1">
+          {LIFECYCLE_STAGES.map((_, i) => (
+            <div key={i} className="flex-1 flex justify-center">
+              {i < LIFECYCLE_STAGES.length - 1 && <span className="text-gray-300 text-xs">→</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 안내 */}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-sm text-gray-500">
+        <p className="font-semibold text-gray-700 mb-2">숙소별 상세 관리</p>
+        <p>공간 관리 페이지에서 개별 숙소를 선택하면 라이프사이클 상태 변경, 온보딩 체크리스트, 플랫폼 등록 현황을 관리할 수 있습니다.</p>
+      </div>
+    </div>
+  );
+}
+
+// ===================== 탭 3. 플랫폼 온보딩 =====================
+const PLATFORMS = [
+  { key: 'hostex', name: 'Hostex', color: 'bg-blue-100 text-blue-800', url: 'https://app.hostex.io' },
+  { key: 'airbnb', name: 'Airbnb', color: 'bg-red-100 text-red-800', url: 'https://airbnb.com' },
+  { key: 'booking', name: 'Booking.com', color: 'bg-blue-100 text-blue-800', url: 'https://admin.booking.com' },
+  { key: 'agoda', name: 'Agoda', color: 'bg-purple-100 text-purple-800', url: 'https://ycs.agoda.com' },
+  { key: '33m2', name: '삼삼엠투', color: 'bg-emerald-100 text-emerald-800', url: 'https://33m2.co.kr/webmobile/host/home' },
+  { key: 'liv', name: '리브애니웨어', color: 'bg-cyan-100 text-cyan-800', url: 'https://console.liveanywhere.me' },
+  { key: 'jaritalk', name: '자리톡', color: 'bg-amber-100 text-amber-800', url: 'https://jaritalk.com' },
+  { key: 'naver', name: '네이버 플레이스', color: 'bg-green-100 text-green-800', url: 'https://new-m.place.naver.com' },
+];
+
+const ONBOARDING_PHASES = [
+  {
+    phase: 1, label: '물리 세팅', assignee: '현장',
+    items: ['인테리어 완료', '가구/가전 배치', '어메니티/비품 세팅', '사진 촬영 (10장+)', '도어락 설정', '와이파이 설정'],
+  },
+  {
+    phase: 2, label: 'HIERO 등록', assignee: '현장',
+    items: ['숙소 코드 생성', '기본 정보 입력', '소유 구조 설정', '비용 설정', '운영 변수 입력'],
+  },
+  {
+    phase: 3, label: '플랫폼 등록', assignee: '마케팅',
+    items: PLATFORMS.map(p => `${p.name} 등록`),
+  },
+  {
+    phase: 4, label: '리스팅 최적화', assignee: '마케팅',
+    items: ['대표사진 설정', '제목 작성', '설명문 작성', '가격 설정', '최소 숙박일 설정', 'SEO 확인'],
+  },
+  {
+    phase: 5, label: '운영 준비', assignee: '운영',
+    items: ['체크인 안내 메시지', '하우스룰 설정', '청소 스케줄 등록', '첫 예약 수신 확인'],
+  },
+];
+
+function PlatformTab() {
+  return (
+    <div className="space-y-6">
+      {/* 플랫폼 바로가기 */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3">플랫폼 바로가기</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {PLATFORMS.map(p => (
+            <a
+              key={p.key}
+              href={p.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition flex items-center gap-3"
+            >
+              <span className={`px-2 py-1 rounded text-xs font-bold ${p.color}`}>{p.name.charAt(0)}</span>
+              <div>
+                <div className="text-sm font-semibold text-gray-900">{p.name}</div>
+                <div className="text-[10px] text-gray-400">호스트 페이지 열기</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* 온보딩 체크리스트 */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3">신규 숙소 온보딩 체크리스트</h2>
+        <div className="space-y-4">
+          {ONBOARDING_PHASES.map(phase => (
+            <div key={phase.phase} className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl font-bold text-gray-200">{String(phase.phase).padStart(2, '0')}</span>
+                  <div>
+                    <span className="text-sm font-bold text-gray-900">{phase.label}</span>
+                    <span className="text-xs text-gray-400 ml-2">담당: {phase.assignee}</span>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400">{phase.items.length}개 항목</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {phase.items.map(item => (
+                  <label key={item} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100 transition">
+                    <input type="checkbox" className="rounded border-gray-300" />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

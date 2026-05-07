@@ -7,6 +7,7 @@ import (
 
 	"hiero-workflow/backend/config"
 	"hiero-workflow/backend/models"
+	"hiero-workflow/backend/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -41,10 +42,12 @@ func (h *AdminAuthHandler) Login(c *gin.Context) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id":  user.ID,
-		"login_id": user.LoginID,
-		"role":     user.Role,
-		"exp":      time.Now().Add(24 * time.Hour).Unix(),
+		"user_id":    user.ID,
+		"login_id":   user.LoginID,
+		"role":       user.Role,
+		"role_layer": user.RoleLayer,
+		"role_title": user.RoleTitle,
+		"exp":        time.Now().Add(24 * time.Hour).Unix(),
 	})
 
 	secret := os.Getenv("JWT_SECRET")
@@ -58,13 +61,21 @@ func (h *AdminAuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Auto attendance: create session on login
+	attSvc := service.NewAttendanceService()
+	session := attSvc.Login(user.ID, user.Name, string(user.RoleTitle), c.ClientIP(), c.GetHeader("User-Agent"))
+
 	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
+		"token":      tokenString,
+		"session_id": session.ID,
 		"user": gin.H{
-			"id":       user.ID,
-			"login_id": user.LoginID,
-			"name":     user.Name,
-			"role":     user.Role,
+			"id":                user.ID,
+			"login_id":          user.LoginID,
+			"name":              user.Name,
+			"role":              user.Role,
+			"role_layer":        user.RoleLayer,
+			"role_title":        user.RoleTitle,
+			"default_dashboard": user.GetDefaultDashboard(),
 		},
 	})
 }
@@ -79,9 +90,12 @@ func (h *AdminAuthHandler) Me(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":       user.ID,
-		"login_id": user.LoginID,
-		"name":     user.Name,
-		"role":     user.Role,
+		"id":                user.ID,
+		"login_id":          user.LoginID,
+		"name":              user.Name,
+		"role":              user.Role,
+		"role_layer":        user.RoleLayer,
+		"role_title":        user.RoleTitle,
+		"default_dashboard": user.GetDefaultDashboard(),
 	})
 }

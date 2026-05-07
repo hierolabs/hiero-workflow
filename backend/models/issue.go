@@ -28,6 +28,34 @@ const (
 	IssuePriorityP3 = "P3" // 여유
 )
 
+// 에스컬레이션 레벨
+const (
+	EscalationExecution = "execution"
+	EscalationETF       = "etf"
+	EscalationFounder   = "founder"
+)
+
+// 즉결 처리 금액 기준
+const (
+	AutoApprovalLimit    = 100000  // 10만원 미만: 담당자 즉결
+	ETFApprovalLimit     = 300000  // 30만원 미만: ETF 승인
+	FounderApprovalLimit = 300000  // 30만원 이상: Founder 승인
+)
+
+// ApprovalLevel 자동 판정
+func CalcApprovalLevel(cost int64) string {
+	if cost <= 0 {
+		return "auto"
+	}
+	if cost < AutoApprovalLimit {
+		return "auto" // 10만원 미만: 즉결
+	}
+	if cost < FounderApprovalLimit {
+		return "etf" // 10~30만원: ETF 승인
+	}
+	return "founder" // 30만원 이상: Founder 승인
+}
+
 var ValidIssueStatuses = map[string]bool{
 	IssueStatusOpen:       true,
 	IssueStatusInProgress: true,
@@ -58,6 +86,17 @@ type Issue struct {
 	// 컨텍스트
 	PropertyName string `gorm:"size:100" json:"property_name"`
 	PropertyCode string `gorm:"size:50" json:"property_code"`
+
+	// 에스컬레이션
+	EscalationLevel       string     `gorm:"size:20;default:'execution'" json:"escalation_level"` // execution | etf | founder
+	EscalatedFrom         string     `gorm:"size:50" json:"escalated_from"`                       // 에스컬레이트한 역할: operations, ceo 등
+	EscalatedAt           *time.Time `json:"escalated_at"`
+	RequiresFinalDecision bool       `gorm:"default:false" json:"requires_final_decision"` // true면 ETF 에스컬레이트 없이도 Founder Brief에 표시
+
+	// 비용 + 즉결 처리
+	EstimatedCost int64  `gorm:"default:0" json:"estimated_cost"`            // 예상 비용 (원)
+	AutoApproved  bool   `gorm:"default:false" json:"auto_approved"`         // 즉결 처리 여부
+	ApprovalLevel string `gorm:"size:20" json:"approval_level"`              // auto, execution, etf, founder
 
 	// 마감
 	Deadline string `gorm:"size:30" json:"deadline"` // "오늘 18:00", "2026-05-07" 등

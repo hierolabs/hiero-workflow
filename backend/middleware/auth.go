@@ -44,6 +44,12 @@ func AdminAuth() gin.HandlerFunc {
 		c.Set("user_id", uint(claims["user_id"].(float64)))
 		c.Set("login_id", claims["login_id"].(string))
 		c.Set("role", claims["role"].(string))
+		if rl, ok := claims["role_layer"].(string); ok {
+			c.Set("role_layer", rl)
+		}
+		if rt, ok := claims["role_title"].(string); ok {
+			c.Set("role_title", rt)
+		}
 		c.Next()
 	}
 }

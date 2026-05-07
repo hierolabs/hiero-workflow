@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import OperationManual from "../components/OperationManual";
+import AiAgentPanel from "../components/AiAgentPanel";
 import {
   fetchCleaningTasks,
   fetchCleaningSummary,
@@ -24,7 +25,7 @@ import {
   type CleaningCode,
 } from "../utils/cleaning-api";
 
-type Tab = "dashboard" | "cleaners" | "codes";
+type Tab = "dashboard" | "cleaners" | "settlement" | "records" | "codes";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   walk: "도보",
@@ -52,12 +53,18 @@ export default function Cleaning() {
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         <TabBtn active={tab === "dashboard"} onClick={() => setTab("dashboard")}>배정 대시보드</TabBtn>
         <TabBtn active={tab === "cleaners"} onClick={() => setTab("cleaners")}>청소자 관리</TabBtn>
+        <TabBtn active={tab === "settlement"} onClick={() => setTab("settlement")}>주간 정산</TabBtn>
+        <TabBtn active={tab === "records"} onClick={() => setTab("records")}>전체 기록</TabBtn>
         <TabBtn active={tab === "codes"} onClick={() => setTab("codes")}>청소코드</TabBtn>
       </div>
       {tab === "dashboard" && <DashboardTab />}
       {tab === "cleaners" && <CleanersTab />}
+      {tab === "settlement" && <SettlementTab />}
+      {tab === "records" && <RecordsTab />}
       {tab === "codes" && <CodesTab />}
       {showManual && <OperationManual page="cleaning" onClose={() => setShowManual(false)} />}
+
+      <AiAgentPanel page="cleaning" pageLabel="청소 관리" getPageData={() => `현재 탭: ${tab}. 청소 대시보드/청소자 관리/청소코드 3개 탭 구조. 데이터는 탭 내부에서 관리됨.`} />
     </div>
   );
 }
@@ -88,6 +95,8 @@ function DashboardTab() {
   const [selectedCleanerId, setSelectedCleanerId] = useState(0);
   const [issueTaskId, setIssueTaskId] = useState<number | null>(null);
   const [issueMemo, setIssueMemo] = useState("");
+  const [issueCost, setIssueCost] = useState(0);
+  const [issueType, setIssueType] = useState("facility");
   const [statusFilter, setStatusFilter] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "region">("region");
 
@@ -144,6 +153,36 @@ function DashboardTab() {
     try { await startCleaning(taskId); load(); } catch { alert("시작 실패"); }
   };
 
+  const handleDispatch = async (taskId: number) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/cleaning/tasks/${taskId}/message`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.message) {
+        await navigator.clipboard.writeText(data.message);
+        // 상태를 dispatched로 전환
+        await fetch(`${API_URL}/cleaning/tasks/${taskId}/dispatch`, {
+          method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+        });
+        alert('메시지가 클립보드에 복사되었습니다. 카카오톡에 붙여넣기 하세요.');
+        load();
+      }
+    } catch { alert('메시지 복사 실패'); }
+  };
+
+  const handleBulkDispatch = async () => {
+    if (!confirm(`${date} 배정된 모든 업무를 발송 처리하시겠습니까?`)) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_URL}/cleaning/bulk-dispatch?date=${date}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      alert(`${data.dispatched}건 발송 완료`);
+      load();
+    } catch { alert('일괄 발송 실패'); }
+  };
+
   const handleComplete = async (taskId: number) => {
     try { await completeCleaning(taskId); load(); } catch { alert("완료 처리 실패"); }
   };
@@ -151,9 +190,33 @@ function DashboardTab() {
   const handleReportIssue = async () => {
     if (!issueTaskId || !issueMemo.trim()) return;
     try {
+      // 기존 청소 태스크 이슈 등록
       await reportCleaningIssue(issueTaskId, issueMemo);
+
+      // 비용이 있으면 별도 이슈 생성 (즉결 규칙 적용)
+      const task = tasks.find(t => t.id === issueTaskId);
+      if (issueCost > 0 || issueType !== "cleaning") {
+        const token = localStorage.getItem("token");
+        await fetch(`${API_URL}/issues`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            title: `[현장] ${task?.property_name || ''} - ${issueMemo.slice(0, 50)}`,
+            description: issueMemo,
+            issue_type: issueType,
+            priority: issueCost >= 300000 ? "P0" : issueCost >= 100000 ? "P1" : "P2",
+            property_id: task?.property_id,
+            property_name: task?.property_name,
+            cleaning_task_id: issueTaskId,
+            estimated_cost: issueCost,
+          }),
+        });
+      }
+
       setIssueTaskId(null);
       setIssueMemo("");
+      setIssueCost(0);
+      setIssueType("facility");
       load();
     } catch { alert("이슈 등록 실패"); }
   };
@@ -177,6 +240,10 @@ function DashboardTab() {
         <button onClick={handleGenerate} disabled={generating}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
           {generating ? "생성 중..." : "청소 업무 생성"}
+        </button>
+        <button onClick={handleBulkDispatch}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+          일괄 발송
         </button>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm">
@@ -280,7 +347,7 @@ function DashboardTab() {
                       assigningId={assigningId} selectedCleanerId={selectedCleanerId}
                       onAssignStart={(id) => { setAssigningId(id); setSelectedCleanerId(0); }}
                       onAssignCancel={() => setAssigningId(null)}
-                      onAssignConfirm={handleAssign}
+                      onAssignConfirm={handleAssign} onDispatch={handleDispatch}
                       onCleanerSelect={setSelectedCleanerId}
                       onStart={handleStart} onComplete={handleComplete}
                       onIssue={(id) => { setIssueTaskId(id); setIssueMemo(""); }} />
@@ -312,7 +379,7 @@ function DashboardTab() {
                   assigningId={assigningId} selectedCleanerId={selectedCleanerId}
                   onAssignStart={(id) => { setAssigningId(id); setSelectedCleanerId(0); }}
                   onAssignCancel={() => setAssigningId(null)}
-                  onAssignConfirm={handleAssign}
+                  onAssignConfirm={handleAssign} onDispatch={handleDispatch}
                   onCleanerSelect={setSelectedCleanerId}
                   onStart={handleStart} onComplete={handleComplete}
                   onIssue={(id) => { setIssueTaskId(id); setIssueMemo(""); }} />
@@ -324,18 +391,46 @@ function DashboardTab() {
 
       {/* Issue Modal */}
       {issueTaskId !== null && (
-        <Modal onClose={() => setIssueTaskId(null)} title="문제 등록">
+        <Modal onClose={() => { setIssueTaskId(null); setIssueCost(0); setIssueType("facility"); }} title="현장 이슈 등록">
           <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">이슈 유형</label>
+              <select value={issueType} onChange={(e) => setIssueType(e.target.value)}
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                <option value="facility">시설 고장</option>
+                <option value="cleaning">청결 문제</option>
+                <option value="guest">게스트 이슈</option>
+                <option value="settlement">비용/정산</option>
+                <option value="other">기타</option>
+              </select>
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">문제 내용</label>
               <textarea value={issueMemo} onChange={(e) => setIssueMemo(e.target.value)}
-                rows={4} placeholder="TV 고장, 침구 부족, 파손, 심한 오염 등..."
+                rows={3} placeholder="TV 고장, 침구 부족, 파손, 심한 오염 등..."
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none" />
             </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">예상 비용 (원)</label>
+              <input type="number" value={issueCost || ''} onChange={(e) => setIssueCost(Number(e.target.value))}
+                placeholder="0 (비용 없으면 비워두세요)"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+              {issueCost > 0 && (
+                <div className={`mt-1 text-xs font-medium ${
+                  issueCost < 100000 ? 'text-emerald-600' : issueCost < 300000 ? 'text-amber-600' : 'text-red-600'
+                }`}>
+                  {issueCost < 100000 ? '✓ 즉결 처리 (10만원 미만)' :
+                   issueCost < 300000 ? '→ ETF(CFO) 승인 필요' :
+                   '→ Founder 승인 필요'}
+                </div>
+              )}
+            </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setIssueTaskId(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">취소</button>
+              <button onClick={() => { setIssueTaskId(null); setIssueCost(0); }} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">취소</button>
               <button onClick={handleReportIssue} disabled={!issueMemo.trim()}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">문제 등록</button>
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                {issueCost >= 100000 ? '승인 요청' : '등록'}
+              </button>
             </div>
           </div>
         </Modal>
@@ -347,13 +442,13 @@ function DashboardTab() {
 // ===================== Task Row =====================
 function TaskRow({ task: t, cleaners, assigningId, selectedCleanerId,
   onAssignStart, onAssignCancel, onAssignConfirm, onCleanerSelect,
-  onStart, onComplete, onIssue }: {
+  onStart, onComplete, onIssue, onDispatch }: {
   task: CleaningTask; cleaners: Cleaner[];
   assigningId: number | null; selectedCleanerId: number;
   onAssignStart: (id: number) => void; onAssignCancel: () => void;
   onAssignConfirm: (id: number) => void; onCleanerSelect: (id: number) => void;
   onStart: (id: number) => void; onComplete: (id: number) => void;
-  onIssue: (id: number) => void;
+  onIssue: (id: number) => void; onDispatch: (id: number) => void;
 }) {
   const isUnassigned = !t.cleaner_id && t.status === "pending";
   return (
@@ -405,6 +500,12 @@ function TaskRow({ task: t, cleaners, assigningId, selectedCleanerId,
             <ActionBtn onClick={() => onAssignStart(t.id)} color="blue">배정</ActionBtn>
           )}
           {t.status === "assigned" && (
+            <>
+              <ActionBtn onClick={() => onDispatch(t.id)} color="purple">메시지</ActionBtn>
+              <ActionBtn onClick={() => onStart(t.id)} color="blue">시작</ActionBtn>
+            </>
+          )}
+          {t.status === "dispatched" && (
             <ActionBtn onClick={() => onStart(t.id)} color="blue">시작</ActionBtn>
           )}
           {t.status === "in_progress" && (
@@ -531,6 +632,273 @@ function CleanersTab() {
   );
 }
 
+// ===================== Settlement Tab =====================
+interface CleanerSettlementData {
+  cleaner_id: number; cleaner_name: string; region: string;
+  task_count: number; base_total: number; extra_total: number; total_cost: number;
+  tax_33: number; net_payment: number;
+  bank_name: string; bank_account: string; account_holder: string; phone: string;
+}
+interface WeeklySettlementData {
+  week_start: string; week_end: string;
+  cleaners: CleanerSettlementData[];
+  grand_total: number; total_tax: number; total_net_payment: number;
+  total_tasks: number; total_cleaners: number;
+}
+
+function SettlementTab() {
+  const [data, setData] = useState<WeeklySettlementData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0); // 0=이번주, -1=지난주
+  const API_URL = import.meta.env.VITE_API_URL;
+  const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
+
+  const getWeekRange = (offset: number) => {
+    const now = new Date();
+    now.setDate(now.getDate() + offset * 7);
+    let weekday = now.getDay();
+    if (weekday === 0) weekday = 7;
+    const mon = new Date(now); mon.setDate(now.getDate() - (weekday - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const f = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return { start: f(mon), end: f(sun) };
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    const { start, end } = getWeekRange(weekOffset);
+    const token = localStorage.getItem('token');
+    fetch(`${API_URL}/cleaning/weekly-settlement?week_start=${start}&week_end=${end}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, [weekOffset]);
+
+  if (loading) return <div className="text-center text-gray-400 py-8">로딩 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      {/* 주차 선택 */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => setWeekOffset(w => w - 1)} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50">← 이전 주</button>
+        <span className="text-sm font-semibold text-gray-700">{data?.week_start} ~ {data?.week_end}</span>
+        <button onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= 0} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-30">다음 주 →</button>
+        {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="text-xs text-blue-600">이번 주</button>}
+      </div>
+
+      {/* 요약 카드 */}
+      {data && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">청소자</div>
+            <div className="text-xl font-bold text-gray-800">{data.total_cleaners}명</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">총 건수</div>
+            <div className="text-xl font-bold text-blue-700">{data.total_tasks}건</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">총 비용</div>
+            <div className="text-xl font-bold text-gray-800">{fmt(data.grand_total)}원</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">원천세 (3.3%)</div>
+            <div className="text-xl font-bold text-red-600">{fmt(data.total_tax)}원</div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 text-center">
+            <div className="text-xs text-gray-500">실지급 합계</div>
+            <div className="text-xl font-bold text-emerald-700">{fmt(data.total_net_payment)}원</div>
+          </div>
+        </div>
+      )}
+
+      {/* 청소자별 정산표 */}
+      {data && data.cleaners && data.cleaners.length > 0 ? (
+        <div className="bg-white border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">청소자</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">권역</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">건수</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">기본</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">추가</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500">합계</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-red-500">3.3%</th>
+                <th className="text-right px-3 py-3 text-xs font-semibold text-emerald-600">실지급</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">계좌</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.cleaners.map(c => (
+                <tr key={c.cleaner_id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{c.cleaner_name}</div>
+                    <div className="text-xs text-gray-400">{c.phone || '-'}</div>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-gray-600">{c.region}</td>
+                  <td className="px-3 py-3 text-right font-medium">{c.task_count}</td>
+                  <td className="px-3 py-3 text-right text-gray-600">{fmt(c.base_total)}</td>
+                  <td className="px-3 py-3 text-right text-gray-600">{fmt(c.extra_total)}</td>
+                  <td className="px-3 py-3 text-right font-semibold">{fmt(c.total_cost)}</td>
+                  <td className="px-3 py-3 text-right text-red-600">-{fmt(c.tax_33)}</td>
+                  <td className="px-3 py-3 text-right font-bold text-emerald-700">{fmt(c.net_payment)}</td>
+                  <td className="px-3 py-3 text-xs text-gray-500">
+                    {c.bank_name ? `${c.bank_name} ${c.bank_account} (${c.account_holder || c.cleaner_name})` : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 border-t-2 font-semibold">
+                <td className="px-4 py-3">합계</td>
+                <td className="px-3 py-3"></td>
+                <td className="px-3 py-3 text-right">{data.total_tasks}</td>
+                <td className="px-3 py-3"></td>
+                <td className="px-3 py-3"></td>
+                <td className="px-3 py-3 text-right">{fmt(data.grand_total)}</td>
+                <td className="px-3 py-3 text-right text-red-600">-{fmt(data.total_tax)}</td>
+                <td className="px-3 py-3 text-right text-emerald-700">{fmt(data.total_net_payment)}</td>
+                <td className="px-3 py-3"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white border rounded-xl p-8 text-center text-gray-400">
+          해당 주간 정산 데이터가 없습니다
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================== Records Tab — 전체 기록 + CSV 엑스포트 =====================
+function RecordsTab() {
+  const [tasks, setTasks] = useState<CleaningTask[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [filterCleaner, setFilterCleaner] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [sumTotal, setSumTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const API_URL = import.meta.env.VITE_API_URL;
+  const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    const params = new URLSearchParams({ page: String(page), page_size: '50' });
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+    if (filterCleaner) params.set('cleaner_id', filterCleaner);
+    if (filterStatus) params.set('status', filterStatus);
+    const res = await fetch(`${API_URL}/cleaning/records?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    setTasks(data.tasks || []);
+    setTotal(data.total || 0);
+    setSumTotal(data.sum_total || 0);
+    setLoading(false);
+  }, [page, startDate, endDate, filterCleaner, filterStatus]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleExport = () => {
+    const token = localStorage.getItem('token');
+    const params = new URLSearchParams();
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+    if (filterCleaner) params.set('cleaner_id', filterCleaner);
+    window.open(`${API_URL}/cleaning/export?${params}&token=${token}`, '_blank');
+  };
+
+  const totalPages = Math.ceil(total / 50);
+
+  return (
+    <div className="space-y-4">
+      {/* 필터 + 엑스포트 */}
+      <div className="flex flex-wrap items-center gap-3">
+        <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setPage(1); }}
+          className="rounded border px-3 py-1.5 text-sm" />
+        <span className="text-gray-400">~</span>
+        <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setPage(1); }}
+          className="rounded border px-3 py-1.5 text-sm" />
+        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+          className="rounded border px-3 py-1.5 text-sm">
+          <option value="">전체 상태</option>
+          {Object.entries(CLEANING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <button onClick={handleExport}
+          className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700">
+          CSV 다운로드
+        </button>
+        <span className="text-sm text-gray-500">총 {fmt(total)}건 · {fmt(sumTotal)}원</span>
+      </div>
+
+      {/* 테이블 */}
+      {loading ? (
+        <div className="text-center text-gray-400 py-8">로딩 중...</div>
+      ) : (
+        <div className="bg-white border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-3 py-2 text-xs text-gray-500">날짜</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">코드</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">숙소</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">게스트</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">청소자</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">상태</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">기본</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">추가</th>
+                <th className="text-right px-3 py-2 text-xs text-gray-500">합계</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">시작</th>
+                <th className="text-left px-3 py-2 text-xs text-gray-500">완료</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {tasks.map(t => (
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 text-xs">{t.cleaning_date}</td>
+                  <td className="px-3 py-2 text-xs font-mono">{t.property_code}</td>
+                  <td className="px-3 py-2 text-xs">{t.property_name}</td>
+                  <td className="px-3 py-2 text-xs">{t.guest_name || '-'}</td>
+                  <td className="px-3 py-2 text-xs font-medium">{t.cleaner_name || '-'}</td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${CLEANING_STATUS_STYLES[t.status] || ''}`}>
+                      {CLEANING_STATUS_LABELS[t.status] || t.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right text-xs">{fmt(t.base_price)}</td>
+                  <td className="px-3 py-2 text-right text-xs">{fmt(t.extra_cost)}</td>
+                  <td className="px-3 py-2 text-right text-xs font-semibold">{fmt(t.total_cost)}</td>
+                  <td className="px-3 py-2 text-xs text-gray-400">{t.started_at ? new Date(t.started_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td className="px-3 py-2 text-xs text-gray-400">{t.completed_at ? new Date(t.completed_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                </tr>
+              ))}
+              {tasks.length === 0 && (
+                <tr><td colSpan={11} className="text-center py-8 text-gray-400">기록이 없습니다</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 페이징 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+            className="rounded border px-3 py-1 text-sm disabled:opacity-30">이전</button>
+          <span className="text-sm text-gray-600">{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+            className="rounded border px-3 py-1 text-sm disabled:opacity-30">다음</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===================== Codes Tab =====================
 function CodesTab() {
   const [codes, setCodes] = useState<CleaningCode[]>([]);
@@ -615,6 +983,7 @@ function ActionBtn({ onClick, color, children }: { onClick: () => void; color: s
     blue: "border-blue-300 text-blue-600 hover:bg-blue-50",
     green: "border-green-300 text-green-600 hover:bg-green-50",
     red: "border-red-300 text-red-600 hover:bg-red-50",
+    purple: "border-purple-300 text-purple-600 hover:bg-purple-50",
   };
   return <button onClick={onClick} className={`rounded border px-2.5 py-1 text-xs font-medium ${styles[color]}`}>{children}</button>;
 }

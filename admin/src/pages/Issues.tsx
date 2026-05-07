@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import OperationManual from "../components/OperationManual";
+import AiAgentPanel from "../components/AiAgentPanel";
 import {
   fetchIssues,
   fetchIssueSummary,
@@ -39,6 +40,8 @@ export default function Issues() {
       {tab === "issues" && <IssuesTab />}
       {tab === "comms" && <CommsTab />}
       {showManual && <OperationManual page="issues" onClose={() => setShowManual(false)} />}
+
+      <AiAgentPanel page="issues" pageLabel="민원/하자" getPageData={() => `현재 탭: ${tab}. 이슈 트래킹(이슈 목록/상태/우선순위/배정) + 멀티박스(예약/숙소 기준 응대 기록) 구조.`} />
     </div>
   );
 }

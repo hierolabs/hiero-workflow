@@ -2,10 +2,11 @@ package models
 
 import "time"
 
-// 청소 업무 상태
+// 청소 업무 상태 (State Transition: pending → assigned → dispatched → in_progress → completed)
 const (
 	CleaningStatusPending    = "pending"     // 생성됨, 미배정
-	CleaningStatusAssigned   = "assigned"    // 배정됨
+	CleaningStatusAssigned   = "assigned"    // 청소자 배정됨
+	CleaningStatusDispatched = "dispatched"  // 메시지 발송됨 (청소자 확인)
 	CleaningStatusInProgress = "in_progress" // 청소 시작
 	CleaningStatusCompleted  = "completed"   // 완료
 	CleaningStatusIssue      = "issue"       // 문제 있음
@@ -21,6 +22,7 @@ const (
 var ValidCleaningStatuses = map[string]bool{
 	CleaningStatusPending:    true,
 	CleaningStatusAssigned:   true,
+	CleaningStatusDispatched: true,
 	CleaningStatusInProgress: true,
 	CleaningStatusCompleted:  true,
 	CleaningStatusIssue:      true,
@@ -57,6 +59,10 @@ type CleaningTask struct {
 	// 실행
 	StartedAt   *time.Time `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at"`
+
+	// 배정 메시지
+	DispatchMessage string     `gorm:"type:text" json:"dispatch_message"` // 자동 생성된 배정 메시지
+	DispatchedAt    *time.Time `json:"dispatched_at"`                     // 메시지 발송 시각
 
 	// 메모
 	PropertyName string `gorm:"size:100" json:"property_name"`

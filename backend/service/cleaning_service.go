@@ -265,9 +265,182 @@ func (s *CleaningService) Assign(taskID uint, cleanerID uint) (models.CleaningTa
 	task.CleanerID = &cleanerID
 	task.CleanerName = cleaner.Name
 	task.Status = models.CleaningStatusAssigned
+	// 배정 시 메시지 자동 생성
+	task.DispatchMessage = s.GenerateDispatchMessage(&task, &cleaner)
 	config.DB.Save(&task)
 
 	return task, nil
+}
+
+// GenerateDispatchMessage — 배정 메시지 자동 생성
+func (s *CleaningService) GenerateDispatchMessage(task *models.CleaningTask, cleaner *models.Cleaner) string {
+	// 다음 체크인 정보
+	nextCheckIn := "없음"
+	if task.NextCheckIn != "" {
+		nextCheckIn = task.NextCheckIn
+	}
+
+	urgency := ""
+	if task.Priority == models.CleaningPriorityUrgent {
+		urgency = "⚡ [긴급] 당일 체크인\n"
+	}
+
+	msg := fmt.Sprintf(`%s📍 %s
+%s (%s)
+
+📅 청소일: %s
+⏰ 체크아웃: %s
+🔜 다음 체크인: %s
+
+💰 단가: %d원
+📝 %s
+
+✅ 완료 후 앱에서 "완료" 처리 부탁드립니다.`,
+		urgency,
+		task.PropertyName,
+		task.Address,
+		task.PropertyCode,
+		task.CleaningDate,
+		task.CheckOutTime,
+		nextCheckIn,
+		task.BasePrice,
+		func() string {
+			if task.Memo != "" {
+				return "특이사항: " + task.Memo
+			}
+			return "특이사항 없음"
+		}(),
+	)
+
+	return msg
+}
+
+// DispatchTask — 배정 메시지 발송 상태로 전환
+func (s *CleaningService) Dispatch(taskID uint) (models.CleaningTask, error) {
+	var task models.CleaningTask
+	if err := config.DB.First(&task, taskID).Error; err != nil {
+		return task, ErrNotFound
+	}
+	if task.Status != models.CleaningStatusAssigned {
+		return task, errors.New("배정된 상태에서만 발송 가능합니다")
+	}
+
+	now := time.Now()
+	task.Status = models.CleaningStatusDispatched
+	task.DispatchedAt = &now
+
+	// 메시지가 없으면 생성
+	if task.DispatchMessage == "" && task.CleanerID != nil {
+		var cleaner models.Cleaner
+		config.DB.First(&cleaner, *task.CleanerID)
+		task.DispatchMessage = s.GenerateDispatchMessage(&task, &cleaner)
+	}
+
+	config.DB.Save(&task)
+	return task, nil
+}
+
+// BulkDispatch — 배정된 모든 태스크 일괄 발송
+func (s *CleaningService) BulkDispatch(date string) (int64, error) {
+	now := time.Now()
+	result := config.DB.Model(&models.CleaningTask{}).
+		Where("cleaning_date = ? AND status = ?", date, models.CleaningStatusAssigned).
+		Updates(map[string]interface{}{
+			"status":        models.CleaningStatusDispatched,
+			"dispatched_at": now,
+		})
+	return result.RowsAffected, result.Error
+}
+
+// --- 주간 정산 ---
+
+type CleanerSettlement struct {
+	CleanerID     uint   `json:"cleaner_id"`
+	CleanerName   string `json:"cleaner_name"`
+	Region        string `json:"region"`
+	TaskCount     int    `json:"task_count"`
+	BaseTotal     int    `json:"base_total"`
+	ExtraTotal    int    `json:"extra_total"`
+	TotalCost     int    `json:"total_cost"`
+	Tax33         int    `json:"tax_33"`          // 3.3% 원천징수
+	NetPayment    int    `json:"net_payment"`     // 실지급액 (total - 3.3%)
+	BankName      string `json:"bank_name"`
+	BankAccount   string `json:"bank_account"`
+	AccountHolder string `json:"account_holder"`
+	Phone         string `json:"phone"`
+}
+
+type WeeklySettlementResult struct {
+	WeekStart       string              `json:"week_start"`
+	WeekEnd         string              `json:"week_end"`
+	Cleaners        []CleanerSettlement `json:"cleaners"`
+	GrandTotal      int                 `json:"grand_total"`
+	TotalTax        int                 `json:"total_tax"`
+	TotalNetPayment int                 `json:"total_net_payment"`
+	TotalTasks      int                 `json:"total_tasks"`
+	TotalCleaners   int                 `json:"total_cleaners"`
+}
+
+func (s *CleaningService) GetWeeklySettlement(weekStart, weekEnd string) WeeklySettlementResult {
+	// 기간 내 완료된 태스크 집계 (청소자별)
+	type row struct {
+		CleanerID   uint
+		CleanerName string
+		TaskCount   int
+		BaseTotal   int
+		ExtraTotal  int
+		TotalCost   int
+	}
+	var rows []row
+	config.DB.Model(&models.CleaningTask{}).
+		Select("cleaner_id, cleaner_name, COUNT(*) as task_count, SUM(base_price) as base_total, SUM(extra_cost) as extra_total, SUM(total_cost) as total_cost").
+		Where("cleaning_date >= ? AND cleaning_date <= ? AND status IN (?, ?) AND cleaner_id IS NOT NULL",
+			weekStart, weekEnd, models.CleaningStatusCompleted, models.CleaningStatusInProgress).
+		Group("cleaner_id, cleaner_name").
+		Order("total_cost DESC").
+		Scan(&rows)
+
+	// 청소자 정보 (권역, 계좌)
+	cleanerMap := map[uint]models.Cleaner{}
+	var cleaners []models.Cleaner
+	config.DB.Find(&cleaners)
+	for _, c := range cleaners {
+		cleanerMap[c.ID] = c
+	}
+
+	result := WeeklySettlementResult{
+		WeekStart: weekStart,
+		WeekEnd:   weekEnd,
+	}
+
+	for _, r := range rows {
+		tax33 := int(float64(r.TotalCost) * 0.033) // 3.3% 원천징수
+		cs := CleanerSettlement{
+			CleanerID:   r.CleanerID,
+			CleanerName: r.CleanerName,
+			TaskCount:   r.TaskCount,
+			BaseTotal:   r.BaseTotal,
+			ExtraTotal:  r.ExtraTotal,
+			TotalCost:   r.TotalCost,
+			Tax33:       tax33,
+			NetPayment:  r.TotalCost - tax33,
+		}
+		if c, ok := cleanerMap[r.CleanerID]; ok {
+			cs.Region = c.Region
+			cs.BankName = c.BankName
+			cs.BankAccount = c.BankAccount
+			cs.AccountHolder = c.AccountHolder
+			cs.Phone = c.Phone
+		}
+		result.Cleaners = append(result.Cleaners, cs)
+		result.GrandTotal += r.TotalCost
+		result.TotalTax += tax33
+		result.TotalNetPayment += r.TotalCost - tax33
+		result.TotalTasks += r.TaskCount
+	}
+	result.TotalCleaners = len(result.Cleaners)
+
+	return result
 }
 
 // --- 상태 변경 ---

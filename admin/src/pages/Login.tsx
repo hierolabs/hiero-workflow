@@ -29,7 +29,10 @@ export default function Login() {
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/");
+      if (data.session_id) localStorage.setItem("session_id", String(data.session_id));
+      // 역할별 기본 대시보드로 이동
+      const defaultDashboard = data.user?.default_dashboard || "/";
+      navigate(defaultDashboard);
     } catch {
       setError("서버에 연결할 수 없습니다");
     } finally {
