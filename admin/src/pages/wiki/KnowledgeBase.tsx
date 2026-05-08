@@ -448,11 +448,12 @@ export default function KnowledgeBase() {
               const isPublished = selected.status === "published";
               const hasRevisions = revisions.length > 1;
               const steps = [
-                { label: "초안 작성", done: hasContent, desc: "첫 내용 입력" },
-                { label: "검토/보완", done: hasRevisions || isReview || isPublished, desc: "수정 1회+" },
-                { label: "발행 완료", done: isPublished, desc: "위키 확정" },
-                { label: "블로그 변환", done: false, desc: "외부 발행" },
-                { label: "백서/강의", done: false, desc: "콘텐츠 확장" },
+                { label: "작업 기록", done: hasContent, desc: "코드/설계/데이터 소스" },
+                { label: "글 구성", done: hasContent && (isDraft || isReview || isPublished), desc: "맥락 있는 이야기로 정리" },
+                { label: "초안 완성", done: hasRevisions || isReview || isPublished, desc: "사람이 읽을 수 있는 글" },
+                { label: "검토/퇴고", done: isReview || isPublished, desc: "직접 다듬기" },
+                { label: "발행", done: isPublished, desc: "위키 확정" },
+                { label: "외부 발행", done: false, desc: "블로그/백서/강의/책" },
               ];
               return (
                 <div className="space-y-1">
