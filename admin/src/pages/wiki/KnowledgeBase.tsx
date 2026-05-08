@@ -214,16 +214,6 @@ export default function KnowledgeBase() {
 
           return (
             <div className="mb-4 space-y-1">
-              {/* 진행 카운터 (항상 보임) */}
-              {progress && (
-                <div className="flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1.5 text-[10px] text-gray-500 mb-2">
-                  <span>{progress.total - progress.empty}/{progress.total} 작성</span>
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-gray-200">
-                    <div className="h-1 rounded-full bg-gray-400 transition-all" style={{ width: `${((progress.total - progress.empty) / Math.max(progress.total, 1)) * 100}%` }} />
-                  </div>
-                </div>
-              )}
-
               {published.length > 0 && (
                 <details className="group">
                   <summary className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-green-700 hover:bg-green-50">
