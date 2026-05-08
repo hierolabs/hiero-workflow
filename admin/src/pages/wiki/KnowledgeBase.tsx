@@ -461,74 +461,38 @@ export default function KnowledgeBase() {
 
       {/* ── Right: Activity Log Sidebar ── */}
       {selected && (
-        <div className="w-64 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-4">
-          {/* 작성자 + 메타 */}
-          <div className="mb-4 rounded-lg bg-white p-3 border border-gray-100">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">작성 정보</p>
-            <div className="space-y-1.5 text-xs text-gray-600">
-              <div className="flex justify-between">
-                <span className="text-gray-400">담당</span>
-                <span className="font-medium">{roleLabel[selected.assigned_to] ?? selected.assigned_to}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">작성자</span>
-                <span className="font-medium">{selected.author_name || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">분량</span>
-                <span className="font-medium">{selected.word_count.toLocaleString()}자</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">수정</span>
-                <span className="font-medium">{revisions.length}회</span>
-              </div>
-              {selected.tags && (
-                <div className="pt-1.5 border-t border-gray-100">
-                  <div className="flex flex-wrap gap-1">
-                    {selected.tags.split(",").map((tag, i) => (
-                      <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{tag.trim()}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="w-56 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-3">
+          {/* 한 줄 요약 (항상 보임) */}
+          <div className="mb-3 text-[11px] text-gray-500">
+            <span className="font-semibold text-gray-700">{selected.author_name || "-"}</span>
+            {" · "}{selected.word_count.toLocaleString()}자{" · "}수정 {revisions.length}회
           </div>
 
-          {/* 수정 이력 타임라인 */}
+          {/* 수정 이력 타임라인 (항상 보임 — 핵심) */}
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">수정 이력</p>
             {revisions.length === 0 ? (
-              <p className="text-xs text-gray-300 italic">아직 수정 이력이 없음</p>
+              <p className="text-[11px] text-gray-300 italic">수정 이력 없음</p>
             ) : (
               <div className="relative">
-                {/* 타임라인 세로선 */}
-                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200" />
-                <div className="space-y-3">
+                <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gray-200" />
+                <div className="space-y-2.5">
                   {revisions.map((rev, idx) => {
                     const d = new Date(rev.created_at);
                     const isFirst = idx === 0;
                     return (
-                      <div key={rev.id} className="relative pl-5">
-                        {/* 타임라인 점 */}
-                        <div className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 ${
-                          isFirst ? "border-slate-800 bg-slate-800" : "border-gray-300 bg-white"
+                      <div key={rev.id} className="relative pl-4">
+                        <div className={`absolute left-0 top-1 h-2.5 w-2.5 rounded-full border-2 ${
+                          isFirst ? "border-slate-700 bg-slate-700" : "border-gray-300 bg-white"
                         }`} />
-                        <div className={`rounded-lg p-2 ${isFirst ? "bg-white border border-gray-200" : "bg-transparent"}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[11px] font-semibold ${isFirst ? "text-gray-900" : "text-gray-500"}`}>
-                              {rev.author_name}
-                            </span>
-                            <span className="text-[10px] text-gray-300">
-                              {rev.word_count.toLocaleString()}자
-                            </span>
-                          </div>
-                          {rev.revision_note && (
-                            <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed">{rev.revision_note}</p>
-                          )}
-                          <p className="mt-1 text-[10px] text-gray-300">
-                            {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,"0")}.{String(d.getDate()).padStart(2,"0")} {String(d.getHours()).padStart(2,"0")}:{String(d.getMinutes()).padStart(2,"0")}
-                          </p>
-                        </div>
+                        <p className={`text-[11px] ${isFirst ? "font-semibold text-gray-800" : "text-gray-500"}`}>
+                          {rev.author_name}
+                        </p>
+                        {rev.revision_note && (
+                          <p className="text-[10px] text-gray-400 leading-snug">{rev.revision_note}</p>
+                        )}
+                        <p className="text-[9px] text-gray-300">
+                          {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,"0")}.{String(d.getDate()).padStart(2,"0")} {String(d.getHours()).padStart(2,"0")}:{String(d.getMinutes()).padStart(2,"0")}
+                        </p>
                       </div>
                     );
                   })}
@@ -537,28 +501,45 @@ export default function KnowledgeBase() {
             )}
           </div>
 
-          {/* 파트 진행률 (간소화) */}
+          {/* 드릴다운: 상세 정보 (접기/펼치기) */}
+          <details className="mt-4 group">
+            <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+              상세 정보
+            </summary>
+            <div className="mt-2 space-y-1.5 text-[11px] text-gray-500">
+              <div className="flex justify-between"><span>담당</span><span className="text-gray-700">{roleLabel[selected.assigned_to] ?? selected.assigned_to}</span></div>
+              <div className="flex justify-between"><span>상태</span><span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusColor[selected.status]}`}>{statusLabel[selected.status]}</span></div>
+              {selected.tags && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {selected.tags.split(",").map((tag, i) => (
+                    <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500">{tag.trim()}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
+
+          {/* 드릴다운: 진행률 (접기/펼치기) */}
           {progress && (
-            <div className="mt-6">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">전체 진행</p>
-              <div className="space-y-1.5">
+            <details className="mt-3 group">
+              <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                전체 진행 {progress.total - progress.empty}/{progress.total}
+              </summary>
+              <div className="mt-2 space-y-1">
                 {(progress.by_part ?? [])
                   .filter(p => p.filled > 0)
                   .sort((a, b) => a.part_number - b.part_number)
                   .map((p) => (
-                  <div key={p.part_number} className="flex items-center gap-2">
-                    <span className="w-8 text-[10px] text-gray-400 shrink-0">P{p.part_number === 99 ? "+" : p.part_number}</span>
+                  <div key={p.part_number} className="flex items-center gap-1.5">
+                    <span className="w-6 text-[9px] text-gray-400 shrink-0">P{p.part_number === 99 ? "+" : p.part_number}</span>
                     <div className="h-1 flex-1 overflow-hidden rounded-full bg-gray-200">
-                      <div
-                        className="h-1 rounded-full bg-green-500"
-                        style={{ width: `${(p.filled / Math.max(p.total, 1)) * 100}%` }}
-                      />
+                      <div className="h-1 rounded-full bg-green-500" style={{ width: `${(p.filled / Math.max(p.total, 1)) * 100}%` }} />
                     </div>
-                    <span className="w-8 text-right text-[10px] text-gray-400">{p.filled}/{p.total}</span>
+                    <span className="w-6 text-right text-[9px] text-gray-400">{p.filled}/{p.total}</span>
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
           )}
         </div>
       )}
