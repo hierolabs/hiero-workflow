@@ -189,66 +189,7 @@ export default function KnowledgeBase() {
         <h2 className="text-lg font-bold text-gray-900">Hestory</h2>
         <p className="mb-3 text-xs text-gray-500">heiro.labs의 이야기 — 운영 기록이 자동으로 쌓이는 아카이브</p>
 
-        {/* Quick Access — 드릴다운 형태 */}
-        {(() => {
-          const published = toc.filter((i) => i.status === "published");
-          const drafts = toc.filter((i) => i.status === "draft");
-          const reviews = toc.filter((i) => i.status === "review");
-          const hasContent = published.length > 0 || drafts.length > 0 || reviews.length > 0;
-          if (!hasContent) return null;
-
-          const renderList = (items: TOCItem[], color: { bg: string; bgActive: string; text: string }) =>
-            items.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-              .map((item) => (
-              <button
-                key={item.id}
-                onClick={() => selectArticle(item.id)}
-                className={`flex w-full items-start gap-2 rounded-md px-2 py-1 text-left transition-colors ${
-                  selected?.id === item.id ? color.bgActive : `${color.bg} hover:${color.bgActive}`
-                }`}
-              >
-                <span className="flex-1 truncate text-[11px] font-medium">{item.title}</span>
-                <span className={`shrink-0 text-[9px] ${color.text}`}>{item.word_count.toLocaleString()}자</span>
-              </button>
-            ));
-
-          return (
-            <div className="mb-4 space-y-1">
-              {published.length > 0 && (
-                <details className="group">
-                  <summary className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-green-700 hover:bg-green-50">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-                    완료 {published.length}
-                    <span className="ml-auto text-[9px] text-green-400 group-open:hidden">펼치기</span>
-                  </summary>
-                  <div className="mt-1 space-y-0.5">{renderList(published, { bg: "bg-green-50", bgActive: "bg-green-100", text: "text-green-600" })}</div>
-                </details>
-              )}
-
-              {reviews.length > 0 && (
-                <details className="group">
-                  <summary className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700 hover:bg-blue-50">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    검토중 {reviews.length}
-                    <span className="ml-auto text-[9px] text-blue-400 group-open:hidden">펼치기</span>
-                  </summary>
-                  <div className="mt-1 space-y-0.5">{renderList(reviews, { bg: "bg-blue-50", bgActive: "bg-blue-100", text: "text-blue-600" })}</div>
-                </details>
-              )}
-
-              {drafts.length > 0 && (
-                <details className="group">
-                  <summary className="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 hover:bg-amber-50">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    초안 {drafts.length}
-                    <span className="ml-auto text-[9px] text-amber-400 group-open:hidden">펼치기</span>
-                  </summary>
-                  <div className="mt-1 space-y-0.5">{renderList(drafts, { bg: "bg-amber-50", bgActive: "bg-amber-100", text: "text-amber-600" })}</div>
-                </details>
-              )}
-            </div>
-          );
-        })()}
+        {/* Quick Access 제거 — 오른쪽 사이드로 이동 */}
 
         {/* Filters */}
         <div className="mb-3 flex gap-1.5">
@@ -439,6 +380,60 @@ export default function KnowledgeBase() {
                   <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />완료 {completed}</span>
                   <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />초안 {draftCount}</span>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* 완료/초안 드릴다운 리스트 */}
+          {(() => {
+            const published = toc.filter((i) => i.status === "published");
+            const drafts = toc.filter((i) => i.status === "draft");
+            const reviews = toc.filter((i) => i.status === "review");
+
+            const renderItem = (item: TOCItem) => (
+              <button
+                key={item.id}
+                onClick={() => selectArticle(item.id)}
+                className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left transition-colors ${
+                  selected?.id === item.id ? "bg-gray-200" : "hover:bg-gray-100"
+                }`}
+              >
+                <span className="flex-1 truncate text-[10px]">{item.title}</span>
+              </button>
+            );
+
+            return (
+              <div className="mb-3 space-y-1">
+                {published.length > 0 && (
+                  <details className="group">
+                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-green-700 hover:text-green-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />완료 {published.length}
+                    </summary>
+                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
+                      {published.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
+                    </div>
+                  </details>
+                )}
+                {reviews.length > 0 && (
+                  <details className="group">
+                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-blue-700 hover:text-blue-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />검토중 {reviews.length}
+                    </summary>
+                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
+                      {reviews.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
+                    </div>
+                  </details>
+                )}
+                {drafts.length > 0 && (
+                  <details className="group">
+                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-amber-700 hover:text-amber-900">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />초안 {drafts.length}
+                    </summary>
+                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
+                      {drafts.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
+                    </div>
+                  </details>
+                )}
               </div>
             );
           })()}
