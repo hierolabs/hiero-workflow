@@ -255,7 +255,7 @@ func (s *MarketDataService) ImportContractsCSV(reader io.Reader, fileName string
 // ---------- Auto Import from docs/samsam/ ----------
 
 func (s *MarketDataService) ImportFromLatestFiles() (*models.CrawlJob, error) {
-	baseDir := "docs/samsam"
+	baseDir := "../docs/samsam"
 	pattern := filepath.Join(baseDir, "33m2_room_details_all_*.json")
 	matches, _ := filepath.Glob(pattern)
 	if len(matches) == 0 {
@@ -283,16 +283,14 @@ func (s *MarketDataService) GetMarketPrices(platform string, snapshotDate string
 	if snapshotDate != "" {
 		q = q.Where("DATE(snapshot_date) = ?", snapshotDate)
 	} else {
-		// 최신 스냅샷
-		var latestDate string
+		// 가장 최근 crawl_job_id 기준으로 조회
+		var latestJobID uint
 		config.DB.Model(&models.MarketPrice{}).
 			Where("platform = ?", platform).
-			Select("DATE(snapshot_date)").
-			Order("snapshot_date DESC").
-			Limit(1).
-			Scan(&latestDate)
-		if latestDate != "" {
-			q = q.Where("DATE(snapshot_date) = ?", latestDate)
+			Select("MAX(crawl_job_id)").
+			Scan(&latestJobID)
+		if latestJobID > 0 {
+			q = q.Where("crawl_job_id = ?", latestJobID)
 		}
 	}
 

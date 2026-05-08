@@ -29,6 +29,17 @@ interface WikiProgress {
   by_role: { role: string; total: number; filled: number }[];
 }
 
+interface WikiTOCItem {
+  id: number;
+  part_number: number;
+  part_title: string;
+  section: string;
+  title: string;
+  status: string;
+  word_count: number;
+  updated_at: string;
+}
+
 const DOMAIN_LABELS: Record<string, string> = {
   knowledge: '지식 관리',
   research: '연구',
@@ -48,15 +59,21 @@ const DOMAIN_ICONS: Record<string, string> = {
 };
 
 const CTO_MISSION = [
-  { label: '도시계획의 가치', desc: '변하지 않는 메시지를 기록하고 전달' },
-  { label: '아카이빙', desc: '개발 과정 → 블로그·에세이·논문·강의·백서' },
-  { label: '연구', desc: '데이터 분석, 방법론, 도시계획+AI 교차점' },
-  { label: '실천 방법', desc: '기술 전략과 구현 방향 설계' },
+  { label: '도시계획의 가치', desc: '변하지 않는 메시지를 기록하고 전달', parts: [0, 10] },
+  { label: '아카이빙', desc: '개발 과정 → 블로그·에세이·논문·강의·백서', parts: [9, 11] },
+  { label: '연구', desc: '데이터 분석, 방법론, 도시계획+AI 교차점', parts: [10, 2] },
+  { label: '실천 방법', desc: '기술 전략과 구현 방향 설계', parts: [7, 8] },
 ];
+
+const statusDot: Record<string, string> = {
+  published: 'bg-green-500', review: 'bg-blue-500', draft: 'bg-amber-500', empty: 'bg-gray-300',
+};
 
 export default function CTOBoard() {
   const [data, setData] = useState<CTOData | null>(null);
   const [wiki, setWiki] = useState<WikiProgress | null>(null);
+  const [wikiToc, setWikiToc] = useState<WikiTOCItem[]>([]);
+  const [expandedMission, setExpandedMission] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -65,9 +82,11 @@ export default function CTOBoard() {
     Promise.all([
       api.get('/etf-board/cto'),
       api.get('/wiki/progress'),
-    ]).then(([ctoRes, wikiRes]) => {
+      api.get('/wiki/toc'),
+    ]).then(([ctoRes, wikiRes, tocRes]) => {
       setData(ctoRes.data);
       setWiki(wikiRes.data);
+      setWikiToc(tocRes.data?.items ?? []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -117,17 +136,69 @@ export default function CTOBoard() {
         </div>
       </div>
 
-      {/* CTO Mission */}
+      {/* CTO Mission — 위키 연결 */}
       <section>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">CTO 핵심 역할</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {CTO_MISSION.map(m => (
-            <div key={m.label} className="bg-violet-50 border border-violet-200 rounded-xl p-4">
-              <div className="text-sm font-semibold text-violet-800">{m.label}</div>
-              <div className="text-xs text-violet-600 mt-1">{m.desc}</div>
-            </div>
-          ))}
+          {CTO_MISSION.map((m, idx) => {
+            const articles = wikiToc.filter(a => m.parts.includes(a.part_number));
+            const filled = articles.filter(a => a.status !== 'empty').length;
+            const isExpanded = expandedMission === idx;
+            return (
+              <div key={m.label}>
+                <button
+                  onClick={() => setExpandedMission(isExpanded ? null : idx)}
+                  className={`w-full text-left rounded-xl p-4 border transition-all ${
+                    isExpanded
+                      ? 'bg-violet-100 border-violet-400 shadow-sm'
+                      : 'bg-violet-50 border-violet-200 hover:border-violet-300'
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-violet-800">{m.label}</div>
+                  <div className="text-xs text-violet-600 mt-1">{m.desc}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="h-1 flex-1 rounded-full bg-violet-200">
+                      <div className="h-1 rounded-full bg-violet-600 transition-all" style={{ width: `${(filled / Math.max(articles.length, 1)) * 100}%` }} />
+                    </div>
+                    <span className="text-[10px] text-violet-500">{filled}/{articles.length}</span>
+                  </div>
+                </button>
+              </div>
+            );
+          })}
         </div>
+        {/* 펼쳐진 미션의 위키 아티클 목록 */}
+        {expandedMission !== null && (() => {
+          const m = CTO_MISSION[expandedMission];
+          const articles = wikiToc
+            .filter(a => m.parts.includes(a.part_number))
+            .sort((a, b) => {
+              const statusOrder: Record<string, number> = { draft: 0, review: 1, published: 2, empty: 3 };
+              return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+            });
+          return (
+            <div className="mt-3 bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-800">{m.label} — 관련 위키 ({articles.length})</h3>
+                <button onClick={() => navigate('/wiki')} className="text-xs text-violet-600 hover:underline">위키 열기</button>
+              </div>
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {articles.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => navigate('/wiki')}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot[a.status] || 'bg-gray-300'}`} />
+                    <span className="text-xs text-gray-400 w-8 shrink-0">{a.section}</span>
+                    <span className="flex-1 text-xs text-gray-700 truncate">{a.title}</span>
+                    {a.word_count > 0 && <span className="text-[10px] text-gray-400 shrink-0">{a.word_count.toLocaleString()}자</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </section>
 
       {data && (

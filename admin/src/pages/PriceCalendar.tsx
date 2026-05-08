@@ -272,7 +272,7 @@ export default function PriceCalendar() {
 
       {/* 시장 데이터 모드 */}
       {viewMode === "market" ? (
-        <MarketDataPanel />
+        <MarketDataPanel onBack={() => setViewMode("compare")} />
       ) : (
       <>
       {/* 캘린더 그리드 */}

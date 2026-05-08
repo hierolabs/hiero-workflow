@@ -100,7 +100,7 @@ const PLATFORMS: PlatformDef[] = [
 // ============================================================
 // Main Component
 // ============================================================
-export default function MarketDataPanel() {
+export default function MarketDataPanel({ onBack }: { onBack?: () => void }) {
   // 플랫폼 선택 & 활성화
   const [activePlatforms, setActivePlatforms] = useState<Set<string>>(new Set());
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -253,9 +253,16 @@ export default function MarketDataPanel() {
     return (
       <div className="space-y-4">
         {/* 제목 */}
-        <div>
-          <h2 className="text-base font-bold text-gray-800">외부 시장 데이터 수집</h2>
-          <p className="text-sm text-gray-500 mt-0.5">수집할 플랫폼을 선택하고, 가져올 항목을 체크하세요</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-800">외부 시장 데이터 수집</h2>
+            <p className="text-sm text-gray-500 mt-0.5">수집할 플랫폼을 선택하고, 가져올 항목을 체크하세요</p>
+          </div>
+          {onBack && (
+            <button onClick={onBack} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50">
+              ← 가격 캘린더
+            </button>
+          )}
         </div>
 
         {/* 플랫폼 카드 */}
@@ -336,6 +343,11 @@ export default function MarketDataPanel() {
       <div className="space-y-4">
         {/* 상단: 플랫폼 탭 */}
         <div className="flex items-center gap-2">
+          {onBack && (
+            <button onClick={onBack} className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-50">
+              ← 캘린더
+            </button>
+          )}
           <button onClick={() => setPhase("select")} className="text-xs text-gray-400 hover:text-gray-600">← 플랫폼 선택</button>
           <div className="flex gap-1 ml-4">
             {Array.from(activePlatforms).map(key => {
@@ -479,6 +491,11 @@ export default function MarketDataPanel() {
           {/* 상단 컨트롤 */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
+              {onBack && (
+                <button onClick={onBack} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50">
+                  ← 가격 캘린더
+                </button>
+              )}
               <button
                 onClick={() => setPhase("select")}
                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"

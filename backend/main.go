@@ -339,177 +339,119 @@ func seedChatChannels() {
 }
 
 func seedWikiArticles() {
-	// v2 시드 마커 확인 — 이미 v2로 전환됐으면 스킵
-	var v2Count int64
-	config.DB.Model(&models.WikiArticle{}).Where("part_title = ?", "PROLOGUE — 프롤로그").Count(&v2Count)
-	if v2Count > 0 {
-		return // 이미 v2 시드 완료
+	// v3 시드 마커 확인 — 백서 기반 구조
+	var v3Count int64
+	config.DB.Model(&models.WikiArticle{}).Where("part_title = ?", "서문 — 세 개의 자석").Count(&v3Count)
+	if v3Count > 0 {
+		return
 	}
-
-	// 기존 데이터 전체 삭제 후 새 구조로 재생성
-	config.DB.Exec("DELETE FROM wiki_revisions")
-	config.DB.Exec("DELETE FROM wiki_articles")
-	log.Println("[seed] Hestory v2: 기존 위키 초기화 완료")
+	// 기존 잔여 데이터 정리
+	var existing int64
+	config.DB.Model(&models.WikiArticle{}).Count(&existing)
+	if existing > 0 {
+		config.DB.Exec("DELETE FROM wiki_revisions")
+		config.DB.Exec("DELETE FROM wiki_articles")
+		log.Println("[seed] Hestory v3: 기존 위키 초기화")
+	}
 
 	type s struct {
 		P  int; PT string; C int; CT string; S string; T string; A string
 	}
 	data := []s{
-		// ═══ Part 0. PROLOGUE — 프롤로그 ═══
-		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.0","도시계획의 구조와 가치 — 기본계획, 관리계획, 부문별 체계","cto"},
+		// ═══ 서문 — 세 개의 자석 ═══
+		{0,"서문 — 세 개의 자석",0,"서문","P.1","왜 지금 이 문제인가","ceo"},
+		{0,"서문 — 세 개의 자석",0,"서문","P.2","세 개의 자석 — OTA·직거래·HIERO","ceo"},
+		{0,"서문 — 세 개의 자석",0,"서문","P.3","기능 앱과 운영 OS의 차이","cto"},
+		{0,"서문 — 세 개의 자석",0,"서문","P.4","이 백서를 읽는 방법","cto"},
+
+		// ═══ Part 0. 온톨로지 ═══
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",1,"온톨로지","0.1","온톨로지란 무엇인가","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",1,"온톨로지","0.2","왜 숙박·중단기 임대에 온톨로지가 필요한가","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",2,"4대 온톨로지 레이어","0.3a","공간 Ontology — 건물, 호실, 생활권, 운영상태","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",2,"4대 온톨로지 레이어","0.3b","인간 Ontology — 거주자, 체류패턴, 감성, 관계","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",2,"4대 온톨로지 레이어","0.3c","운영 Ontology — 청소, 비용, 가격, KPI, 액션","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",2,"4대 온톨로지 레이어","0.3d","도시 Ontology — 권역, 생활권, 교통, 상권","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",3,"엔티티와 선언","0.4","핵심 엔티티 15개와 상태값","cto"},
+		{1,"온톨로지 — 세계를 어떻게 구조화할 것인가",3,"엔티티와 선언","0.5","형태를 규제하되 기능을 해방한다","cto"},
+
+		// ═══ Part 1. SPACE ═══
+		{2,"SPACE — 공간 온톨로지",4,"공간의 문제","1.1","숙소는 토지다 — 도시계획가의 관점","ceo"},
+		{2,"SPACE — 공간 온톨로지",4,"공간의 문제","1.2","Property 모델 — 숙소를 어떻게 정의했는가","cto"},
+		{2,"SPACE — 공간 온톨로지",5,"권역과 등급","1.3","14권역 설계 — Neighborhood Unit으로 나눈 서울","cto"},
+		{2,"SPACE — 공간 온톨로지",5,"권역과 등급","1.4","숙소 등급 체계 — FBC Transect T1→T6","cto"},
+		{2,"SPACE — 공간 온톨로지",6,"공간 데이터","1.5","공간 데이터가 만드는 도시 인사이트","cto"},
+
+		// ═══ Part 2. PEOPLE ═══
+		{3,"PEOPLE — 인간 온톨로지",7,"게스트","2.1","게스트는 도시의 주민이다","operations"},
+		{3,"PEOPLE — 인간 온톨로지",7,"게스트","2.2","메시지 분석 — 42,568건이 말하는 것","cto"},
+		{3,"PEOPLE — 인간 온톨로지",7,"게스트","2.3","통화 분석 — 1,129건, 전화가 오는 순간의 의미","cto"},
+		{3,"PEOPLE — 인간 온톨로지",8,"게스트 경험","2.4","게스트 멘탈맵 — Lynch 5요소 적용","cto"},
+		{3,"PEOPLE — 인간 온톨로지",8,"게스트 경험","2.5","운영팀 — 도시의 시민들","ceo"},
+
+		// ═══ Part 3. FLOW ═══
+		{4,"FLOW — 데이터가 흐르는 길",9,"원본과 동기화","3.1","Hostex는 예약의 원본이다","cto"},
+		{4,"FLOW — 데이터가 흐르는 길",9,"원본과 동기화","3.2","이중 동기화 — API와 Webhook의 역할 분담","cto"},
+		{4,"FLOW — 데이터가 흐르는 길",10,"정합성과 증명","3.3","동기화 정합성 — Dynamo에서 배운 것","cto"},
+		{4,"FLOW — 데이터가 흐르는 길",10,"정합성과 증명","3.4","Proof of Operation — 상태 전환에 실행 증거를 붙인다","cto"},
+		{4,"FLOW — 데이터가 흐르는 길",10,"정합성과 증명","3.5","Smart Operation — 조건 충족 시 자동 실행","cto"},
+
+		// ═══ Part 4. TURNOVER ═══
+		{5,"TURNOVER — 현장 운영 엔진",11,"청소의 본질","4.1","청소는 도시의 신진대사다","cleaning_dispatch"},
+		{5,"TURNOVER — 현장 운영 엔진",11,"청소의 본질","4.2","Operation Unit — Corbusier Modulor의 운영 번역","cto"},
+		{5,"TURNOVER — 현장 운영 엔진",12,"권역과 청소자","4.3","14권역 × 22명 청소자 — 자급 운영 단위","cleaning_dispatch"},
+		{5,"TURNOVER — 현장 운영 엔진",12,"권역과 청소자","4.4","자동 배정 알고리즘","cto"},
+		{5,"TURNOVER — 현장 운영 엔진",12,"권역과 청소자","4.5","모바일 앱 — 청소자의 인터페이스","cto"},
+
+		// ═══ Part 5. ECONOMY ═══
+		{6,"ECONOMY — 돈의 흐름",13,"재정의 원칙","5.1","정산은 도시의 재정이다","cfo"},
+		{6,"ECONOMY — 돈의 흐름",13,"재정의 원칙","5.2","데이터 3층 구조 — 신뢰할 수 있는 숫자의 원천","cto"},
+		{6,"ECONOMY — 돈의 흐름",14,"정산과 세무","5.3","Settlement P&L — 숙소별 손익 자동 계산","cfo"},
+		{6,"ECONOMY — 돈의 흐름",14,"정산과 세무","5.4","세무 분류 자동화","cfo"},
+		{6,"ECONOMY — 돈의 흐름",14,"정산과 세무","5.5","재무 대시보드 — CFO 관점","cfo"},
+
+		// ═══ Part 6. RISK ═══
+		{7,"RISK — 위기 관리 체계",15,"위기의 패턴","6.1","위기는 예고 없이 온다 — 그러나 패턴이 있다","operations"},
+		{7,"RISK — 위기 관리 체계",15,"위기의 패턴","6.2","HS 3-Tier 에스컬레이션 체계","cto"},
+		{7,"RISK — 위기 관리 체계",16,"감지와 대응","6.3","이슈 감지 파이프라인","cto"},
+		{7,"RISK — 위기 관리 체계",16,"감지와 대응","6.4","CS Knowledge Base — 위기를 학습으로","cto"},
+		{7,"RISK — 위기 관리 체계",16,"감지와 대응","6.5","Ops Feed & Ops Pulse — 운영의 눈","operations"},
+
+		// ═══ Part 7. INTELLIGENCE ═══
+		{8,"INTELLIGENCE — OS의 두뇌",17,"판단의 구조","7.1","Attention Mechanism — 가장 중요한 것에 집중","cto"},
+		{8,"INTELLIGENCE — OS의 두뇌",17,"판단의 구조","7.2","5엔진 진단 — 25개 지표로 보는 건강","cto"},
+		{8,"INTELLIGENCE — OS의 두뇌",18,"의사결정 시스템","7.3","ETF Board — 세 관점의 동시 통치","cto"},
+		{8,"INTELLIGENCE — OS의 두뇌",18,"의사결정 시스템","7.4","AI Agent — Pattern 205가 구현된 방식","cto"},
+		{8,"INTELLIGENCE — OS의 두뇌",19,"지식 시스템","7.5","Hestory — 운영 지식의 그린벨트","cto"},
+
+		// ═══ Part 8. BUSINESS ═══
+		{9,"BUSINESS — 지속가능한 구조",20,"수익 모델","8.1","내부 운영 효율화 모델","ceo"},
+		{9,"BUSINESS — 지속가능한 구조",20,"수익 모델","8.2","외부 SaaS 모델 — 타 운영사 라이선스","ceo"},
+		{9,"BUSINESS — 지속가능한 구조",20,"수익 모델","8.3","데이터 플랫폼 모델","ceo"},
+		{9,"BUSINESS — 지속가능한 구조",21,"영업과 확장","8.4","위탁영업 CRM — 신규 숙소 유치","marketing"},
+		{9,"BUSINESS — 지속가능한 구조",21,"영업과 확장","8.5","HIERO Guide — 게스트 향 앱의 가능성","cto"},
+
+		// ═══ Part 9. HORIZON ═══
+		{10,"HORIZON — 다음 도시로",22,"확장","9.1","Social Cities — 하나의 도시에서 군집으로","ceo"},
+		{10,"HORIZON — 다음 도시로",22,"확장","9.2","300채 로드맵 — 계획적 성장의 조건","ceo"},
+		{10,"HORIZON — 다음 도시로",23,"생태계","9.3","플랫폼 생태계 — 오너·운영자·청소자·게스트","ceo"},
+		{10,"HORIZON — 다음 도시로",23,"생태계","9.4","The Future of Seoul — 도시 운영 데이터의 가능성","cto"},
+
+		// ═══ Part 10. THEORY ═══
+		{11,"THEORY — 이론적 기반",24,"이론","10.1","도시계획 사조 계보와 HIERO의 위치","cto"},
+		{11,"THEORY — 이론적 기반",24,"이론","10.2","기술 백서 계보와 HIERO의 위치","cto"},
+		{11,"THEORY — 이론적 기반",24,"이론","10.3","인문학 계보와 HIERO의 위치","cto"},
+		{11,"THEORY — 이론적 기반",24,"이론","10.4","HIERO의 핵심 명제 — 선언문","cto"},
 		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.1","도시계획가가 OS를 만드는 이유","ceo"},
 		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.2","끊어진 연결 — 비전은 있으나 실행이 없다","ceo"},
 		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.3","숙소 100채라는 작은 도시","ceo"},
 		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.4","온톨로지가 답이다","cto"},
 
-		// ═══ Part 1. SPACE — 공간 ═══
-		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.0","토지이용계획의 가치 — 용도지역, 공간 위계, 상태 관리","cto"},
-		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.1","101개 숙소라는 토지","operations"},
-		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.2","Property 모델 — hostex_id, 등급, 권역, 운영유형","cto"},
-		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.3","공간의 상태 — active, maintenance, onboarding","cto"},
-		{1,"SPACE — 공간",2,"공급 라이프사이클","2.1","Lead → Active 9단계","ceo"},
-		{1,"SPACE — 공간",2,"공급 라이프사이클","2.2","셋업 → 촬영 → OTA 등록 → 운영","field"},
-		{1,"SPACE — 공간",2,"공급 라이프사이클","2.3","플랫폼 매트릭스 — Airbnb Master, Fast Copy, Complex","cto"},
-		{1,"SPACE — 공간",2,"공급 라이프사이클","2.4","투자자·주차·온보딩 체크리스트","ceo"},
-		{1,"SPACE — 공간",3,"가격과 공실","3.1","PriceLabs — 동적 가격 연동","cto"},
-		{1,"SPACE — 공간",3,"가격과 공실","3.2","Demand-Aware Markdown Engine","cto"},
-		{1,"SPACE — 공간",3,"가격과 공실","3.3","채널별 가격 구조의 현실","operations"},
-		{1,"SPACE — 공간",3,"가격과 공실","3.4","5엔진 진단 — 25개 지표","cto"},
-
-		// ═══ Part 2. PEOPLE — 사람 ═══
-		{2,"PEOPLE — 사람",4,"인구와 주거이동","2.0","인구계획의 가치 — 주거이동, 체류패턴, 가구구조","cto"},
-		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.1","6,364건의 예약 — 인구 유입","operations"},
-		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.2","Reservation 모델 — reservation_code가 주민등록번호","cto"},
-		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.3","guest_type 6종 — 이 도시의 주민 분류","cto"},
-		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.4","체크인/체크아웃 — 체류와 이동","operations"},
-		{2,"PEOPLE — 사람",5,"주민의 목소리","5.1","42,568건의 메시지 분석","cto"},
-		{2,"PEOPLE — 사람",5,"주민의 목소리","5.2","1,129건의 통화 분석","cto"},
-		{2,"PEOPLE — 사람",5,"주민의 목소리","5.3","게스트 리뷰와 평점","operations"},
-		{2,"PEOPLE — 사람",5,"주민의 목소리","5.4","Guest Request — 얼리체크인, 수건, 특수요청","operations"},
-		{2,"PEOPLE — 사람",6,"팀과 역할","6.1","운영팀 5명 구조","ceo"},
-		{2,"PEOPLE — 사람",6,"팀과 역할","6.2","RBAC — 8역할 47권한","cto"},
-		{2,"PEOPLE — 사람",6,"팀과 역할","6.3","3모드 — 의사결정/관리/실행","ceo"},
-
-		// ═══ Part 3. FLOW — 흐름 ═══
-		{3,"FLOW — 흐름",7,"교통과 통행","3.0","교통계획의 가치 — O-D, 통행배분, 수단선택","cto"},
-		{3,"FLOW — 흐름",7,"교통과 통행","7.1","3개 채널, 3개의 관문","operations"},
-		{3,"FLOW — 흐름",7,"교통과 통행","7.2","Airbnb — API 자동, 전체 30%","operations"},
-		{3,"FLOW — 흐름",7,"교통과 통행","7.3","삼삼엠투 — 승인제, 주단위, 관리비 별도","operations"},
-		{3,"FLOW — 흐름",7,"교통과 통행","7.4","개인입금 — CRM, 수동 관리","operations"},
-		{3,"FLOW — 흐름",8,"중앙 관제","8.1","Hostex — API 숙소·예약 동기화","cto"},
-		{3,"FLOW — 흐름",8,"중앙 관제","8.2","Webhook 수신 — 실시간 이벤트 처리","cto"},
-		{3,"FLOW — 흐름",8,"중앙 관제","8.3","동기화 정합성 — 누락, 중복, 시간대","cto"},
-		{3,"FLOW — 흐름",8,"중앙 관제","8.4","멀티인박스 — 모든 경로의 통합","cto"},
-
-		// ═══ Part 4. TURNOVER — 현장 ═══
-		{4,"TURNOVER — 현장",9,"환경과 유지관리","4.0","환경계획의 가치 — 환경용량, 폐기물, 유지관리","cto"},
-		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.1","청소 = 도시의 환경 관리","cleaning_dispatch"},
-		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.2","체크아웃 → CleaningTask 자동 생성","cto"},
-		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.3","14권역 체계와 22명 청소자","cleaning_dispatch"},
-		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.4","단가 체계 — 평수별, 추가비, 할증","cfo"},
-		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.1","엑셀→DB 12단계 전환","cto"},
-		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.2","배정 자동화 — 2시간을 20분으로","cleaning_dispatch"},
-		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.3","카카오톡 메시지 파싱 → 자동 배정","cto"},
-		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.4","연장예약 감지와 청소 스킵","cto"},
-		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.1","HIERO vs ThingDone의 관계","cto"},
-		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.2","청소자 모바일 앱 — JWT, API, UX","cto"},
-		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.3","사진·이슈·추가비 — 현장 데이터 수집","cleaning_dispatch"},
-		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.4","주간 정산과 KPI","cfo"},
-		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.5","Odyssey-X 데모데이 — 2026-06-27","ceo"},
-
-		// ═══ Part 5. ECONOMY — 돈 ═══
-		{5,"ECONOMY — 돈",12,"재정과 수입구조","5.0","도시재정의 가치 — 세입·세출, 수익자부담, 결산","cto"},
-		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.1","매출의 구조 — 수입 3종","cfo"},
-		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.2","CSV가 유일한 신뢰 소스 — API 78% 누락","cfo"},
-		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.3","hostex_transactions — 16개월 12,990건","cfo"},
-		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.4","Data1 + Data2 = Data3 JOIN","cto"},
-		{5,"ECONOMY — 돈",13,"비용과 분할","13.1","cost_raw → cost_allocations — 1/n 분할","cfo"},
-		{5,"ECONOMY — 돈",13,"비용과 분할","13.2","property_costs — 숙소별 고정비","cfo"},
-		{5,"ECONOMY — 돈",13,"비용과 분할","13.3","카테고리 매핑 — 수입 3종, 비용 13종","cfo"},
-		{5,"ECONOMY — 돈",14,"정산과 세무","14.1","Settlement — 숙소별 P&L","cfo"},
-		{5,"ECONOMY — 돈",14,"정산과 세무","14.2","monthly_property_reports — 월간 스냅샷","cfo"},
-		{5,"ECONOMY — 돈",14,"정산과 세무","14.3","세무 3분류 — 전대업/숙박업/서비스","cfo"},
-		{5,"ECONOMY — 돈",14,"정산과 세무","14.4","계정과목 체계 4101~6117","cfo"},
-		{5,"ECONOMY — 돈",14,"정산과 세무","14.5","세무사 전달자료 생성","cfo"},
-
-		// ═══ Part 6. RISK — 위기 ═══
-		{6,"RISK — 위기",15,"방재와 위기대응","6.0","방재계획의 가치 — 재난분류, 4단계 대응, 에스컬레이션","cto"},
-		{6,"RISK — 위기",15,"방재와 위기대응","15.1","33개 이슈 유형 — 재난 분류 체계","operations"},
-		{6,"RISK — 위기",15,"방재와 위기대응","15.2","담당자 자동 배정 — 33유형→8담당자","cto"},
-		{6,"RISK — 위기",15,"방재와 위기대응","15.3","에스컬레이션 피라미드","ceo"},
-		{6,"RISK — 위기",16,"감지→대응→해결","16.1","메시지 기반 이슈 자동 감지","cto"},
-		{6,"RISK — 위기",16,"감지→대응→해결","16.2","CS 지식베이스 — 6대 카테고리, FAQ","cto"},
-		{6,"RISK — 위기",16,"감지→대응→해결","16.3","통화 분석 — 1,129건, 대응 프로세스","operations"},
-		{6,"RISK — 위기",17,"HS 시스템","17.1","HS = 자동, human = 사람, escalated = 민원","cto"},
-		{6,"RISK — 위기",17,"HS 시스템","17.2","97% 자동 처리의 구조","cto"},
-		{6,"RISK — 위기",17,"HS 시스템","17.3","대장 — 일별 HS/사람/민원/HS률","operations"},
-		{6,"RISK — 위기",17,"HS 시스템","17.4","오탐 관리와 규칙 보정","cto"},
-
-		// ═══ Part 7. INTELLIGENCE — 지능 ═══
-		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","7.0","정보통신계획의 가치 — 디지털트윈, 도시데이터, 스마트시티","cto"},
-		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.1","온톨로지 설계 — 15엔티티, 4대 레이어","cto"},
-		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.2","State Transition — 기능이 아니라 상태 전환","cto"},
-		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.3","reservation_code — 전체 파이프라인의 조인키","cto"},
-		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.4","개발 10계명","cto"},
-		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.1","Level 1~3 — 수동→수집→분류 (완료)","cto"},
-		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.2","Level 4 — 자동 판단 (부분 구현)","cto"},
-		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.3","Level 5~6 — 자동 실행→학습 (다음)","cto"},
-		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.4","Level 7 — 자동 생성 (보고서부터)","cto"},
-		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.1","페이지별 AI Agent — GPT-4o-mini","cto"},
-		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.2","대화 저장 + 크로스페이지 + 장기기억","cto"},
-		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.3","CS Agent — 메시지 분석, 응답 제안","cto"},
-		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.4","Founder OS — Daily Brief, Top Decisions","cto"},
-		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.5","ETF Board — CEO/CFO/CTO 대시보드","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.1","Go + Gin + GORM + MySQL","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.2","React + Vite + TypeScript","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.3","6 Layer — Data→Integration→Domain→App→AI→Presentation","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.4","RBAC — 8역할 47권한 구현","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.5","Hostex API 클라이언트 — client.go","cto"},
-		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.6","PriceLabs 연동 — 캐시, 비교, KPI","cto"},
-
-		// ═══ Part 8. BUSINESS — 사업 ═══
-		{8,"BUSINESS — 사업",22,"산업과 플랫폼","8.0","산업계획의 가치 — 클러스터, 혁신생태계, 플랫폼경제","cto"},
-		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.1","내부 효율화 — 100채→300채","ceo"},
-		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.2","띵동 SaaS — 29k/59k/99k, 외부 판매","ceo"},
-		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.3","데이터 플랫폼 — 운영 데이터가 자산","ceo"},
-		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.1","위탁운영 마케팅 — 랜딩페이지, CRM","marketing"},
-		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.2","Lead 파이프라인 — 리드 스코어링, 제안서 자동화","marketing"},
-		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.3","타겟별 광고 랜딩 — /lp/* 확장","marketing"},
-		{8,"BUSINESS — 사업",24,"투자와 확장","24.1","투자 제안서 — 심사위원 3대 질문","ceo"},
-		{8,"BUSINESS — 사업",24,"투자와 확장","24.2","시장 규모와 타겟 — TAM/SAM/SOM","ceo"},
-		{8,"BUSINESS — 사업",24,"투자와 확장","24.3","Palantir 비유 — 국가 OS vs 도시 OS","ceo"},
-
-		// ═══ Part 9. HORIZON — 확장 ═══
-		{9,"HORIZON — 확장",25,"미래상","9.0","도시기본계획의 가치 — 20년 비전, 공간구조, 생활권","cto"},
-		{9,"HORIZON — 확장",25,"미래상","25.1","MORO — 주거이동 OS, 7 Score, 동네 안착","cto"},
-		{9,"HORIZON — 확장",25,"미래상","25.2","서울 AI 도시계획 연구소 — Odyssey-X, 33/84/256","ceo"},
-		{9,"HORIZON — 확장",25,"미래상","25.3","숙소에서 도시로 — 3단계 확장","ceo"},
-		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.1","만드는 과정이 교육이 된다","cto"},
-		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.2","글쓰기 3종 — 에세이/논문형/블로그","cto"},
-		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.3","CTO 역할 = 아카이빙","cto"},
-
-		// ═══ Part 10. URBAN THEORY INDEX — 강의 원천 ═══
-		{10,"URBAN THEORY INDEX — 강의 원천",27,"도시계획 체계 총론","10.0","국토계획법 — 기본계획↔관리계획↔지구단위","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",27,"도시계획 체계 총론","10.01","온톨로지 부재가 왜 구조적 한계인가","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",28,"토지이용 (SPACE)","10.1","Lynch, 공간 위계, 용도지역·지구·구역","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",29,"인구·주거 (PEOPLE)","10.2","Rossi, 주거이동, 가구구조 변화","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",30,"교통 (FLOW)","10.3","4단계 추정, O-D, 통행배분","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",31,"환경 (TURNOVER)","10.4","환경용량, 폐기물, 유지관리","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",32,"재정 (ECONOMY)","10.5","세입·세출, 수익자부담, 도시경제학","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",33,"방재 (RISK)","10.6","위기관리 4단계, 재난분류","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",34,"스마트시티 (INTELLIGENCE)","10.7","디지털트윈, 도시데이터플랫폼, 스마트시티법","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",35,"산업 (BUSINESS)","10.8","클러스터, 플랫폼경제, 혁신생태계","cto"},
-		{10,"URBAN THEORY INDEX — 강의 원천",36,"미래상 (HORIZON)","10.9","생활권, 중간영역이론, Jan Gehl","cto"},
-
 		// ═══ 부록 ═══
-		{99,"부록",90,"부록","A","핵심 파일 맵","cto"},
-		{99,"부록",90,"부록","B","API 엔드포인트 전체 목록 (50+ handler)","cto"},
-		{99,"부록",90,"부록","C","DB 스키마 (45+ 테이블)","cto"},
-		{99,"부록",90,"부록","D","개발 세션 로그","cto"},
-		{99,"부록",90,"부록","E","글쓰기 가이드 v1","cto"},
-		{99,"부록",90,"부록","F","계정과목 매핑표","cfo"},
-		{99,"부록",90,"부록","G","청소자 계정 및 권역 배정표","cleaning_dispatch"},
-		{99,"부록",90,"부록","H","Claude Code 개발 지시문","cto"},
+		{99,"부록",90,"부록","A","핵심 지표 정의 glossary","cto"},
+		{99,"부록",90,"부록","B","API 엔드포인트 목록","cto"},
+		{99,"부록",90,"부록","C","데이터베이스 스키마 (핵심 테이블)","cto"},
+		{99,"부록",90,"부록","D","참고문헌 9종 원문 및 번역","cto"},
+		{99,"부록",90,"부록","E","HIERO 다이어그램 모음","cto"},
 	}
 	for i, d := range data {
 		config.DB.Create(&models.WikiArticle{
@@ -517,5 +459,5 @@ func seedWikiArticles() {
 			Section: d.S, Title: d.T, Status: "empty", AssignedTo: d.A, SortOrder: i,
 		})
 	}
-	log.Printf("[seed] Hestory v2: %d건 새 목차 생성 완료", len(data))
+	log.Printf("[seed] Hestory v3 (백서 기반): %d건 목차 생성 완료", len(data))
 }
