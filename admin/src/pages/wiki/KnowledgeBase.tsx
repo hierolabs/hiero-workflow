@@ -448,10 +448,12 @@ export default function KnowledgeBase() {
               const isPublished = selected.status === "published";
               const hasRevisions = revisions.length > 1;
               const steps = [
-                { label: "작업 기록", done: hasContent, desc: "코드/설계/데이터 소스" },
-                { label: "글 구성", done: hasContent && (isDraft || isReview || isPublished), desc: "맥락 있는 이야기로 정리" },
-                { label: "초안 완성", done: hasRevisions || isReview || isPublished, desc: "사람이 읽을 수 있는 글" },
-                { label: "검토/퇴고", done: isReview || isPublished, desc: "직접 다듬기" },
+                { label: "작업 기록", done: hasContent, desc: "코드/설계/데이터" },
+                { label: "AI 글 구성", done: hasContent && (isDraft || isReview || isPublished), desc: "Gemini 작성 → Claude 검수" },
+                { label: "에세이", done: hasRevisions || isReview || isPublished, desc: "느낀 것, 배운 것" },
+                { label: "논문형", done: isReview || isPublished, desc: "인과관계 + 근거" },
+                { label: "블로그", done: isReview || isPublished, desc: "대외 공감대" },
+                { label: "검토/퇴고", done: isPublished, desc: "Founder + CTO" },
                 { label: "발행", done: isPublished, desc: "위키 확정" },
                 { label: "외부 발행", done: false, desc: "블로그/백서/강의/책" },
               ];
