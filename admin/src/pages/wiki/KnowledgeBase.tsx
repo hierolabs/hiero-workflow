@@ -431,7 +431,29 @@ export default function KnowledgeBase() {
       {selected && (
         <div className="w-56 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-3">
 
-          {/* 아카이빙 단계 (항상 보임 — 이 글이 어디까지 왔는지) */}
+          {/* 전체 아카이빙 현황 (맨 위) */}
+          {progress && (() => {
+            const completed = progress.published;
+            const draftCount = progress.draft;
+            const total = progress.total;
+            return (
+              <div className="mb-3 rounded-lg bg-white p-2.5 border border-gray-100">
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-[11px] font-medium text-gray-700">전체 아카이빙</span>
+                  <span className="text-[10px] text-gray-400">{completed + draftCount} / {total}</span>
+                </div>
+                <div className="h-1 rounded-full bg-gray-100 mb-2">
+                  <div className="h-1 rounded-full bg-green-500 transition-all" style={{ width: `${((completed + draftCount) / Math.max(total, 1)) * 100}%` }} />
+                </div>
+                <div className="flex gap-3 text-[10px] text-gray-400">
+                  <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />완료 {completed}</span>
+                  <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />초안 {draftCount}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 아카이빙 단계 (이 글이 어디까지 왔는지) */}
           <div className="mb-4">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">아카이빙 단계</p>
             {(() => {
