@@ -101,6 +101,29 @@ func (h *WikiHandler) AssignArticle(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "assigned"})
 }
 
+// POST /admin/wiki/articles
+func (h *WikiHandler) CreateArticle(c *gin.Context) {
+	var req service.CreateArticleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	authorID := uint(0)
+	authorName := "unknown"
+	if uid, exists := c.Get("user_id"); exists {
+		authorID = uid.(uint)
+	}
+	if lid, exists := c.Get("login_id"); exists {
+		authorName = lid.(string)
+	}
+	article, err := h.svc.CreateArticle(req, authorID, authorName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, article)
+}
+
 // GET /admin/wiki/articles/:id/revisions
 func (h *WikiHandler) GetRevisions(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

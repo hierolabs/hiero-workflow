@@ -191,6 +191,66 @@ func (s *WikiService) GetRevisions(articleID uint) ([]models.WikiRevision, error
 	return revs, err
 }
 
+// ── Create Article ─────────────────────────────────────────────────
+
+type CreateArticleReq struct {
+	PartNumber   int    `json:"part_number"`
+	PartTitle    string `json:"part_title"`
+	Chapter      int    `json:"chapter"`
+	ChapterTitle string `json:"chapter_title"`
+	Section      string `json:"section"`
+	Title        string `json:"title"`
+	Content      string `json:"content"`
+	Status       string `json:"status"`
+	AssignedTo   string `json:"assigned_to"`
+	Tags         string `json:"tags"`
+}
+
+func (s *WikiService) CreateArticle(req CreateArticleReq, authorID uint, authorName string) (*models.WikiArticle, error) {
+	// 같은 part+section 최대 sort_order 조회
+	var maxSort int
+	config.DB.Model(&models.WikiArticle{}).
+		Where("part_number = ?", req.PartNumber).
+		Select("COALESCE(MAX(sort_order), 0)").Scan(&maxSort)
+
+	status := req.Status
+	if status == "" && req.Content != "" {
+		status = "draft"
+	} else if status == "" {
+		status = "empty"
+	}
+
+	wc := countWords(req.Content)
+	var now *time.Time
+	if status == "published" {
+		t := time.Now()
+		now = &t
+	}
+
+	article := models.WikiArticle{
+		PartNumber:   req.PartNumber,
+		PartTitle:    req.PartTitle,
+		Chapter:      req.Chapter,
+		ChapterTitle: req.ChapterTitle,
+		Section:      req.Section,
+		Title:        req.Title,
+		Content:      req.Content,
+		Status:       status,
+		AssignedTo:   req.AssignedTo,
+		AuthorID:     &authorID,
+		AuthorName:   authorName,
+		SortOrder:    maxSort + 1,
+		Tags:         req.Tags,
+		WordCount:    wc,
+		PublishedAt:  now,
+	}
+
+	if err := config.DB.Create(&article).Error; err != nil {
+		return nil, err
+	}
+	return &article, nil
+}
+
 func countWords(s string) int {
 	s = strings.TrimSpace(s)
 	if s == "" {

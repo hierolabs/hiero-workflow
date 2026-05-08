@@ -291,6 +291,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			{
 				wiki.GET("/toc", wikiHandler.GetTOC)
 				wiki.GET("/progress", wikiHandler.GetProgress)
+				wiki.POST("/articles", wikiHandler.CreateArticle)
 				wiki.GET("/articles/:id", wikiHandler.GetArticle)
 				wiki.PUT("/articles/:id", wikiHandler.UpdateArticle)
 				wiki.PATCH("/articles/:id/assign", wikiHandler.AssignArticle)

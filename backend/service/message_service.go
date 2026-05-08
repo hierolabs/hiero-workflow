@@ -198,15 +198,15 @@ func (s *MessageService) SyncConversationMessages(conversationID string) (int, e
 		}
 	}
 
-	// last_message 업데이트
-	if len(msgs) > 0 {
-		last := msgs[len(msgs)-1]
-		sentAt, _ := time.Parse(time.RFC3339, last.CreatedAt)
+	// last_message 업데이트 — DB에서 실제 최신 메시지 기준
+	var latestMsg models.Message
+	if err := config.DB.Where("conversation_id = ?", conversationID).
+		Order("sent_at DESC").First(&latestMsg).Error; err == nil {
 		config.DB.Model(&models.Conversation{}).
 			Where("conversation_id = ?", conversationID).
 			Updates(map[string]interface{}{
-				"last_message_at":      sentAt,
-				"last_message_preview": truncate(last.Content, 500),
+				"last_message_at":      latestMsg.SentAt,
+				"last_message_preview": truncate(latestMsg.Content, 500),
 			})
 	}
 

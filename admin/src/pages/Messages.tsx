@@ -111,7 +111,7 @@ export default function Messages() {
   const [convDetail, setConvDetail] = useState<Conversation | null>(null);
   const [input, setInput] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [filter, setFilter] = useState<'all' | 'urgent' | 'checkin' | 'inquiry' | 'cancelled'>('all');
+  const [filter, setFilter] = useState<'all' | 'urgent' | 'today' | 'yesterday' | 'checkin'>('today');
   const [syncing, setSyncing] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [newRequestType, setNewRequestType] = useState("special_request");
@@ -167,7 +167,7 @@ export default function Messages() {
   }, []);
 
   async function loadConversations() {
-    const params: Record<string, string> = { page_size: "500" };
+    const params: Record<string, string> = { page_size: "50" };
     if (keyword) params.keyword = keyword;
     const data = await getConversations(params);
     setConversations(data.conversations || []);
@@ -331,13 +331,9 @@ export default function Messages() {
             {PERIOD_OPTIONS.map(p => (
               <button key={p.value} onClick={() => {
                 setStatPeriod(p.value);
-                // 오른쪽 감지탭 날짜 연동: 단일 날짜면 date picker, 범위면 첫날
+                // 오른쪽 감지탭 날짜도 동일 기간으로 연동
                 const [s] = getPeriodDates(p.value);
-                if (p.value === 'today' || p.value === 'yesterday') {
-                  setDetDateFilter(s);
-                } else {
-                  setDetDateFilter(''); // 범위는 전체로
-                }
+                setDetDateFilter(s);
               }}
                 className={`px-2 py-0.5 text-xs rounded-full transition ${statPeriod === p.value ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                 {p.label}
@@ -432,20 +428,22 @@ export default function Messages() {
             });
             return ([
               { key: 'all' as const, label: '전체', color: 'text-gray-700' },
+              { key: 'today' as const, label: '오늘', color: 'text-gray-700' },
+              { key: 'yesterday' as const, label: '어제', color: 'text-gray-500' },
               { key: 'urgent' as const, label: '감지', color: 'text-red-600' },
-              { key: 'checkin' as const, label: '투숙', color: 'text-blue-600' },
-              { key: 'inquiry' as const, label: '문의', color: 'text-purple-600' },
-              { key: 'cancelled' as const, label: '취소', color: 'text-gray-500' },
+              { key: 'checkin' as const, label: '체크인중', color: 'text-blue-600' },
+              { key: 'all' as const, label: '전체', color: 'text-gray-500' },
             ]).map(f => {
+              const src = typeof inPeriod !== 'undefined' ? inPeriod : conversations;
               const count = f.key === 'urgent'
-                ? inPeriod.filter(c => c.detection_count > 0).length
+                ? src.filter((c: any) => c.detection_count > 0).length
+                : f.key === 'today'
+                ? src.filter((c: any) => c.message_date === 'today').length
+                : f.key === 'yesterday'
+                ? src.filter((c: any) => c.message_date === 'yesterday').length
                 : f.key === 'checkin'
-                ? inPeriod.filter(c => ['checking_in', 'in_house', 'upcoming'].includes(c.guest_type)).length
-                : f.key === 'inquiry'
-                ? inPeriod.filter(c => c.guest_type === 'inquiry').length
-                : f.key === 'cancelled'
-                ? inPeriod.filter(c => c.guest_type === 'cancelled').length
-                : inPeriod.length;
+                ? src.filter((c: any) => c.stay_status === 'checking_in' || c.stay_status === 'in_house').length
+                : src.length;
             return (
               <button key={f.key} onClick={() => setFilter(f.key)}
                 className={`flex-1 py-2 text-xs font-medium relative ${
@@ -470,9 +468,9 @@ export default function Messages() {
             });
             const filtered = periodFiltered.filter(conv => {
               if (filter === 'urgent') return conv.detection_count > 0;
-              if (filter === 'checkin') return ['checking_in', 'in_house', 'upcoming'].includes(conv.guest_type);
-              if (filter === 'inquiry') return conv.guest_type === 'inquiry';
-              if (filter === 'cancelled') return conv.guest_type === 'cancelled';
+              if (filter === 'today') return conv.message_date === 'today';
+              if (filter === 'yesterday') return conv.message_date === 'yesterday';
+              if (filter === 'checkin') return conv.stay_status === 'checking_in' || conv.stay_status === 'in_house';
               return true;
             });
             if (filtered.length === 0) {
@@ -521,8 +519,14 @@ export default function Messages() {
                           'bg-amber-50 border-amber-200 text-amber-800'
                         }`}>
                           <span className="font-semibold">{CAT_LABELS[d.detected_category] || d.detected_category}</span>
+                          {d.response_time_sec > 0 && (
+                            <span className={`mx-1 font-medium ${d.response_time_sec < 600 ? 'text-green-600' : d.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {d.response_time_sec < 60 ? `${d.response_time_sec}초` : d.response_time_sec < 3600 ? `${Math.round(d.response_time_sec/60)}분` : `${Math.round(d.response_time_sec/3600)}시간`}
+                            </span>
+                          )}
+                          {d.status === 'pending' && <span className="mx-1 text-red-500 font-medium">미대응</span>}
                           <span className="text-gray-500 mx-1">·</span>
-                          <span>{d.message_content?.slice(0, 35)}{(d.message_content?.length || 0) > 35 ? '...' : ''}</span>
+                          <span>{d.message_content?.slice(0, 30)}{(d.message_content?.length || 0) > 30 ? '...' : ''}</span>
                         </div>
                       ))}
                   </div>
@@ -713,7 +717,13 @@ export default function Messages() {
                           }`}>
                             {det.severity === 'critical' ? '즉시' : det.severity === 'high' ? '주의' : '감지'}
                           </span>
-                          <span className="font-medium text-gray-700">{det.detected_category}</span>
+                          <span className="font-medium text-gray-700">{CAT_LABELS[det.detected_category] || det.detected_category}</span>
+                          {det.response_time_sec > 0 && (
+                            <span className={`font-medium ${det.response_time_sec < 600 ? 'text-green-600' : det.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {det.response_time_sec < 60 ? `${det.response_time_sec}초` : det.response_time_sec < 3600 ? `${Math.round(det.response_time_sec/60)}분` : `${Math.round(det.response_time_sec/3600)}시간`}
+                            </span>
+                          )}
+                          {det.status === 'pending' && <span className="text-red-500 font-medium">미대응</span>}
                           <span className="text-gray-400">{det.detected_keywords}</span>
                         </div>
                         {(det.status === 'pending' || det.status === 'responding') && (
@@ -872,6 +882,11 @@ export default function Messages() {
                               'bg-gray-100 text-gray-600'
                             }`}>
                               {CAT_LABELS[d.detected_category] || d.detected_category}
+                              {d.response_time_sec > 0 && (
+                                <span className={`ml-1 ${d.response_time_sec < 600 ? 'text-green-600' : d.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
+                                  {d.response_time_sec < 60 ? `${d.response_time_sec}초` : d.response_time_sec < 3600 ? `${Math.round(d.response_time_sec/60)}분` : `${Math.round(d.response_time_sec/3600)}시간`}
+                                </span>
+                              )}
                             </span>
                           </td>
                           <td className="px-1 py-1.5">
@@ -1104,14 +1119,21 @@ export default function Messages() {
                             <div className="space-y-1 max-h-40 overflow-y-auto">
                               {reservationView.detections.map((d: any) => (
                                 <div key={d.id} className="text-xs px-2 py-1.5 bg-gray-50 rounded border-l-2 border-l-amber-300">
-                                  <div className="flex justify-between">
-                                    <span className="font-medium">{CAT_LABELS[d.detected_category] || d.detected_category}</span>
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-medium">{CAT_LABELS[d.detected_category] || d.detected_category}</span>
+                                      {d.response_time_sec > 0 && (
+                                        <span className={`font-medium ${d.response_time_sec < 600 ? 'text-green-600' : d.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
+                                          {d.response_time_sec < 60 ? `${d.response_time_sec}초` : d.response_time_sec < 3600 ? `${Math.round(d.response_time_sec/60)}분` : `${Math.round(d.response_time_sec/3600)}시간`}
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className={`px-1 rounded text-xs ${
                                       d.status === 'resolved' ? 'bg-emerald-100 text-emerald-600' :
                                       d.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-500'
-                                    }`}>{d.status}</span>
+                                    }`}>{d.status === 'resolved' ? '완료' : d.status === 'pending' ? '미대응' : d.status}</span>
                                   </div>
-                                  <div className="text-gray-400 mt-0.5 line-clamp-1">{d.message_content}</div>
+                                  <div className="text-gray-400 mt-0.5 line-clamp-1">{d.resolution_note || d.message_content}</div>
                                 </div>
                               ))}
                             </div>
