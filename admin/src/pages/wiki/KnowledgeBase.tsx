@@ -360,14 +360,13 @@ export default function KnowledgeBase() {
         </div>
       </div>
 
-      {/* ── Right: Article View/Edit ── */}
+      {/* ── Center: Article View/Edit ── */}
       <div className="flex-1 overflow-y-auto p-6">
         {!selected ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
               <p className="text-lg font-semibold text-gray-400">섹션을 선택하세요</p>
-              <p className="mt-1 text-sm text-gray-400">좌측 목차에서 항목을 클릭하면 내용을 보거나 작성할 수 있습니다</p>
-              <p className="mt-3 text-xs text-gray-300">예약·청소·이슈·정산 데이터가 자동으로 축적됩니다</p>
+              <p className="mt-1 text-sm text-gray-400">좌측 목차에서 항목을 클릭</p>
             </div>
           </div>
         ) : (
@@ -384,16 +383,16 @@ export default function KnowledgeBase() {
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusColor[selected.status]}`}>
                   {statusLabel[selected.status]}
                 </span>
-                <span className="text-xs text-gray-400">
-                  담당: {roleLabel[selected.assigned_to] ?? selected.assigned_to}
-                </span>
                 {selected.author_name && (
                   <span className="text-xs text-gray-400">
-                    작성자: {selected.author_name}
+                    {selected.author_name}
                   </span>
                 )}
                 <span className="text-xs text-gray-400">
                   {selected.word_count.toLocaleString()}자
+                </span>
+                <span className="text-xs text-gray-300">
+                  {new Date(selected.updated_at).toLocaleString("ko-KR")}
                 </span>
               </div>
             </div>
@@ -456,65 +455,113 @@ export default function KnowledgeBase() {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </div>
 
-            {/* Revision History */}
-            {revisions.length > 0 && (
-              <div className="mt-8">
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">수정 이력</h3>
-                <div className="space-y-2">
-                  {revisions.map((rev) => (
-                    <div key={rev.id} className="flex items-center justify-between rounded border border-gray-100 px-3 py-2 text-xs text-gray-600">
-                      <span>{rev.author_name} · {rev.word_count.toLocaleString()}자</span>
-                      <span>{new Date(rev.created_at).toLocaleString("ko-KR")}</span>
-                    </div>
-                  ))}
-                </div>
+      {/* ── Right: Activity Log Sidebar ── */}
+      {selected && (
+        <div className="w-64 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-4">
+          {/* 작성자 + 메타 */}
+          <div className="mb-4 rounded-lg bg-white p-3 border border-gray-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">작성 정보</p>
+            <div className="space-y-1.5 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span className="text-gray-400">담당</span>
+                <span className="font-medium">{roleLabel[selected.assigned_to] ?? selected.assigned_to}</span>
               </div>
-            )}
-
-            {/* Part Progress */}
-            {progress && (
-              <div className="mt-8 rounded-lg border border-gray-200 bg-white p-4">
-                <h3 className="mb-3 text-sm font-semibold text-gray-700">파트별 진행률</h3>
-                <div className="space-y-2">
-                  {(progress.by_part ?? [])
-                    .sort((a, b) => a.part_number - b.part_number)
-                    .map((p) => (
-                    <div key={p.part_number} className="flex items-center gap-3">
-                      <span className="w-40 text-xs text-gray-600 truncate">
-                        Part {p.part_number === 99 ? "부록" : p.part_number}. {p.part_title}
-                      </span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-1.5 rounded-full bg-green-500 transition-all"
-                          style={{ width: `${(p.filled / Math.max(p.total, 1)) * 100}%` }}
-                        />
-                      </div>
-                      <span className="w-10 text-right text-[10px] text-gray-500">{p.filled}/{p.total}</span>
-                    </div>
-                  ))}
+              <div className="flex justify-between">
+                <span className="text-gray-400">작성자</span>
+                <span className="font-medium">{selected.author_name || "-"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">분량</span>
+                <span className="font-medium">{selected.word_count.toLocaleString()}자</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">수정</span>
+                <span className="font-medium">{revisions.length}회</span>
+              </div>
+              {selected.tags && (
+                <div className="pt-1.5 border-t border-gray-100">
+                  <div className="flex flex-wrap gap-1">
+                    {selected.tags.split(",").map((tag, i) => (
+                      <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{tag.trim()}</span>
+                    ))}
+                  </div>
                 </div>
+              )}
+            </div>
+          </div>
 
-                <h3 className="mb-3 mt-5 text-sm font-semibold text-gray-700">담당자별 진행률</h3>
-                <div className="space-y-2">
-                  {(progress.by_role ?? []).map((r) => (
-                    <div key={r.role} className="flex items-center gap-3">
-                      <span className="w-28 text-xs text-gray-600">{roleLabel[r.role] ?? r.role}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-1.5 rounded-full bg-blue-500 transition-all"
-                          style={{ width: `${(r.filled / Math.max(r.total, 1)) * 100}%` }}
-                        />
+          {/* 수정 이력 타임라인 */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">수정 이력</p>
+            {revisions.length === 0 ? (
+              <p className="text-xs text-gray-300 italic">아직 수정 이력이 없음</p>
+            ) : (
+              <div className="relative">
+                {/* 타임라인 세로선 */}
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200" />
+                <div className="space-y-3">
+                  {revisions.map((rev, idx) => {
+                    const d = new Date(rev.created_at);
+                    const isFirst = idx === 0;
+                    return (
+                      <div key={rev.id} className="relative pl-5">
+                        {/* 타임라인 점 */}
+                        <div className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 ${
+                          isFirst ? "border-slate-800 bg-slate-800" : "border-gray-300 bg-white"
+                        }`} />
+                        <div className={`rounded-lg p-2 ${isFirst ? "bg-white border border-gray-200" : "bg-transparent"}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[11px] font-semibold ${isFirst ? "text-gray-900" : "text-gray-500"}`}>
+                              {rev.author_name}
+                            </span>
+                            <span className="text-[10px] text-gray-300">
+                              {rev.word_count.toLocaleString()}자
+                            </span>
+                          </div>
+                          {rev.revision_note && (
+                            <p className="mt-0.5 text-[11px] text-gray-500 leading-relaxed">{rev.revision_note}</p>
+                          )}
+                          <p className="mt-1 text-[10px] text-gray-300">
+                            {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,"0")}.{String(d.getDate()).padStart(2,"0")} {String(d.getHours()).padStart(2,"0")}:{String(d.getMinutes()).padStart(2,"0")}
+                          </p>
+                        </div>
                       </div>
-                      <span className="w-10 text-right text-[10px] text-gray-500">{r.filled}/{r.total}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
-        )}
-      </div>
+
+          {/* 파트 진행률 (간소화) */}
+          {progress && (
+            <div className="mt-6">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">전체 진행</p>
+              <div className="space-y-1.5">
+                {(progress.by_part ?? [])
+                  .filter(p => p.filled > 0)
+                  .sort((a, b) => a.part_number - b.part_number)
+                  .map((p) => (
+                  <div key={p.part_number} className="flex items-center gap-2">
+                    <span className="w-8 text-[10px] text-gray-400 shrink-0">P{p.part_number === 99 ? "+" : p.part_number}</span>
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-1 rounded-full bg-green-500"
+                        style={{ width: `${(p.filled / Math.max(p.total, 1)) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right text-[10px] text-gray-400">{p.filled}/{p.total}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
