@@ -497,15 +497,23 @@ export default function KnowledgeBase() {
               const isReview = selected.status === "review";
               const isPublished = selected.status === "published";
               const hasRevisions = revisions.length > 1;
+              // content에서 탭 존재 여부로 단계 판단
+              const hasTabs = (selected.content || '').includes('<!-- TAB:');
+              const tabCount = ((selected.content || '').match(/<!-- TAB:/g) || []).length;
+              const hasWorkLog = (selected.content || '').includes('TAB: 작업 기록');
+              const hasFlow = (selected.content || '').includes('TAB: 시스템 흐름도');
+              const hasConcept = (selected.content || '').includes('TAB: 개념 설명');
+              const hasGuide = (selected.content || '').includes('TAB: 업무 지침');
+
               const steps = [
-                { label: "작업 기록", done: hasContent, desc: "코드/설계/데이터" },
-                { label: "AI 글 구성", done: hasContent && (isDraft || isReview || isPublished), desc: "Gemini 작성 → Claude 검수" },
-                { label: "에세이", done: hasRevisions || isReview || isPublished, desc: "느낀 것, 배운 것" },
-                { label: "논문형", done: isReview || isPublished, desc: "인과관계 + 근거" },
-                { label: "블로그", done: isReview || isPublished, desc: "대외 공감대" },
+                { label: "작업 기록", done: hasWorkLog, desc: "코드/설계/데이터" },
+                { label: "시스템 흐름도", done: hasFlow, desc: "데이터 흐름 + 의사결정" },
+                { label: "개념 설명", done: hasConcept, desc: "왜 이렇게 만들었는가" },
+                { label: "업무 지침", done: hasGuide, desc: "실무에서 쓰는 법" },
+                { label: "에세이", done: false, desc: "느낀 것, 배운 것" },
+                { label: "논문형", done: false, desc: "인과관계 + 근거" },
+                { label: "블로그", done: false, desc: "대외 공감대" },
                 { label: "검토/퇴고", done: isPublished, desc: "Founder + CTO" },
-                { label: "발행", done: isPublished, desc: "위키 확정" },
-                { label: "외부 발행", done: false, desc: "블로그/백서/강의/책" },
               ];
               return (
                 <div className="space-y-1">
