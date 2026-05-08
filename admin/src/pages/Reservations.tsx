@@ -277,7 +277,7 @@ export default function Reservations() {
       {/* Header */}
       <div className="mb-4 flex items-start justify-between">
         <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">운영 매뉴얼</button>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">히로가이드</button>
       </div>
       <div className="mb-4">
         <div className="mt-2 flex flex-wrap gap-4 text-sm">

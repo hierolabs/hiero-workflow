@@ -116,6 +116,18 @@ export interface CleaningTask {
   completed_at?: string;
 }
 
+// --- 가격/가용성 ---
+export interface DayPricing {
+  price: number;
+  min_stay: number;
+  available: boolean;
+  closed_on_arrival: boolean;
+  closed_on_departure: boolean;
+}
+
+// propertyId → { "2026-05-08": DayPricing, ... }
+export type PricingMap = Record<number, Record<string, DayPricing>>;
+
 export type StatusFilter =
   | "all"
   | "in_house"

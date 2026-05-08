@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import type { CalendarProperty, CalendarReservation } from "../types/calendar";
+import type { CalendarProperty, CalendarReservation, PricingMap, DayPricing } from "../types/calendar";
 import { groupReservationsByProperty } from "../utils/reservationLayout";
 import { isToday } from "../utils/date";
 import CalendarHeader from "./CalendarHeader";
@@ -11,16 +11,20 @@ interface CalendarGridProps {
   reservations: CalendarReservation[];
   dates: string[];
   onReservationClick: (reservation: CalendarReservation) => void;
+  pricing?: PricingMap;
+  onPriceClick?: (propertyId: number, date: string, pricing: DayPricing) => void;
 }
 
-const CELL_WIDTH = 40;
-const LEFT_COL = 110;
+const CELL_WIDTH = 48;
+const LEFT_COL = 120;
 
 export default function CalendarGrid({
   properties,
   reservations,
   dates,
   onReservationClick,
+  pricing,
+  onPriceClick,
 }: CalendarGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const reservationMap = groupReservationsByProperty(reservations);
@@ -56,8 +60,8 @@ export default function CalendarGrid({
         {/* Header — sticky top */}
         <div className="sticky top-0 z-10 flex">
           <div
-            className="sticky left-0 z-20 flex-shrink-0 border-b border-r border-gray-200 bg-gray-50 px-2 flex items-center text-[11px] font-semibold text-gray-600"
-            style={{ width: LEFT_COL, minHeight: 36 }}
+            className="sticky left-0 z-20 flex-shrink-0 border-b border-r border-gray-200 bg-gray-50 px-3 flex items-center text-xs font-semibold text-gray-500"
+            style={{ width: LEFT_COL, height: 40 }}
           >
             숙소
           </div>
@@ -83,6 +87,8 @@ export default function CalendarGrid({
             cellWidth={CELL_WIDTH}
             leftColWidth={LEFT_COL}
             onReservationClick={onReservationClick}
+            pricing={pricing?.[property.id]}
+            onPriceClick={onPriceClick}
           />
         ))}
       </div>

@@ -2,11 +2,13 @@ import { useState, useCallback, useMemo } from "react";
 import { useDateRange } from "../hooks/useDateRange";
 import { useCalendarData } from "../hooks/useCalendarData";
 import { useCalendarFilters } from "../hooks/useCalendarFilters";
+import { usePricingData } from "../hooks/usePricingData";
 import { triggerSync } from "../api/calendarApi";
-import type { CalendarReservation } from "../types/calendar";
+import type { CalendarReservation, DayPricing } from "../types/calendar";
 import CalendarToolbar from "./CalendarToolbar";
 import CalendarGrid from "./CalendarGrid";
 import ReservationDetailModal from "../../../components/ReservationDetailModal";
+import PriceEditModal from "./PriceEditModal";
 
 export default function CalendarPage() {
   const dateRange = useDateRange();
@@ -14,6 +16,7 @@ export default function CalendarPage() {
     dateRange.startDate,
     dateRange.endDate
   );
+  const { pricing, reloadPricing } = usePricingData(dateRange.startDate, dateRange.endDate);
 
   const {
     filters,
@@ -36,7 +39,6 @@ export default function CalendarPage() {
       counts[s] = (counts[s] || 0) + 1;
     }
     counts["all"] = props.length;
-    // 체크인/체크아웃은 턴오버 포함 (중복 카운팅)
     const turnover = counts["turnover_today"] || 0;
     counts["checkin_today"] = (counts["checkin_today"] || 0) + turnover;
     counts["checkout_today"] = (counts["checkout_today"] || 0) + turnover;
@@ -46,17 +48,41 @@ export default function CalendarPage() {
   const [selectedResId, setSelectedResId] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // 가격 편집 모달 상태
+  const [priceEdit, setPriceEdit] = useState<{
+    propertyId: number;
+    propertyName: string;
+    date: string;
+    pricing: DayPricing;
+  } | null>(null);
+
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
       await triggerSync();
       await reload();
+      await reloadPricing();
     } catch {
       // sync failure visible via stale data
     } finally {
       setSyncing(false);
     }
-  }, [reload]);
+  }, [reload, reloadPricing]);
+
+  const handlePriceClick = useCallback((propertyId: number, date: string, dayPricing: DayPricing) => {
+    const prop = data?.properties.find(p => p.id === propertyId);
+    setPriceEdit({
+      propertyId,
+      propertyName: prop?.name || `숙소 #${propertyId}`,
+      date,
+      pricing: dayPricing,
+    });
+  }, [data?.properties]);
+
+  const handlePriceSaved = useCallback(() => {
+    setPriceEdit(null);
+    reloadPricing();
+  }, [reloadPricing]);
 
   return (
     <div className="space-y-2">
@@ -96,6 +122,8 @@ export default function CalendarPage() {
           reservations={filteredReservations}
           dates={dateRange.dates}
           onReservationClick={(r: CalendarReservation) => setSelectedResId(r.id)}
+          pricing={pricing}
+          onPriceClick={handlePriceClick}
         />
       )}
 
@@ -103,6 +131,17 @@ export default function CalendarPage() {
         reservationId={selectedResId}
         onClose={() => setSelectedResId(null)}
       />
+
+      {priceEdit && (
+        <PriceEditModal
+          propertyId={priceEdit.propertyId}
+          propertyName={priceEdit.propertyName}
+          date={priceEdit.date}
+          currentPricing={priceEdit.pricing}
+          onClose={() => setPriceEdit(null)}
+          onSaved={handlePriceSaved}
+        />
+      )}
     </div>
   );
 }

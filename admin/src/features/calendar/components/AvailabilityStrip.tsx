@@ -45,8 +45,8 @@ export default function AvailabilityStrip({
           return (
             <div
               key={date}
-              className={`flex-shrink-0 border-r border-gray-200 py-0.5 text-center text-[10px] font-medium ${bgColor}`}
-              style={{ width: cellWidth }}
+              className={`flex-shrink-0 border-r border-gray-100 flex items-center justify-center text-[10px] font-semibold ${bgColor}`}
+              style={{ width: cellWidth, height: 24 }}
             >
               {vacant}
             </div>

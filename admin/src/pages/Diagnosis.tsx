@@ -160,7 +160,7 @@ export default function Diagnosis() {
           <h1 className="text-2xl font-bold text-gray-900">숙소 사업 진단</h1>
           <p className="mt-0.5 text-sm text-gray-500">5엔진 기준 · 점수 낮은 순 정렬</p>
         </div>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
       </div>
 
       {/* 포트폴리오 요약 */}

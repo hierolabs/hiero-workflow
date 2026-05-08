@@ -35,6 +35,7 @@ import IssueDetections from "./pages/IssueDetections";
 import TodayDashboard from "./pages/TodayDashboard";
 import KnowledgeBase from "./pages/wiki/KnowledgeBase";
 import MyPage from "./pages/MyPage";
+import PriceCalendar from "./pages/PriceCalendar";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -70,6 +71,7 @@ function App() {
             <Route path="/mypage" element={<MyPage />} />
             <Route path="/dashboard-old" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/price-calendar" element={<PriceCalendar />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/checklist" element={<Checklist />} />
             <Route path="/properties" element={<Properties />} />

@@ -205,6 +205,20 @@ func (h *PropertyHandler) Reorder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "순서가 변경되었습니다"})
 }
 
+// POST /admin/properties/import-details — CSV에서 숙소 상세 정보 임포트
+func (h *PropertyHandler) ImportDetails(c *gin.Context) {
+	dryRun := c.Query("dry_run") == "true"
+	filePath := "uploads/csv_backup/property_details.csv"
+
+	result, err := service.ImportPropertyDetailsFromCSV(filePath, dryRun)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 func handleServiceError(c *gin.Context, err error) {
 	if errors.Is(err, service.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "공간을 찾을 수 없습니다"})

@@ -102,7 +102,7 @@ export default function Tasks() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"

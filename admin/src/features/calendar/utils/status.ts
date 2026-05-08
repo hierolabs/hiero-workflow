@@ -1,6 +1,6 @@
 import type { RoomStatus, StatusFilter } from "../types/calendar";
 
-const statusLabels: Record<StatusFilter, string> = {
+const statusLabels: Record<string, string> = {
   all: "전체",
   in_house: "입실 중",
   checkin_today: "체크인",
@@ -8,9 +8,12 @@ const statusLabels: Record<StatusFilter, string> = {
   turnover_today: "턴오버",
   vacant: "공실",
   closed: "마감",
+  needs_cleaning: "청소필요",
+  cleaning_done: "청소완료",
+  issue_open: "이슈",
 };
 
-export function getStatusLabel(status: StatusFilter): string {
+export function getStatusLabel(status: string): string {
   return statusLabels[status] || status;
 }
 

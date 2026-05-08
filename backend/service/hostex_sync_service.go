@@ -178,6 +178,16 @@ func (s *HostexSyncService) SyncProperties() (int, error) {
 		var existing models.Property
 		err := config.DB.Where("hostex_id = ?", hp.ID).First(&existing).Error
 
+		// 대표 이미지 URL
+		coverURL := ""
+		if hp.Cover != nil {
+			if hp.Cover.MediumURL != "" {
+				coverURL = hp.Cover.MediumURL
+			} else if hp.Cover.OriginalURL != "" {
+				coverURL = hp.Cover.OriginalURL
+			}
+		}
+
 		if err != nil {
 			// 신규 생성 — Hostex 숙소를 내부 Property로 자동 등록
 			code := generatePropertyCode(hp.Title, hp.ID)
@@ -197,6 +207,7 @@ func (s *HostexSyncService) SyncProperties() (int, error) {
 				Code:            code,
 				Name:            hp.Title,
 				Address:         hp.Address,
+				CoverImage:      coverURL,
 				PropertyType:    "apartment", // 기본값
 				RoomType:        "entire",    // 기본값
 				MaxGuests:       2,           // 기본값
@@ -211,8 +222,11 @@ func (s *HostexSyncService) SyncProperties() (int, error) {
 
 			config.DB.Create(&newProp)
 			log.Printf("[HostexSync] 숙소 신규 생성: %s (hostex_id: %d, code: %s)", hp.Title, hp.ID, code)
+
+			// 신규 숙소 — 채널(플랫폼) 정보 저장
+			s.syncPropertyChannels(newProp.ID, hp.Channels)
 		} else {
-			// 기존 숙소 업데이트 — 이름, 주소만 Hostex에서 갱신
+			// 기존 숙소 업데이트 — 이름, 주소, 이미지 Hostex에서 갱신
 			updates := map[string]interface{}{}
 			if hp.Title != "" && hp.Title != existing.Name {
 				updates["name"] = hp.Title
@@ -226,11 +240,17 @@ func (s *HostexSyncService) SyncProperties() (int, error) {
 			if hp.DefaultCheckoutTime != "" && hp.DefaultCheckoutTime != existing.CheckOutTime {
 				updates["check_out_time"] = hp.DefaultCheckoutTime
 			}
+			if coverURL != "" && coverURL != existing.CoverImage {
+				updates["cover_image"] = coverURL
+			}
 
 			if len(updates) > 0 {
 				config.DB.Model(&existing).Updates(updates)
 				log.Printf("[HostexSync] 숙소 업데이트: %s (id: %d)", hp.Title, existing.ID)
 			}
+
+			// 채널(플랫폼) 정보 동기화
+			s.syncPropertyChannels(existing.ID, hp.Channels)
 		}
 		processed++
 	}
@@ -303,6 +323,48 @@ func (s *HostexSyncService) syncReservationRange(startDate, endDate string) (int
 	}
 
 	return total, nil
+}
+
+// syncPropertyChannels — Hostex 채널 정보를 PropertyPlatform에 동기화
+func (s *HostexSyncService) syncPropertyChannels(propertyID uint, channels []hostex.Channel) {
+	// Hostex channel_type → 내부 platform 매핑
+	channelMap := map[string]string{
+		"airbnb":      models.PlatformAirbnb,
+		"booking":     models.PlatformBooking,
+		"agoda":       models.PlatformAgoda,
+		"custom":      "", // custom channel은 별도 처리
+	}
+
+	for _, ch := range channels {
+		platform, ok := channelMap[ch.ChannelType]
+		if !ok || platform == "" {
+			continue
+		}
+
+		tier := models.PlatformTiers[platform]
+		isMaster := platform == models.PlatformAirbnb
+
+		var existing models.PropertyPlatform
+		err := config.DB.Where("property_id = ? AND platform = ?", propertyID, platform).First(&existing).Error
+		if err != nil {
+			// 신규 생성
+			now := time.Now()
+			config.DB.Create(&models.PropertyPlatform{
+				PropertyID:  propertyID,
+				Platform:    platform,
+				ListingID:   ch.ListingID,
+				Status:      models.PlatformStatusActive,
+				Tier:        tier,
+				IsMaster:    isMaster,
+				ActivatedAt: &now,
+			})
+			log.Printf("[HostexSync] 플랫폼 등록: property %d → %s (listing: %s)", propertyID, platform, ch.ListingID)
+		} else if existing.ListingID == "" && ch.ListingID != "" {
+			// listing_id가 없으면 업데이트
+			config.DB.Model(&existing).Update("listing_id", ch.ListingID)
+			log.Printf("[HostexSync] listing_id 업데이트: property %d → %s (listing: %s)", propertyID, platform, ch.ListingID)
+		}
+	}
 }
 
 // generatePropertyCode — Hostex 숙소 제목에서 코드 자동 생성

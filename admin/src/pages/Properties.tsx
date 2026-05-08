@@ -219,7 +219,7 @@ export default function Properties() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+          <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
           <button
             onClick={handleExport}
             className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -317,8 +317,7 @@ export default function Properties() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <Th>코드</Th>
-                  <Th>이름</Th>
+                  <Th>숙소</Th>
                   <Th>지역</Th>
                   <Th>유형</Th>
                   <Th>객실</Th>
@@ -333,7 +332,7 @@ export default function Properties() {
               <tbody className="divide-y divide-gray-200">
                 {properties.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-400">
                       등록된 공간이 없습니다.
                     </td>
                   </tr>
@@ -341,14 +340,21 @@ export default function Properties() {
                   properties.map((p) => (
                     <tr key={p.id} className={`hover:bg-gray-50 ${p.status === "closed" ? "opacity-50 bg-gray-50" : ""}`}>
                       <Td>
-                        <span className="font-mono text-xs font-semibold text-slate-700">{p.code}</span>
-                      </Td>
-                      <Td>
                         <button
                           onClick={() => openEdit(p)}
-                          className="text-left text-sm font-medium text-gray-900 hover:text-blue-600"
+                          className="flex items-center gap-3 text-left"
                         >
-                          {p.name}
+                          {p.cover_image ? (
+                            <img src={p.cover_image} alt={p.name} className="h-10 w-14 rounded-md object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="h-10 w-14 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
+                              <span className="text-gray-300 text-xs">No img</span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 hover:text-blue-600">{p.name}</div>
+                            <div className="font-mono text-[10px] text-gray-400">{p.code}</div>
+                          </div>
                         </button>
                       </Td>
                       <Td>{REGION_LABELS[p.region] || p.region}</Td>
@@ -530,6 +536,13 @@ function PropertyFormModal({
     license_status: property?.license_status || "NONE",
     contract_type: property?.contract_type || "",
     owner_name: property?.owner_name || "",
+    building_name: property?.building_name || "",
+    bed_type: property?.bed_type || "",
+    tv_type: property?.tv_type || "",
+    entrance_password: property?.entrance_password || "",
+    room_password: property?.room_password || "",
+    password_changed_at: property?.password_changed_at || "",
+    management_office: property?.management_office || "",
     memo: property?.memo || "",
   });
 
@@ -594,7 +607,7 @@ function PropertyFormModal({
 
         {/* 위치 */}
         <Section title="위치">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <FormField label="지역">
               <select
                 value={form.region}
@@ -606,6 +619,15 @@ function PropertyFormModal({
                   <option key={k} value={k}>{v}</option>
                 ))}
               </select>
+            </FormField>
+            <FormField label="건물명">
+              <input
+                type="text"
+                value={form.building_name}
+                onChange={(e) => updateField("building_name", e.target.value)}
+                placeholder="예건네스빌"
+                className={inputClass()}
+              />
             </FormField>
             <FormField label="상세주소">
               <input
@@ -722,6 +744,67 @@ function PropertyFormModal({
                 min={0}
                 value={form.deposit}
                 onChange={(e) => updateField("deposit", parseInt(e.target.value) || 0)}
+                className={inputClass()}
+              />
+            </FormField>
+          </div>
+        </Section>
+
+        {/* 공간 상세 */}
+        <Section title="공간 상세">
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="침대 유형">
+              <input
+                type="text"
+                value={form.bed_type}
+                onChange={(e) => updateField("bed_type", e.target.value)}
+                placeholder="Q1, SS3, Q1 SS2"
+                className={inputClass()}
+              />
+            </FormField>
+            <FormField label="TV / 빔">
+              <input
+                type="text"
+                value={form.tv_type}
+                onChange={(e) => updateField("tv_type", e.target.value)}
+                placeholder="TV(ott), 빔, x"
+                className={inputClass()}
+              />
+            </FormField>
+            <FormField label="관리사무소">
+              <input
+                type="text"
+                value={form.management_office}
+                onChange={(e) => updateField("management_office", e.target.value)}
+                placeholder="연락처"
+                className={inputClass()}
+              />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="공동현관 비번">
+              <input
+                type="text"
+                value={form.entrance_password}
+                onChange={(e) => updateField("entrance_password", e.target.value)}
+                placeholder="종+1200"
+                className={inputClass()}
+              />
+            </FormField>
+            <FormField label="호실 비번">
+              <input
+                type="text"
+                value={form.room_password}
+                onChange={(e) => updateField("room_password", e.target.value)}
+                placeholder="0510+별"
+                className={inputClass()}
+              />
+            </FormField>
+            <FormField label="비번 변경일">
+              <input
+                type="date"
+                value={form.password_changed_at ? form.password_changed_at.substring(0, 10) : ""}
+                onChange={(e) => updateField("password_changed_at", e.target.value)}
                 className={inputClass()}
               />
             </FormField>

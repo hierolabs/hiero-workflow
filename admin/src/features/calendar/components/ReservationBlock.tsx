@@ -22,46 +22,56 @@ export default function ReservationBlock({
   const total = toManwon(amount);
   const perNight = toPerNight(amount, reservation.nights);
 
-  const line1 = total
-    ? `${reservation.guest_name}_${total}(${perNight})`
-    : reservation.guest_name;
-  const line2 = `${channelLabel} ${reservation.nights}박`;
-
   const pixelLeft = left * cellWidth + 1;
   const pixelWidth = width * cellWidth - 2;
-  const narrow = pixelWidth < 60;
+  const narrow = pixelWidth < 70;
+  const veryNarrow = pixelWidth < 40;
+
+  // 게스트명 + 금액
+  const guestName = reservation.guest_name || "";
+  const priceText = total ? `${total}(${perNight})` : "";
 
   return (
     <div
       role="button"
       tabIndex={0}
-      className="absolute cursor-pointer overflow-hidden transition-shadow hover:shadow-lg hover:-translate-y-px"
+      className="absolute cursor-pointer overflow-hidden transition-all hover:shadow-md hover:brightness-95"
       style={{
         left: pixelLeft,
-        top: 2,
+        top: 3,
         width: pixelWidth,
-        height: narrow ? 28 : 32,
+        height: 34,
         backgroundColor: style.bg,
         color: style.text,
-        borderRadius: 3,
-        padding: narrow ? "2px 2px" : "2px 4px",
+        borderRadius: 6,
+        padding: veryNarrow ? "2px 2px" : "3px 6px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
         zIndex: 2,
       }}
       onClick={() => onClick(reservation)}
       onKeyDown={(e) => e.key === "Enter" && onClick(reservation)}
-      title={`${line1}\n${line2}\n금액: ${amount ? amount.toLocaleString() + "원" : "-"}`}
+      title={`${guestName} · ${channelLabel} ${reservation.nights}박\n금액: ${amount ? "₩" + amount.toLocaleString() : "-"}`}
     >
-      <div className="truncate" style={{ fontSize: narrow ? 8 : 10, fontWeight: 600, lineHeight: 1.2 }}>
-        {narrow ? reservation.guest_name : line1}
-      </div>
-      {!narrow && (
-        <div className="truncate" style={{ fontSize: 9, fontWeight: 400, opacity: 0.9, marginTop: 1 }}>
-          {line2}
+      {veryNarrow ? (
+        <div className="truncate text-center" style={{ fontSize: 8, fontWeight: 600 }}>
+          {guestName.charAt(0) || channelLabel.charAt(0)}
         </div>
+      ) : narrow ? (
+        <div className="truncate" style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.3 }}>
+          {guestName}
+        </div>
+      ) : (
+        <>
+          <div className="truncate" style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>
+            {guestName} {priceText && <span style={{ fontWeight: 400, fontSize: 10 }}>{priceText}</span>}
+          </div>
+          <div className="truncate" style={{ fontSize: 9, fontWeight: 400, opacity: 0.85, marginTop: 1 }}>
+            {channelLabel} {reservation.nights}박
+          </div>
+        </>
       )}
     </div>
   );

@@ -376,7 +376,7 @@ export default function Settlement() {
               내보내기
             </button>
             <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-              운영 매뉴얼
+              히로가이드
             </button>
             <button onClick={() => setShowCreate(true)} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
               + 정산 이슈

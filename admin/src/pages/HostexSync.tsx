@@ -27,7 +27,7 @@ export default function HostexSync() {
             Hostex 숙소와 내부 공간을 연결하고, 예약 동기화 상태를 확인합니다.
           </p>
         </div>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
       </div>
 
       {/* Tabs */}

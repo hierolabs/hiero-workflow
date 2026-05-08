@@ -25,7 +25,7 @@ import {
   type CleaningCode,
 } from "../utils/cleaning-api";
 
-type Tab = "dashboard" | "cleaners" | "settlement" | "records" | "costmatch" | "codes";
+type Tab = "dashboard" | "dispatch" | "ledger" | "cleaners" | "settlement" | "records" | "costmatch" | "codes";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   walk: "도보",
@@ -48,10 +48,12 @@ export default function Cleaning() {
           <h1 className="text-2xl font-bold text-gray-900">청소 관리</h1>
           <p className="mt-1 text-sm text-gray-500">띵동 — 청소 배정 · 현황 · 관리</p>
         </div>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
       </div>
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         <TabBtn active={tab === "dashboard"} onClick={() => setTab("dashboard")}>배정 대시보드</TabBtn>
+        <TabBtn active={tab === "dispatch"} onClick={() => setTab("dispatch")}>AI 배정</TabBtn>
+        <TabBtn active={tab === "ledger"} onClick={() => setTab("ledger")}>청소비 대장</TabBtn>
         <TabBtn active={tab === "cleaners"} onClick={() => setTab("cleaners")}>청소자 관리</TabBtn>
         <TabBtn active={tab === "settlement"} onClick={() => setTab("settlement")}>주간 정산</TabBtn>
         <TabBtn active={tab === "records"} onClick={() => setTab("records")}>전체 기록</TabBtn>
@@ -59,6 +61,8 @@ export default function Cleaning() {
         <TabBtn active={tab === "codes"} onClick={() => setTab("codes")}>청소코드</TabBtn>
       </div>
       {tab === "dashboard" && <DashboardTab />}
+      {tab === "dispatch" && <DispatchTab />}
+      {tab === "ledger" && <LedgerTab />}
       {tab === "cleaners" && <CleanersTab />}
       {tab === "settlement" && <SettlementTab />}
       {tab === "records" && <RecordsTab />}
@@ -1137,4 +1141,622 @@ function Modal({ onClose, title, children }: { onClose: () => void; title: strin
 }
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return <div><label className="mb-1 block text-sm font-medium text-gray-700">{label}{required && <span className="ml-0.5 text-red-500">*</span>}</label>{children}</div>;
+}
+
+// ===================== AI 배정 탭 =====================
+interface ParsedAssignment {
+  cleaner: string; cleaner_id: number; cleaner_match: boolean;
+  property_code: string; property_name: string; property_id: number; property_match: boolean;
+  clean_type: string; note: string; task_id: number; task_match: boolean;
+}
+interface AutoAssignment {
+  task_id: number; property_code: string; property_name: string;
+  cleaner_id: number; cleaner_name: string; reason: string; score: number;
+}
+
+function DispatchTab() {
+  const [mode, setMode] = useState<'paste' | 'auto'>('paste');
+  const [text, setText] = useState('');
+  const [dateOverride, setDateOverride] = useState('');
+  const [parseResult, setParseResult] = useState<{ date: string; assignments: ParsedAssignment[]; total_count: number; matched_count: number } | null>(null);
+  const [autoResult, setAutoResult] = useState<{ date: string; assignments: AutoAssignment[]; unassigned: string[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const token = localStorage.getItem('token');
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+  // 붙여넣기 파싱
+  const handleParse = async () => {
+    if (!text.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/cleaning/parse-assignment`, {
+        method: 'POST', headers, body: JSON.stringify({ text, date: dateOverride || undefined }),
+      });
+      const data = await res.json();
+      setParseResult(data);
+    } catch { alert('파싱 실패'); } finally { setLoading(false); }
+  };
+
+  // 붙여넣기 결과 확정
+  const handleConfirmPaste = async () => {
+    if (!parseResult) return;
+    setConfirming(true);
+    try {
+      const res = await fetch(`${API_URL}/cleaning/confirm-assignment`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ assignments: parseResult.assignments, date: parseResult.date }),
+      });
+      const data = await res.json();
+      alert(`배정 ${data.assigned}건, 생성 ${data.created}건 완료`);
+      setParseResult(null); setText('');
+    } catch { alert('확정 실패'); } finally { setConfirming(false); }
+  };
+
+  // AI 자동 배정
+  const handleAutoAssign = async () => {
+    setLoading(true);
+    try {
+      const date = dateOverride || today;
+      const res = await fetch(`${API_URL}/cleaning/auto-assign?date=${date}`, { headers });
+      const data = await res.json();
+      setAutoResult(data);
+    } catch { alert('자동 배정 실패'); } finally { setLoading(false); }
+  };
+
+  // AI 배정 확정
+  const handleConfirmAuto = async () => {
+    if (!autoResult) return;
+    setConfirming(true);
+    try {
+      const res = await fetch(`${API_URL}/cleaning/confirm-auto-assign`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ assignments: autoResult.assignments }),
+      });
+      const data = await res.json();
+      alert(`${data.assigned}건 배정 완료`);
+      setAutoResult(null);
+    } catch { alert('확정 실패'); } finally { setConfirming(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 모드 전환 */}
+      <div className="flex items-center gap-3">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+          <button onClick={() => setMode('paste')}
+            className={`px-4 py-2 text-sm font-medium ${mode === 'paste' ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+            문자 붙여넣기
+          </button>
+          <button onClick={() => setMode('auto')}
+            className={`px-4 py-2 text-sm font-medium ${mode === 'auto' ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+            AI 자동 배정
+          </button>
+        </div>
+        <input type="date" value={dateOverride || today} onChange={e => setDateOverride(e.target.value)}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
+      </div>
+
+      {/* === 문자 붙여넣기 === */}
+      {mode === 'paste' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 입력 */}
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-gray-700">카카오톡 배정표 붙여넣기</div>
+            <textarea
+              value={text} onChange={e => setText(e.target.value)}
+              placeholder={"<05월 08일 업무>\n@박연실\nB104_더하임 1004_Q1\nB91_더하임 901_Q1\n\n@김정은\nD1_청광3차 1416_Q1\nA22_예건 202_수동_Q1"}
+              rows={12}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <button onClick={handleParse} disabled={loading || !text.trim()}
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              {loading ? '파싱 중...' : '배정표 분석'}
+            </button>
+          </div>
+
+          {/* 결과 */}
+          <div>
+            {parseResult ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-700">
+                    파싱 결과: {parseResult.total_count}건
+                    <span className="ml-2 text-green-600">(매칭 {parseResult.matched_count}건)</span>
+                  </div>
+                  <span className="text-xs text-gray-500">{parseResult.date}</span>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 bg-white divide-y max-h-96 overflow-y-auto">
+                  {parseResult.assignments.map((a, i) => (
+                    <div key={i} className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${a.cleaner_match ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {a.cleaner_match ? '✓' : '✗'} {a.cleaner}
+                          </span>
+                          <span className="text-gray-400">→</span>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${a.property_match ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {a.property_match ? '✓' : '?'} {a.property_code}
+                          </span>
+                          <span className="text-sm text-gray-700">{a.property_name}</span>
+                        </div>
+                        {a.clean_type && <span className="text-xs text-blue-600 ml-1">[{a.clean_type}]</span>}
+                        {a.note && <div className="text-xs text-gray-500 mt-1">{a.note}</div>}
+                      </div>
+                      {a.task_match && <span className="text-xs text-green-600">태스크 매칭</span>}
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={handleConfirmPaste} disabled={confirming}
+                  className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+                  {confirming ? '처리 중...' : `전체 배정 확정 (${parseResult.total_count}건)`}
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-400">
+                <p>카카오톡 배정표를 왼쪽에 붙여넣고</p>
+                <p className="mt-1">"배정표 분석"을 클릭하세요</p>
+                <p className="mt-3 text-xs text-gray-300">@이름, 숙소코드_숙소명_Q코드 포맷을 자동 인식합니다</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* === AI 자동 배정 === */}
+      {mode === 'auto' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-gray-700">AI 자동 배정</div>
+              <div className="text-xs text-gray-500 mt-0.5">권역 · 가용요일 · 이동수단 · 워크로드 기반으로 최적 청소자를 추천합니다</div>
+            </div>
+            <button onClick={handleAutoAssign} disabled={loading}
+              className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+              {loading ? '분석 중...' : '자동 배정 제안'}
+            </button>
+          </div>
+
+          {autoResult ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                {autoResult.date} — {autoResult.assignments.length}건 배정 제안
+                {autoResult.unassigned?.length > 0 && (
+                  <span className="ml-2 text-red-600">({autoResult.unassigned.length}건 배정 불가)</span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white divide-y max-h-96 overflow-y-auto">
+                {autoResult.assignments.map((a, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">{a.property_code}</span>
+                        <span className="text-sm text-gray-600">{a.property_name}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-indigo-700">{a.cleaner_name}</span>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">{a.reason}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <div className="h-1.5 w-12 rounded-full bg-gray-200">
+                            <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${Math.min(a.score * 2, 100)}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-400">{a.score}점</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {autoResult.unassigned?.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <div className="text-xs font-semibold text-red-700 mb-1">배정 불가 ({autoResult.unassigned.length}건)</div>
+                  {autoResult.unassigned.map((u, i) => (
+                    <div key={i} className="text-xs text-red-600">{u}</div>
+                  ))}
+                </div>
+              )}
+
+              <button onClick={handleConfirmAuto} disabled={confirming}
+                className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
+                {confirming ? '처리 중...' : `전체 배정 확정 (${autoResult.assignments.length}건)`}
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-400">
+              <p>미배정 청소 업무를 분석하여</p>
+              <p className="mt-1">최적의 청소자를 자동 추천합니다</p>
+              <p className="mt-3 text-xs text-gray-300">권역 매칭 +30 · 여유 건수 ×5 · 자차 +10</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================== 청소비 대장 탭 =====================
+interface LedgerRecord {
+  id: number; cleaning_date: string; day_of_week: string;
+  property_code: string; property_name: string; room_count: string;
+  cleaner_name: string; check_note: string; total_cost: number;
+  base_cost: number; extra_cost: number; bedding_cost: number; laundry_cost: number;
+  guest_name: string; reservation_id: number; reservation_code: string; conversation_id: string; check_in: string; property_id: number;
+  settlement_amount: number; settlement_id: number;
+}
+interface CleanerStat2 {
+  cleaner_name: string; count: number; total_cost: number; base_cost: number; extra_cost: number;
+}
+interface PropStat2 { property_code: string; property_name: string; count: number; total_cost: number; }
+
+function LedgerTab() {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  const dow = now.getDay() || 7;
+
+  const [period, setPeriod] = useState('this_month');
+  const [customStart, setCustomStart] = useState(fmt(now));
+  const [customEnd, setCustomEnd] = useState(fmt(now));
+  const [summary, setSummary] = useState<{
+    grand: { count: number; total_cost: number; base_cost: number; extra_cost: number };
+    by_cleaner: CleanerStat2[]; by_property: PropStat2[];
+  } | null>(null);
+  const [detail, setDetail] = useState<{ cleaner_name: string; records: LedgerRecord[];
+    by_week: { week_start: string; count: number; total_cost: number }[]; total_cost: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const token = localStorage.getItem('token');
+
+  const getDateRange = useCallback((): [string, string] => {
+    switch (period) {
+      case 'today': return [fmt(now), fmt(now)];
+      case 'yesterday': { const t = new Date(y, m, d - 1); return [fmt(t), fmt(t)]; }
+      case 'last_week': { const mon = new Date(y, m, d - dow - 6); const sun = new Date(y, m, d - dow); return [fmt(mon), fmt(sun)]; }
+      case 'this_week': { const mon = new Date(y, m, d - dow + 1); return [fmt(mon), fmt(now)]; }
+      case 'this_month': return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
+      case 'last_month': { const s = new Date(y, m - 1, 1); const e = new Date(y, m, 0); return [fmt(s), fmt(e)]; }
+      case 'custom': return [customStart, customEnd];
+      default: return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
+    }
+  }, [period, customStart, customEnd]);
+
+  const loadSummary = useCallback(async () => {
+    setLoading(true); setDetail(null);
+    const [start, end] = getRange(period);
+    const res = await fetch(`${API_URL}/cleaning-records/summary?start=${start}&end=${end}`, { headers: { Authorization: `Bearer ${token}` } });
+    setSummary(await res.json());
+    setLoading(false);
+  }, [getDateRange, API_URL, token]);
+
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  const loadCleanerDetail = async (name: string) => {
+    const [start, end] = getRange(period);
+    const res = await fetch(`${API_URL}/cleaning-records/cleaner/${encodeURIComponent(name)}?start=${start}&end=${end}`, { headers: { Authorization: `Bearer ${token}` } });
+    setDetail(await res.json());
+  };
+
+  const getRange = useCallback((p: string): [string, string] => {
+    switch (p) {
+      case 'today': return [fmt(now), fmt(now)];
+      case 'yesterday': { const t = new Date(y, m, d - 1); return [fmt(t), fmt(t)]; }
+      case 'this_week': { const mon = new Date(y, m, d - dow + 1); return [fmt(mon), fmt(now)]; }
+      case 'last_week': { const mon = new Date(y, m, d - dow - 6); const sun = new Date(y, m, d - dow); return [fmt(mon), fmt(sun)]; }
+      case 'this_month': return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
+      case 'last_month': { const s = new Date(y, m - 1, 1); const e = new Date(y, m, 0); return [fmt(s), fmt(e)]; }
+      case 'this_quarter': { const qm = Math.floor(m / 3) * 3; return [`${y}-${String(qm + 1).padStart(2, '0')}-01`, fmt(now)]; }
+      case 'this_year': return [`${y}-01-01`, fmt(now)];
+      case 'last_year': return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+      case 'custom': return [customStart, customEnd];
+      default: return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
+    }
+  }, [customStart, customEnd]);
+
+  const PERIODS = [
+    { key: 'today', label: '오늘' },
+    { key: 'yesterday', label: '어제' },
+    { key: 'this_week', label: '이번 주' },
+    { key: 'last_week', label: '저번 주' },
+    { key: 'this_month', label: '이번 달' },
+    { key: 'last_month', label: '저번 달' },
+    { key: 'this_quarter', label: '이번 분기' },
+    { key: 'this_year', label: '올해' },
+    { key: 'last_year', label: '작년' },
+    { key: 'custom', label: '기간별' },
+  ];
+
+  if (loading) return <div className="py-20 text-center text-gray-500">로딩 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        {PERIODS.map(p => (
+          <button key={p.key} onClick={() => setPeriod(p.key)}
+            className={`px-3 py-1.5 text-xs rounded-full transition ${period === p.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {p.label}
+          </button>
+        ))}
+        {period === 'custom' && (
+          <div className="flex items-center gap-1">
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="rounded border border-gray-300 px-2 py-1 text-xs" />
+            <span className="text-gray-400">~</span>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="rounded border border-gray-300 px-2 py-1 text-xs" />
+          </div>
+        )}
+        {detail && (
+          <button onClick={() => setDetail(null)} className="text-sm text-blue-600 hover:text-blue-800 ml-2">← 전체 요약</button>
+        )}
+      </div>
+
+      {!detail ? (
+        <>
+          {summary && (
+            <>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">{summary.grand.count}</div>
+                  <div className="text-xs text-gray-500">총 건수</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-700">{(summary.grand.total_cost / 10000).toFixed(1)}만</div>
+                  <div className="text-xs text-gray-500">총 청소비</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-700">{(summary.grand.base_cost / 10000).toFixed(1)}만</div>
+                  <div className="text-xs text-gray-500">기본비</div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+                  <div className="text-2xl font-bold text-amber-700">{(summary.grand.extra_cost / 10000).toFixed(1)}만</div>
+                  <div className="text-xs text-gray-500">추가비</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <h3 className="text-sm font-semibold text-gray-700">청소자별 내역</h3>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">청소자</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">건수</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">기본비</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">추가비</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">합계</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {summary.by_cleaner.map(c => (
+                      <tr key={c.cleaner_name} className="hover:bg-gray-50 cursor-pointer" onClick={() => loadCleanerDetail(c.cleaner_name)}>
+                        <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{c.cleaner_name}</td>
+                        <td className="px-4 py-2.5 text-sm text-right text-gray-600">{c.count}건</td>
+                        <td className="px-4 py-2.5 text-sm text-right text-gray-600">{c.base_cost.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-sm text-right text-amber-600">{c.extra_cost > 0 ? `+${c.extra_cost.toLocaleString()}` : '-'}</td>
+                        <td className="px-4 py-2.5 text-sm text-right font-semibold text-gray-900">{c.total_cost.toLocaleString()}원</td>
+                        <td className="px-4 py-2.5 text-right"><span className="text-xs text-blue-600">상세 →</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <h3 className="text-sm font-semibold text-gray-700">숙소별 청소비 TOP</h3>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {summary.by_property.slice(0, 15).map(p => (
+                    <div key={p.property_code} className="px-4 py-2 flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{p.property_code}</span>
+                        <span className="text-sm text-gray-500 ml-2">{p.property_name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-gray-900">{p.total_cost.toLocaleString()}원</span>
+                        <span className="text-xs text-gray-400 ml-2">{p.count}건</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="space-y-4">
+          {/* 뒤로가기 + 청소자 요약 */}
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDetail(null)} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">← 뒤로</button>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{detail.cleaner_name}</h3>
+              <p className="text-sm text-gray-500">{detail.records.length}건, {detail.total_cost.toLocaleString()}원</p>
+            </div>
+          </div>
+          {/* 주간 요약 */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {(detail.by_week || []).map((w, i) => (
+              <div key={i} className="rounded-lg border border-gray-200 bg-white p-3 text-center">
+                <div className="text-xs text-gray-500">{(w.week_start || '').slice(0, 10)} 주</div>
+                <div className="text-lg font-bold text-gray-900">{w.total_cost.toLocaleString()}</div>
+                <div className="text-xs text-gray-400">{w.count}건</div>
+              </div>
+            ))}
+          </div>
+          {/* 상세 테이블 */}
+          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">날짜</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">숙소</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">예약 정보</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">정산 금액</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">비고</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {detail.records.map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">{(r.cleaning_date || '').slice(5, 10)} {r.day_of_week}</td>
+                    <td className="px-3 py-2">
+                      <div className="text-sm font-medium text-gray-900">{r.property_code} {r.property_name}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {r.reservation_code ? (
+                        <ReservationPopup
+                          guestName={r.guest_name || ''}
+                          reservationCode={r.reservation_code || ''}
+                          checkIn={r.check_in || ''}
+                          cleaningDate={(r.cleaning_date || '').slice(0, 10)}
+                          conversationId={r.conversation_id || ''}
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-300">예약 없음</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      {r.settlement_amount > 0 ? (
+                        <a href="/settlement" className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+                          {r.settlement_amount.toLocaleString()}원
+                        </a>
+                      ) : (
+                        <span className="text-sm font-semibold text-gray-900">{r.total_cost.toLocaleString()}</span>
+                      )}
+                      {r.settlement_amount > 0 && r.settlement_amount !== r.total_cost && (
+                        <div className="text-xs text-amber-600">엑셀:{r.total_cost.toLocaleString()}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 max-w-[120px] truncate">{r.check_note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 청소비 대장 → 예약/대화 링크 컴포넌트
+function LedgerLink({ recordId }: { recordId: number }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<{
+    property_name: string;
+    reservations: { id: number; guest_name: string; conversation_id: string; check_in: string; check_out: string }[];
+  } | null>(null);
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const token = localStorage.getItem('token');
+
+  const load = async () => {
+    if (data) { setOpen(!open); return; }
+    const res = await fetch(`${API_URL}/cleaning-records/linked/${recordId}`, { headers: { Authorization: `Bearer ${token}` } });
+    const d = await res.json();
+    setData(d);
+    setOpen(true);
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={load} className="text-xs text-blue-600 hover:text-blue-800">조회</button>
+      {open && data && (
+        <div className="absolute right-0 top-6 z-50 w-64 bg-white border border-gray-200 rounded-lg shadow-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700">{data.property_name?.slice(0, 25)}</span>
+            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          </div>
+          {data.reservations?.length > 0 ? data.reservations.map(r => (
+            <div key={r.id} className="border border-gray-100 rounded p-2 text-xs space-y-1">
+              <div className="font-medium text-gray-900">{r.guest_name}</div>
+              <div className="text-gray-500">IN {r.check_in} → OUT {r.check_out}</div>
+              <div className="flex gap-1">
+                <a href={`/reservations?id=${r.id}`} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">예약</a>
+                {r.conversation_id && (
+                  <a href={`/messages?conv=${r.conversation_id}`} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded hover:bg-purple-100">대화</a>
+                )}
+              </div>
+            </div>
+          )) : (
+            <div className="text-xs text-gray-400">연결된 예약 없음</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===================== 예약 정보 팝업 (공통) =====================
+function ReservationPopup({ guestName, reservationCode, checkIn, cleaningDate, conversationId }: {
+  guestName: string; reservationCode: string; checkIn: string; cleaningDate: string; conversationId: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <button onClick={() => setOpen(!open)} className="text-left group">
+        <div className="text-xs font-mono text-blue-700 group-hover:text-blue-900 group-hover:underline">
+          {reservationCode}
+        </div>
+        <div className="text-xs text-gray-500">{guestName ? guestName.slice(0, 15) : ''}{checkIn ? ` · IN ${checkIn.slice(5)}` : ''}</div>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-900">예약 정보</span>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">게스트</span>
+                <span className="font-medium text-gray-900">{guestName || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">예약 코드</span>
+                <span className="font-mono text-xs text-gray-700">{reservationCode}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">체크인</span>
+                <span className="text-gray-900">{checkIn || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">체크아웃 (청소일)</span>
+                <span className="text-gray-900">{cleaningDate}</span>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2 border-t border-gray-100">
+              <a href={`/reservations`}
+                className="flex-1 text-center py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                예약 상세
+              </a>
+              {conversationId ? (
+                <a href={`/messages?conv=${conversationId}`}
+                  className="flex-1 text-center py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                  게스트 대화
+                </a>
+              ) : (
+                <span className="flex-1 text-center py-1.5 text-xs text-gray-400 bg-gray-100 rounded-lg">대화 없음</span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

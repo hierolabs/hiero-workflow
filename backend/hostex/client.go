@@ -180,6 +180,44 @@ type CustomChannel struct {
 	Name string `json:"name"`
 }
 
+// --- 캘린더/가격 구조체 ---
+
+type CalendarDay struct {
+	Date         string       `json:"date"`
+	Price        int64        `json:"price"`
+	Inventory    int          `json:"inventory"`
+	Restrictions Restrictions `json:"restrictions"`
+}
+
+type Restrictions struct {
+	MinStayOnArrival  int  `json:"min_stay_on_arrival"`
+	MaxStayOnArrival  int  `json:"max_stay_on_arrival"`
+	ClosedOnArrival   bool `json:"closed_on_arrival"`
+	ClosedOnDeparture bool `json:"closed_on_departure"`
+}
+
+type ListingCalendarResult struct {
+	ListingID   string        `json:"listing_id"`
+	ChannelType string        `json:"channel_type"`
+	Calendar    []CalendarDay `json:"calendar"`
+}
+
+type PriceUpdateEntry struct {
+	ListingID   string `json:"listing_id"`
+	ChannelType string `json:"channel_type"`
+	Date        string `json:"date"`
+	Price       int64  `json:"price"`
+}
+
+type RestrictionUpdateEntry struct {
+	ListingID   string `json:"listing_id"`
+	ChannelType string `json:"channel_type"`
+	Date        string `json:"date"`
+	MinStay     *int   `json:"min_stay_on_arrival,omitempty"`
+	ClosedArr   *bool  `json:"closed_on_arrival,omitempty"`
+	ClosedDep   *bool  `json:"closed_on_departure,omitempty"`
+}
+
 // --- API 메서드 ---
 
 func (c *Client) GetProperties(limit, offset int) ([]Property, int, error) {
@@ -862,19 +900,20 @@ func (c *Client) GetConversations(limit, offset int) ([]ConversationSummary, int
 }
 
 // GetAllConversations — 전체 대화 목록 페이징 조회
+// Hostex API가 total=0을 반환하므로, 반환 건수 < limit일 때 종료
 func (c *Client) GetAllConversations() ([]ConversationSummary, error) {
 	var all []ConversationSummary
 	offset := 0
 	for {
-		convs, total, err := c.GetConversations(100, offset)
+		convs, _, err := c.GetConversations(100, offset)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, convs...)
-		if len(all) >= total || len(convs) == 0 {
+		if len(convs) < 100 {
 			break
 		}
-		offset += len(convs)
+		offset += 100
 	}
 	return all, nil
 }
@@ -999,6 +1038,113 @@ func (c *Client) GetReviews(params map[string]string) ([]HostexReview, error) {
 func (c *Client) SendImageMessage(conversationID string, jpegBase64 string) error {
 	_, err := c.requestWithBody("POST", "/conversations/"+conversationID, map[string]string{
 		"jpeg_base64": jpegBase64,
+	})
+	return err
+}
+
+// === Calendar / Pricing API ===
+
+// GetListingCalendar — 리스팅별 날짜별 가격/제한 조회
+func (c *Client) GetListingCalendar(listingID, channelType, startDate, endDate string) ([]CalendarDay, error) {
+	body, err := c.requestWithBody("POST", "/listings/calendar", map[string]interface{}{
+		"listings": []map[string]string{
+			{"listing_id": listingID, "channel_type": channelType},
+		},
+		"start_date": startDate,
+		"end_date":   endDate,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var resp APIResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+
+	var data struct {
+		Listings []ListingCalendarResult `json:"listings"`
+	}
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return nil, err
+	}
+
+	if len(data.Listings) == 0 {
+		return nil, nil
+	}
+	return data.Listings[0].Calendar, nil
+}
+
+// UpdateListingPrices — 가격 변경 (Hostex → 전 OTA 반영)
+func (c *Client) UpdateListingPrices(entries []PriceUpdateEntry) error {
+	type priceItem struct {
+		ListingID   string `json:"listing_id"`
+		ChannelType string `json:"channel_type"`
+		Prices      []struct {
+			Date  string `json:"date"`
+			Price int64  `json:"price"`
+		} `json:"prices"`
+	}
+
+	// listing_id+channel별로 그룹핑
+	grouped := map[string]*priceItem{}
+	for _, e := range entries {
+		key := e.ListingID + "_" + e.ChannelType
+		if _, ok := grouped[key]; !ok {
+			grouped[key] = &priceItem{ListingID: e.ListingID, ChannelType: e.ChannelType}
+		}
+		grouped[key].Prices = append(grouped[key].Prices, struct {
+			Date  string `json:"date"`
+			Price int64  `json:"price"`
+		}{Date: e.Date, Price: e.Price})
+	}
+
+	var listings []priceItem
+	for _, v := range grouped {
+		listings = append(listings, *v)
+	}
+
+	_, err := c.requestWithBody("POST", "/listings/prices", map[string]interface{}{
+		"listings": listings,
+	})
+	return err
+}
+
+// UpdateListingRestrictions — 최소숙박/차단 변경
+func (c *Client) UpdateListingRestrictions(entries []RestrictionUpdateEntry) error {
+	type restrictionDay struct {
+		Date              string `json:"date"`
+		MinStayOnArrival  *int   `json:"min_stay_on_arrival,omitempty"`
+		ClosedOnArrival   *bool  `json:"closed_on_arrival,omitempty"`
+		ClosedOnDeparture *bool  `json:"closed_on_departure,omitempty"`
+	}
+	type restrictionItem struct {
+		ListingID    string           `json:"listing_id"`
+		ChannelType  string           `json:"channel_type"`
+		Restrictions []restrictionDay `json:"restrictions"`
+	}
+
+	grouped := map[string]*restrictionItem{}
+	for _, e := range entries {
+		key := e.ListingID + "_" + e.ChannelType
+		if _, ok := grouped[key]; !ok {
+			grouped[key] = &restrictionItem{ListingID: e.ListingID, ChannelType: e.ChannelType}
+		}
+		grouped[key].Restrictions = append(grouped[key].Restrictions, restrictionDay{
+			Date:              e.Date,
+			MinStayOnArrival:  e.MinStay,
+			ClosedOnArrival:   e.ClosedArr,
+			ClosedOnDeparture: e.ClosedDep,
+		})
+	}
+
+	var listings []restrictionItem
+	for _, v := range grouped {
+		listings = append(listings, *v)
+	}
+
+	_, err := c.requestWithBody("POST", "/listings/restrictions", map[string]interface{}{
+		"listings": listings,
 	})
 	return err
 }

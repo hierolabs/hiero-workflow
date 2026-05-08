@@ -71,8 +71,14 @@ func main() {
 		&models.Investor{},
 		&models.PropertyInvestor{},
 		&models.PropertyParking{},
+		&models.CSKnowledge{},
+		&models.ListingCalendar{},
+		&models.PriceLabsListing{},
+		&models.PriceLabsPrice{},
+		&models.ChatHistory{},
 	)
 	seedAdminUser()
+	service.SeedCSKnowledge()
 	seedProperties()
 	seedDiagnosisSample()
 	seedChatChannels()
@@ -93,6 +99,14 @@ func main() {
 		log.Println("[Boot] 리뷰 동기화 시작...")
 		reviewSvc := service.NewReviewService()
 		reviewSvc.SyncReviews()
+
+		log.Println("[Boot] Hostex 가격 캘린더 동기화 시작...")
+		pricingSvc := service.NewPricingService()
+		pricingSvc.SyncAllPricing()
+
+		log.Println("[Boot] PriceLabs 동기화 시작...")
+		plSvc := service.NewPriceLabsService()
+		plSvc.SyncAll()
 	}()
 
 	// 1시간마다 자동 동기화

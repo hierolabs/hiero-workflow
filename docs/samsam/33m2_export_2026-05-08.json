@@ -1,0 +1,914 @@
+{
+  "source": "33m2 host web",
+  "collected_at": "2026-05-08T06:18:36.806Z",
+  "collection_scope": "Visible pagination pages 1-5 for /host/room and /host/contract",
+  "collection_note": "Read-only browser collection from logged-in host pages. No price or contract write action was performed.",
+  "summary": {
+    "rooms_count": 50,
+    "contracts_count": 49,
+    "room_weekly_price_min": 100000,
+    "room_weekly_price_max": 750000,
+    "contract_amount_total": 44019200,
+    "contract_status_counts": {
+      "계약대기": 2,
+      "결제취소": 4,
+      "입주대기": 4,
+      "거주중": 7,
+      "취소": 28,
+      "계약종료": 3,
+      "퇴실중 임차인의 퇴실 확인을 기다리고 있습니다.": 1
+    }
+  },
+  "rooms": [
+    {
+      "name": "천호역 5분 복층",
+      "address": "서울특별시 강동구 천호동 452-15 미사 아름채아파트 13층 1310",
+      "weekly_price": "360,000원",
+      "weekly_price_number": 360000
+    },
+    {
+      "name": "강동역1.5룸 B16",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 10층 1006호",
+      "weekly_price": "350,000원",
+      "weekly_price_number": 350000
+    },
+    {
+      "name": "강동역1.5룸 B15",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 10층 1005호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "강동역1.5룸 B14",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 10층 1004호",
+      "weekly_price": "300,000원",
+      "weekly_price_number": 300000
+    },
+    {
+      "name": "미사역 원룸 I1",
+      "address": "경기도 하남시 망월동 1135 미사역마이움푸르지오 8층 804호",
+      "weekly_price": "320,000원",
+      "weekly_price_number": 320000
+    },
+    {
+      "name": "길동 원룸 C6",
+      "address": "서울특별시 강동구 길동 387-5 길동청광플러스원큐브1차 13층 1303",
+      "weekly_price": "240,000원",
+      "weekly_price_number": 240000
+    },
+    {
+      "name": "송파 오금 H52",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 5층 502호",
+      "weekly_price": "180,000원",
+      "weekly_price_number": 180000
+    },
+    {
+      "name": "초특가 강동 원룸 D6",
+      "address": "서울특별시 강동구 길동 415-16 청광플러스원큐브3차 14층 1412",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "강동역 1.5룸 B55",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 5층 505호",
+      "weekly_price": "300,000원",
+      "weekly_price_number": 300000
+    },
+    {
+      "name": "강동천호 풀옵션 B54",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 5층 504",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "길동역 성심병원 D7",
+      "address": "서울특별시 강동구 길동 415-16 청광플러스원큐브3차 14층 1416",
+      "weekly_price": "420,000원",
+      "weekly_price_number": 420000
+    },
+    {
+      "name": "가산, 독산 원룸 L1",
+      "address": "서울특별시 금천구 가산동 143-6 3층 328호",
+      "weekly_price": "200,000원",
+      "weekly_price_number": 200000
+    },
+    {
+      "name": "2룸2화1다이닝_M2",
+      "address": "인천광역시 계양구 작전동 392-1 계양 우림카이저팰리스 3층 203동 308호",
+      "weekly_price": "330,000원",
+      "weekly_price_number": 330000
+    },
+    {
+      "name": "올림픽 공원 성내 G3",
+      "address": "서울특별시 강동구 성내동 548-4 에스아이팰리스 센트럴성내 6층 602호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "V12 대치동 학원가",
+      "address": "서울특별시 강남구 대치동 916-38 1층 102",
+      "weekly_price": "550,000원",
+      "weekly_price_number": 550000
+    },
+    {
+      "name": "V11 대치 학원투룸",
+      "address": "서울특별시 강남구 대치동 916-38 1층 101호",
+      "weekly_price": "750,000원",
+      "weekly_price_number": 750000
+    },
+    {
+      "name": "V13 대치동 아늑방",
+      "address": "서울특별시 강남구 대치동 916-38 1층 103호",
+      "weekly_price": "450,000원",
+      "weekly_price_number": 450000
+    },
+    {
+      "name": "계양 2룸 풀옵션",
+      "address": "인천광역시 계양구 작전동 386-15 벧엘하이츠빌라 2층 202호",
+      "weekly_price": "100,000원",
+      "weekly_price_number": 100000
+    },
+    {
+      "name": "작전동 3룸2화",
+      "address": "인천광역시 계양구 작전동 392-1 계양 우림카이저팰리스 12층 101동 1204호",
+      "weekly_price": "380,000원",
+      "weekly_price_number": 380000
+    },
+    {
+      "name": "강동역 1.5룸 B46",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 4층 406",
+      "weekly_price": "380,000원",
+      "weekly_price_number": 380000
+    },
+    {
+      "name": "강동역 1.5룸 B64",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 6층 604호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "서울역 특가 2룸 L5",
+      "address": "서울특별시 중구 만리동1가 35-2 하람휴 11층 1001호",
+      "weekly_price": "600,000원",
+      "weekly_price_number": 600000
+    },
+    {
+      "name": "3월특가 2룸 U34",
+      "address": "서울특별시 강동구 천호동 167-160 3층 성우 304호",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "강동역 2룸 U51",
+      "address": "서울특별시 강동구 천호동 167-160 5층 성우 501호",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "신림동 2룸",
+      "address": "서울특별시 관악구 신림동 408-46 가온빌 2층 102호",
+      "weekly_price": "200,000원",
+      "weekly_price_number": 200000
+    },
+    {
+      "name": "강동역 1.5룸 B76",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 3층 306",
+      "weekly_price": "380,000원",
+      "weekly_price_number": 380000
+    },
+    {
+      "name": "강동역 2베드 B56",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 5층 506",
+      "weekly_price": "380,000원",
+      "weekly_price_number": 380000
+    },
+    {
+      "name": "강동역 2룸 U31",
+      "address": "서울특별시 강동구 천호동 167-160 3층 성우 301호",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "서울역 3월특가 L2",
+      "address": "서울특별시 중구 만리동1가 35-2 하람휴 9층 하람휴 902호",
+      "weekly_price": "600,000원",
+      "weekly_price_number": 600000
+    },
+    {
+      "name": "강동역 3룸 U42",
+      "address": "서울특별시 강동구 천호동 167-160 4층 성우 402호",
+      "weekly_price": "750,000원",
+      "weekly_price_number": 750000
+    },
+    {
+      "name": "길동 고급 T66",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 6층 606",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "은평구 2룸 풀옵 l4",
+      "address": "서울특별시 은평구 갈현동 490-2 나비드빌 2층 203호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "서울역 편안한투룸 L3",
+      "address": "서울특별시 중구 만리동1가 35-2 하람휴 11층 1102호",
+      "weekly_price": "700,000원",
+      "weekly_price_number": 700000
+    },
+    {
+      "name": "초특가 송파오금 H33",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 3층 303",
+      "weekly_price": "200,000원",
+      "weekly_price_number": 200000
+    },
+    {
+      "name": "장안동 원룸 K3",
+      "address": "서울특별시 동대문구 장안동 372-5 장안 NEW CITY 14층 1413호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "강동역 원룸 A92",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 9층 902호",
+      "weekly_price": "250,000원",
+      "weekly_price_number": 250000
+    },
+    {
+      "name": "강동역 2룸 U94",
+      "address": "서울특별시 강동구 천호동 167-160 9층 성우 904호",
+      "weekly_price": "450,000원",
+      "weekly_price_number": 450000
+    },
+    {
+      "name": "길동강동 B9",
+      "address": "서울특별시 강동구 길동 386-8 8층 은성 806호",
+      "weekly_price": "240,000원",
+      "weekly_price_number": 240000
+    },
+    {
+      "name": "길동역 원룸 E4",
+      "address": "서울특별시 강동구 길동 457-1 강동렘브란트 5층 506",
+      "weekly_price": "250,000원",
+      "weekly_price_number": 250000
+    },
+    {
+      "name": "길동역 원룸 E3",
+      "address": "서울특별시 강동구 길동 457-1 강동렘브란트 2층 204",
+      "weekly_price": "250,000원",
+      "weekly_price_number": 250000
+    },
+    {
+      "name": "길동 원룸 F2",
+      "address": "서울특별시 강동구 둔촌동 425-15 오앤하우스 4층 401호",
+      "weekly_price": "280,000원",
+      "weekly_price_number": 280000
+    },
+    {
+      "name": "초특가 강동역 A62",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 6층 602호",
+      "weekly_price": "250,000원",
+      "weekly_price_number": 250000
+    },
+    {
+      "name": "길동 1.5룸 T32",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 3층 302",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "길동 1.5룸 T71",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 7층 701",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "길동 1.5룸 T46",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 4층 406",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "길동 1.5룸 T31",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 3층 301",
+      "weekly_price": "400,000원",
+      "weekly_price_number": 400000
+    },
+    {
+      "name": "2월특가 3룸 U83",
+      "address": "서울특별시 강동구 천호동 167-160 8층 성우 803호",
+      "weekly_price": "680,000원",
+      "weekly_price_number": 680000
+    },
+    {
+      "name": "강동역 2룸 U24",
+      "address": "서울특별시 강동구 천호동 167-160 2층 성우 204호",
+      "weekly_price": "450,000원",
+      "weekly_price_number": 450000
+    },
+    {
+      "name": "강동역 2룸 U21",
+      "address": "서울특별시 강동구 천호동 167-160 2층 성우 201호",
+      "weekly_price": "500,000원",
+      "weekly_price_number": 500000
+    },
+    {
+      "name": "강동역 3룸 U93",
+      "address": "서울특별시 강동구 천호동 167-160 9층 성우 903호",
+      "weekly_price": "680,000원",
+      "weekly_price_number": 680000
+    }
+  ],
+  "contracts": [
+    {
+      "status": "계약대기",
+      "room_name": "길동역 복층 E5",
+      "address": "서울특별시 강동구 길동 413-24 12층 동구햇살 1203",
+      "tenant": "전병훈",
+      "chat_id": "854690",
+      "contract_id": "732428",
+      "payment_status": "결제대기",
+      "period": "2026.05.11(월) ~ 2026.05.24(일)",
+      "amount": "960,000원",
+      "amount_number": 960000
+    },
+    {
+      "status": "계약대기",
+      "room_name": "길동역세권 C7",
+      "address": "서울특별시 강동구 길동 388-7 다성이즈빌 5층 506호",
+      "tenant": "전병훈",
+      "chat_id": "854691",
+      "contract_id": "732429",
+      "payment_status": "결제대기",
+      "period": "2026.05.11(월) ~ 2026.05.24(일)",
+      "amount": "900,000원",
+      "amount_number": 900000
+    },
+    {
+      "status": "결제취소",
+      "room_name": "강동역 2룸 U24",
+      "address": "서울특별시 강동구 천호동 167-160 2층 성우 204호",
+      "tenant": "신홍경",
+      "chat_id": "846759",
+      "contract_id": "726211",
+      "payment_status": "결제취소",
+      "period": "2026.05.25(월) ~ 2026.06.21(일)",
+      "amount": "1,944,000원",
+      "amount_number": 1944000
+    },
+    {
+      "status": "결제취소",
+      "room_name": "초특가 강동역 A62",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 6층 602호",
+      "tenant": "신명훈",
+      "chat_id": "847826",
+      "contract_id": "727058",
+      "payment_status": "결제취소",
+      "period": "2026.05.07(목) ~ 2026.05.27(수)",
+      "amount": "1,020,000원",
+      "amount_number": 1020000
+    },
+    {
+      "status": "입주대기",
+      "room_name": "V12 대치동 학원가",
+      "address": "서울특별시 강남구 대치동 916-38 1층 102",
+      "tenant": "박은주",
+      "chat_id": "852967",
+      "contract_id": "731011",
+      "payment_status": "결제완료",
+      "period": "2026.07.20(월) ~ 2026.08.16(일)",
+      "amount": "2,380,000원",
+      "amount_number": 2380000
+    },
+    {
+      "status": "입주대기",
+      "room_name": "초특가!!강동역 B35",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 8층 305",
+      "tenant": "정성근",
+      "chat_id": "852845",
+      "contract_id": "730968",
+      "payment_status": "결제완료",
+      "period": "2026.05.20(수) ~ 2026.07.07(화)",
+      "amount": "2,432,000원",
+      "amount_number": 2432000
+    },
+    {
+      "status": "거주중",
+      "room_name": "송파 오금 H42",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 4층 402",
+      "tenant": "황성찬",
+      "chat_id": "851987",
+      "contract_id": "730271",
+      "payment_status": "결제완료",
+      "period": "2026.05.06(수) ~ 2026.06.02(화)",
+      "amount": "1,348,000원",
+      "amount_number": 1348000
+    },
+    {
+      "status": "거주중",
+      "room_name": "미사역 원룸 I2",
+      "address": "경기도 하남시 망월동 1147-2 힐스테이트에코미사강변 8층 804",
+      "tenant": "안동식",
+      "chat_id": "850541",
+      "contract_id": "730272",
+      "payment_status": "결제완료",
+      "period": "2026.05.06(수) ~ 2026.05.12(화)",
+      "amount": "440,000원",
+      "amount_number": 440000
+    },
+    {
+      "status": "취소",
+      "room_name": "미사역 원룸 I2",
+      "address": "경기도 하남시 망월동 1147-2 힐스테이트에코미사강변 8층 804",
+      "tenant": "안동식",
+      "chat_id": "850541",
+      "contract_id": "730222",
+      "payment_status": "취소",
+      "period": "2026.05.06(수) ~ 2026.05.12(화)",
+      "amount": "495,000원",
+      "amount_number": 495000
+    },
+    {
+      "status": "입주대기",
+      "room_name": "노원 방학 k5",
+      "address": "서울특별시 도봉구 방학동 711-1 7층 101동 709호",
+      "tenant": "김미선",
+      "chat_id": "851919",
+      "contract_id": "730200",
+      "payment_status": "결제완료",
+      "period": "2026.06.18(목) ~ 2026.07.08(수)",
+      "amount": "1,071,200원",
+      "amount_number": 1071200
+    },
+    {
+      "status": "취소",
+      "room_name": "미사역 원룸 I2",
+      "address": "경기도 하남시 망월동 1147-2 힐스테이트에코미사강변 8층 804",
+      "tenant": "안동식",
+      "chat_id": "850541",
+      "contract_id": "730193",
+      "payment_status": "취소",
+      "period": "2026.05.06(수) ~ 2026.05.12(화)",
+      "amount": "490,000원",
+      "amount_number": 490000
+    },
+    {
+      "status": "거주중",
+      "room_name": "초특가 송파오금 H33",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 3층 303",
+      "tenant": "장번원",
+      "chat_id": "851509",
+      "contract_id": "729912",
+      "payment_status": "결제완료",
+      "period": "2026.05.07(목) ~ 2026.05.27(수)",
+      "amount": "880,000원",
+      "amount_number": 880000
+    },
+    {
+      "status": "결제취소",
+      "room_name": "강동역 1.5룸 B76",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 3층 306",
+      "tenant": "우상범",
+      "chat_id": "849543",
+      "contract_id": "728345",
+      "payment_status": "결제취소",
+      "period": "2026.05.04(월) ~ 2026.05.10(일)",
+      "amount": "570,000원",
+      "amount_number": 570000
+    },
+    {
+      "status": "취소",
+      "room_name": "올림픽공원 G2",
+      "address": "서울특별시 강동구 성내동 548-4 에스아이팰리스 센트럴성내 5층 502",
+      "tenant": "우상범",
+      "chat_id": "849524",
+      "contract_id": "728325",
+      "payment_status": "취소",
+      "period": "2026.05.04(월) ~ 2026.05.10(일)",
+      "amount": "430,000원",
+      "amount_number": 430000
+    },
+    {
+      "status": "거주중",
+      "room_name": "길동 원룸 C6",
+      "address": "서울특별시 강동구 길동 387-5 길동청광플러스원큐브1차 13층 1303",
+      "tenant": "정보경",
+      "chat_id": "849115",
+      "contract_id": "728036",
+      "payment_status": "결제완료",
+      "period": "2026.05.06(수) ~ 2026.05.12(화)",
+      "amount": "390,000원",
+      "amount_number": 390000
+    },
+    {
+      "status": "취소",
+      "room_name": "송파 오금 H42",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 4층 402",
+      "tenant": "Jane",
+      "chat_id": "847043",
+      "contract_id": "726442",
+      "payment_status": "취소",
+      "period": "2026.05.03(일) ~ 2026.05.23(토)",
+      "amount": "1,021,000원",
+      "amount_number": 1021000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A24",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 2층 204호",
+      "tenant": "이현아",
+      "chat_id": "846804",
+      "contract_id": "726254",
+      "payment_status": "취소",
+      "period": "2026.05.31(일) ~ 2026.06.13(토)",
+      "amount": "710,000원",
+      "amount_number": 710000
+    },
+    {
+      "status": "거주중",
+      "room_name": "강동역도보5분 A82",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 8층 802호",
+      "tenant": "이동수",
+      "chat_id": "846704",
+      "contract_id": "726177",
+      "payment_status": "결제완료",
+      "period": "2026.05.04(월) ~ 2026.06.28(일)",
+      "amount": "2,520,000원",
+      "amount_number": 2520000
+    },
+    {
+      "status": "취소",
+      "room_name": "신정동. 2룸 N3",
+      "address": "울산광역시 남구 신정동 1323-50 수아지오 시티 10층 1007호",
+      "tenant": "임의진",
+      "chat_id": "845074",
+      "contract_id": "724953",
+      "payment_status": "취소",
+      "period": "2026.06.01(월) ~ 2026.06.07(일)",
+      "amount": "500,000원",
+      "amount_number": 500000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A44",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 4층 404호",
+      "tenant": "정하준",
+      "chat_id": "844208",
+      "contract_id": "724202",
+      "payment_status": "취소",
+      "period": "2026.05.01(금) ~ 2026.05.07(목)",
+      "amount": "380,000원",
+      "amount_number": 380000
+    },
+    {
+      "status": "취소",
+      "room_name": "신정동. 2룸 N3",
+      "address": "울산광역시 남구 신정동 1323-50 수아지오 시티 10층 1007호",
+      "tenant": "임의진",
+      "chat_id": "845074",
+      "contract_id": "724950",
+      "payment_status": "취소",
+      "period": "2026.06.01(월) ~ 2026.08.02(일)",
+      "amount": "3,716,000원",
+      "amount_number": 3716000
+    },
+    {
+      "status": "거주중",
+      "room_name": "송파 오금 H12",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 1층 102",
+      "tenant": "monchelynn carbajal",
+      "chat_id": "649992",
+      "contract_id": "724654",
+      "payment_status": "결제완료",
+      "period": "2026.05.03(일) ~ 2026.05.23(토)",
+      "amount": "981,000원",
+      "amount_number": 981000
+    },
+    {
+      "status": "취소",
+      "room_name": "올림픽공원 G2",
+      "address": "서울특별시 강동구 성내동 548-4 에스아이팰리스 센트럴성내 5층 502",
+      "tenant": "이다솔",
+      "chat_id": "844088",
+      "contract_id": "724109",
+      "payment_status": "취소",
+      "period": "2026.05.01(금) ~ 2026.05.07(목)",
+      "amount": "430,000원",
+      "amount_number": 430000
+    },
+    {
+      "status": "취소",
+      "room_name": "초특가 오금 H21",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 2층 201",
+      "tenant": "황윤성",
+      "chat_id": "843643",
+      "contract_id": "723762",
+      "payment_status": "취소",
+      "period": "2026.05.01(금) ~ 2026.05.07(목)",
+      "amount": "360,000원",
+      "amount_number": 360000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 5분 F1",
+      "address": "서울특별시 강동구 성내동 244-5 한양 립스 5층 503",
+      "tenant": "황현석",
+      "chat_id": "843370",
+      "contract_id": "723557",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "430,000원",
+      "amount_number": 430000
+    },
+    {
+      "status": "계약종료",
+      "room_name": "가산, 독산 원룸 L1",
+      "address": "서울특별시 금천구 가산동 143-6 3층 328호",
+      "tenant": "서성모",
+      "chat_id": "841214",
+      "contract_id": "723098",
+      "payment_status": "결제완료",
+      "period": "2026.05.01(금) ~ 2026.05.07(목)",
+      "amount": "280,000원",
+      "amount_number": 280000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A44",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 4층 404호",
+      "tenant": "김영진",
+      "chat_id": "842672",
+      "contract_id": "723066",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "380,000원",
+      "amount_number": 380000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 1.5룸 B76",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 3층 306",
+      "tenant": "김영진",
+      "chat_id": "842629",
+      "contract_id": "723033",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "570,000원",
+      "amount_number": 570000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 1.5룸 B46",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 4층 406",
+      "tenant": "김영진",
+      "chat_id": "842627",
+      "contract_id": "723032",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "570,000원",
+      "amount_number": 570000
+    },
+    {
+      "status": "취소",
+      "room_name": "길동 1.5룸 T46",
+      "address": "서울특별시 강동구 길동 386-4 에스아이팰리스 강동센텀2 4층 406",
+      "tenant": "조용명",
+      "chat_id": "842625",
+      "contract_id": "723030",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "570,000원",
+      "amount_number": 570000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 1.5룸 B46",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 4층 406",
+      "tenant": "조용명",
+      "chat_id": "842606",
+      "contract_id": "723007",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "570,000원",
+      "amount_number": 570000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A44",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 4층 404호",
+      "tenant": "조용명",
+      "chat_id": "842570",
+      "contract_id": "722971",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "380,000원",
+      "amount_number": 380000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 2룸 U51",
+      "address": "서울특별시 강동구 천호동 167-160 5층 성우 501호",
+      "tenant": "김영진",
+      "chat_id": "842396",
+      "contract_id": "722834",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "650,000원",
+      "amount_number": 650000
+    },
+    {
+      "status": "취소",
+      "room_name": "울산시청 N1",
+      "address": "울산광역시 남구 신정동 643-1 3층 307호",
+      "tenant": "류원재",
+      "chat_id": "841732",
+      "contract_id": "722296",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "390,000원",
+      "amount_number": 390000
+    },
+    {
+      "status": "취소",
+      "room_name": "길동역세권 C7",
+      "address": "서울특별시 강동구 길동 388-7 다성이즈빌 5층 506호",
+      "tenant": "양우형",
+      "chat_id": "839993",
+      "contract_id": "721008",
+      "payment_status": "취소",
+      "period": "2026.04.29(수) ~ 2026.05.05(화)",
+      "amount": "440,000원",
+      "amount_number": 440000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 2룸 U94",
+      "address": "서울특별시 강동구 천호동 167-160 9층 성우 904호",
+      "tenant": "김유미",
+      "chat_id": "839173",
+      "contract_id": "720357",
+      "payment_status": "취소",
+      "period": "2026.04.29(수) ~ 2026.05.12(화)",
+      "amount": "1,095,000원",
+      "amount_number": 1095000
+    },
+    {
+      "status": "계약종료",
+      "room_name": "🙂대치동 학원가 넒은집",
+      "address": "서울특별시 강남구 대치동 916-38 1층 102",
+      "tenant": "MIZUKI",
+      "chat_id": "839356",
+      "contract_id": "720501",
+      "payment_status": "결제완료",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "430,000원",
+      "amount_number": 430000
+    },
+    {
+      "status": "퇴실중 임차인의 퇴실 확인을 기다리고 있습니다.",
+      "room_name": "강동역 1.5룸 B55",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 5층 505호",
+      "tenant": "이찬우",
+      "chat_id": "838744",
+      "contract_id": "720585",
+      "payment_status": "결제완료",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "460,000원",
+      "amount_number": 460000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 1.5룸 B55",
+      "address": "서울특별시 강동구 천호동 560-2 더하임 5층 505호",
+      "tenant": "이찬우",
+      "chat_id": "838744",
+      "contract_id": "720084",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "460,000원",
+      "amount_number": 460000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 2룸 U24",
+      "address": "서울특별시 강동구 천호동 167-160 2층 성우 204호",
+      "tenant": "박태순",
+      "chat_id": "839349",
+      "contract_id": "720503",
+      "payment_status": "취소",
+      "period": "2026.04.29(수) ~ 2026.05.12(화)",
+      "amount": "992,000원",
+      "amount_number": 992000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 2룸 U24",
+      "address": "서울특별시 강동구 천호동 167-160 2층 성우 204호",
+      "tenant": "박태순",
+      "chat_id": "839349",
+      "contract_id": "720495",
+      "payment_status": "취소",
+      "period": "2026.04.29(수) ~ 2026.05.12(화)",
+      "amount": "992,000원",
+      "amount_number": 992000
+    },
+    {
+      "status": "계약종료",
+      "room_name": "동대문2룸 K1",
+      "address": "서울특별시 동대문구 장안동 344-5 선일크라시아 1층 101호",
+      "tenant": "양효선",
+      "chat_id": "838427",
+      "contract_id": "720050",
+      "payment_status": "결제완료",
+      "period": "2026.04.28(화) ~ 2026.05.04(월)",
+      "amount": "360,000원",
+      "amount_number": 360000
+    },
+    {
+      "status": "입주대기",
+      "room_name": "길동강동 J2",
+      "address": "서울특별시 강동구 길동 386-8 6층 은성 603호",
+      "tenant": "조한선",
+      "chat_id": "838118",
+      "contract_id": "719557",
+      "payment_status": "결제완료",
+      "period": "2026.05.10(일) ~ 2026.05.23(토)",
+      "amount": "750,000원",
+      "amount_number": 750000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A44",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 4층 404호",
+      "tenant": "김주영",
+      "chat_id": "838146",
+      "contract_id": "719578",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "380,000원",
+      "amount_number": 380000
+    },
+    {
+      "status": "취소",
+      "room_name": "초특가 강동역 A62",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 6층 602호",
+      "tenant": "김주영",
+      "chat_id": "838143",
+      "contract_id": "719574",
+      "payment_status": "취소",
+      "period": "2026.04.30(목) ~ 2026.05.06(수)",
+      "amount": "380,000원",
+      "amount_number": 380000
+    },
+    {
+      "status": "취소",
+      "room_name": "초특가 오금 H21",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 2층 201",
+      "tenant": "이현태",
+      "chat_id": "836375",
+      "contract_id": "718242",
+      "payment_status": "취소",
+      "period": "2026.04.27(월) ~ 2026.05.10(일)",
+      "amount": "670,000원",
+      "amount_number": 670000
+    },
+    {
+      "status": "결제취소",
+      "room_name": "송파 오금 H13",
+      "address": "서울특별시 송파구 오금동 133-13 스타팰리스 1층 103",
+      "tenant": "장효성",
+      "chat_id": "835974",
+      "contract_id": "717975",
+      "payment_status": "결제취소",
+      "period": "2026.04.30(목) ~ 2026.07.01(수)",
+      "amount": "2,852,000원",
+      "amount_number": 2852000
+    },
+    {
+      "status": "거주중",
+      "room_name": "강동역 원룸 A24",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 2층 204호",
+      "tenant": "이준태",
+      "chat_id": "835864",
+      "contract_id": "718107",
+      "payment_status": "결제완료",
+      "period": "2026.05.04(월) ~ 2026.05.31(일)",
+      "amount": "1,300,000원",
+      "amount_number": 1300000
+    },
+    {
+      "status": "취소",
+      "room_name": "강동역 원룸 A24",
+      "address": "서울특별시 강동구 천호동 167-157 예건네스빌 2층 204호",
+      "tenant": "이준태",
+      "chat_id": "835864",
+      "contract_id": "717854",
+      "payment_status": "취소",
+      "period": "2026.05.01(금) ~ 2026.05.28(목)",
+      "amount": "1,300,000원",
+      "amount_number": 1300000
+    }
+  ]
+}

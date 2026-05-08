@@ -26,6 +26,8 @@ export interface Property {
   license_status: string;
   contract_type: string;
   owner_name: string;
+  cover_image: string;
+  lifecycle_status: string;
   memo: string;
   created_by_id: number | null;
   created_at: string;
@@ -73,6 +75,13 @@ export interface CreatePropertyPayload {
   license_status: string;
   contract_type: string;
   owner_name: string;
+  building_name: string;
+  bed_type: string;
+  tv_type: string;
+  entrance_password: string;
+  room_password: string;
+  password_changed_at: string;
+  management_office: string;
   memo: string;
 }
 

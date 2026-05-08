@@ -274,7 +274,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
-              운영 매뉴얼
+              히로가이드
             </button>
             <button onClick={fetch_} disabled={refreshing} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50">
               {refreshing ? "갱신 중..." : "새로고침"}

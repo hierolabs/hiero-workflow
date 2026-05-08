@@ -137,7 +137,7 @@ export default function Revenue() {
           <h1 className="text-2xl font-bold text-gray-900">매출 현황</h1>
           <p className="mt-0.5 text-sm text-gray-500">일별 / 주별 / 월별 매출·수수료·순수익 추이</p>
         </div>
-        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">운영 매뉴얼</button>
+        <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
       </div>
 
       {/* Controls */}

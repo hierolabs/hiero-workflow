@@ -48,6 +48,7 @@ type PropertyPlatform struct {
 	ID           uint       `gorm:"primaryKey" json:"id"`
 	PropertyID   uint       `gorm:"index;not null" json:"property_id"`
 	Platform     string     `gorm:"size:30;not null;index" json:"platform"`
+	ListingID    string     `gorm:"size:100" json:"listing_id"`     // Hostex 채널 listing_id (캘린더 API용)
 	PlatformName string     `gorm:"size:200" json:"platform_name"`  // 플랫폼 내 숙소명
 	PlatformURL  string     `gorm:"size:500" json:"platform_url"`   // 리스팅 URL
 	Status       string     `gorm:"size:20;default:'draft'" json:"status"`

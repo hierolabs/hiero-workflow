@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import OperationManual from "./OperationManual";
+import type { ManualPage } from "./OperationManual";
 
 interface User {
   id: number;
@@ -23,6 +25,7 @@ const DEFAULT_NAV: NavGroup[] = [
     items: [
       { to: "/today", label: "오늘의 업무", iconName: "ChecklistIcon" },
       { to: "/calendar", label: "운영 캘린더", iconName: "CalendarIcon" },
+      { to: "/price-calendar", label: "가격 캘린더", iconName: "RevenueIcon" },
       { to: "/reservations", label: "예약 관리", iconName: "ReservationsIcon" },
       { to: "/messages", label: "게스트 메시지", iconName: "MessagesIcon" },
       { to: "/cleaning", label: "청소 관리", iconName: "CleaningIcon" },
@@ -30,9 +33,9 @@ const DEFAULT_NAV: NavGroup[] = [
     ],
   },
   {
-    label: '신규런칭',
+    label: '공급',
     items: [
-      { to: "/leads", label: "위탁영업", iconName: "LeadsIcon" },
+      { to: "/leads", label: "성장 관리", iconName: "LeadsIcon" },
       { to: "/properties", label: "공간 관리", iconName: "PropertiesIcon" },
       { to: "/diagnosis", label: "사업 진단", iconName: "DiagnosisIcon" },
     ],
@@ -78,7 +81,18 @@ function loadNavConfig(): NavGroup[] {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
+
+  // 현재 경로 → 히로가이드 페이지 매핑
+  const guidePageMap: Record<string, ManualPage> = {
+    '/': 'dashboard', '/calendar': 'dashboard', '/reservations': 'reservations',
+    '/properties': 'properties', '/cleaning': 'cleaning', '/issues': 'issues',
+    '/settlement': 'settlement', '/revenue': 'revenue', '/messages': 'messages',
+    '/hostex': 'hostex-sync', '/diagnosis': 'diagnosis', '/tasks': 'tasks',
+  };
+  const currentGuidePage: ManualPage = guidePageMap[location.pathname] || 'dashboard';
   const [navGroups, setNavGroups] = useState<NavGroup[]>(loadNavConfig);
 
   const stored = localStorage.getItem("user");
@@ -313,6 +327,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <h2 className="text-sm font-semibold text-gray-700">Hiero</h2>
           </div>
           <div className="flex items-center gap-3">
+            {/* 히로가이드 */}
+            <button
+              onClick={() => setShowGuide(true)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 transition"
+            >
+              히로가이드
+            </button>
+
             {/* 알림 벨 */}
             <div className="relative" ref={notifRef}>
               <button
@@ -381,6 +403,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-6">{children}</main>
       </div>
+      {showGuide && <OperationManual page={currentGuidePage} onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

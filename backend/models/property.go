@@ -116,6 +116,7 @@ type Property struct {
 	Region        string `gorm:"size:50;index" json:"region"`
 	Address       string `gorm:"size:255" json:"address"`
 	DetailAddress string `gorm:"size:255" json:"detail_address"`
+	BuildingName  string `gorm:"size:100;default:''" json:"building_name"` // 건물명
 
 	// 유형
 	PropertyType string `gorm:"size:30;index" json:"property_type"`
@@ -150,6 +151,14 @@ type Property struct {
 	CheckInTime  string `gorm:"size:10" json:"check_in_time"`
 	CheckOutTime string `gorm:"size:10" json:"check_out_time"`
 
+	// 공간 상세
+	BedType           string     `gorm:"size:50;default:''" json:"bed_type"`             // Q1, SS3, Q1 SS2 등
+	TvType            string     `gorm:"size:50;default:''" json:"tv_type"`              // TV(케이블), TV(ott), 빔, x
+	EntrancePassword  string     `gorm:"size:200;default:''" json:"entrance_password"`   // 공동현관 비번
+	RoomPassword      string     `gorm:"size:200;default:''" json:"room_password"`       // 호실 비번
+	PasswordChangedAt *time.Time `json:"password_changed_at"`                            // 비번 변경일
+	ManagementOffice  string     `gorm:"size:100;default:''" json:"management_office"`   // 관리사무소 연락처
+
 	// 표시 순서
 	DisplayOrder int `gorm:"default:9999" json:"display_order"`
 
@@ -159,6 +168,9 @@ type Property struct {
 	LicenseStatus string `gorm:"size:20;default:''" json:"license_status"`        // NONE / PENDING / APPROVED / EXPIRED
 	ContractType  string `gorm:"size:30;default:''" json:"contract_type"`         // SUBLEASE_CONTRACT / PLATFORM_BOOKING 등
 	OwnerName     string `gorm:"size:100;default:''" json:"owner_name"`           // 임대인(집주인)
+
+	// 이미지
+	CoverImage string `gorm:"size:500;default:''" json:"cover_image"` // 대표 이미지 URL
 
 	// 메모
 	Memo string `gorm:"type:text" json:"memo"`

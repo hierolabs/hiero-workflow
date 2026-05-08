@@ -44,6 +44,13 @@ func registerAdminRoutes(r *gin.Engine) {
 	lifecycleHandler := handler.NewLifecycleHandler()
 	infraHandler := handler.NewInfraHandler()
 	documentHandler := handler.NewDocumentHandler()
+	chatHistoryHandler := handler.NewChatHistoryHandler()
+	chatUploadHandler := handler.NewChatUploadHandler()
+	cleaningDispatchHandler := handler.NewCleaningDispatchHandler()
+	cleaningRecordsHandler := handler.NewCleaningRecordsHandler()
+	csKnowledgeHandler := handler.NewCSKnowledgeHandler()
+	pricingHandler := handler.NewPricingHandler()
+	priceLabsHandler := handler.NewPriceLabsHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -66,6 +73,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/properties", propertyHandler.List)
 			protected.GET("/properties/export", propertyHandler.ExportProperties)
 			protected.POST("/properties/import", propertyHandler.ImportProperties)
+			protected.POST("/properties/import-details", propertyHandler.ImportDetails)
 			protected.GET("/properties/:id", propertyHandler.Get)
 			protected.POST("/properties", propertyHandler.Create)
 			protected.PUT("/properties/:id", propertyHandler.Update)
@@ -77,6 +85,20 @@ func registerAdminRoutes(r *gin.Engine) {
 			// 운영 캘린더
 			protected.GET("/calendar", calendarHandler.GetCalendar)
 			protected.GET("/calendar/summary", calendarHandler.GetSummary)
+
+			// 가격/캘린더 관리 (Hostex 연동)
+			protected.POST("/pricing/sync", pricingHandler.Sync)
+			protected.GET("/pricing/calendar", pricingHandler.GetCalendar)
+			protected.GET("/pricing/links", pricingHandler.Links)
+			protected.PUT("/pricing/price", pricingHandler.UpdatePrice)
+			protected.PUT("/pricing/restrictions", pricingHandler.UpdateRestrictions)
+			protected.PUT("/pricing/availability", pricingHandler.UpdateAvailability)
+			protected.POST("/pricing/samsam/check", pricingHandler.SamsamCheck)
+
+			// PriceLabs 연동
+			protected.POST("/pricelabs/sync", priceLabsHandler.Sync)
+			protected.GET("/pricelabs/compare", priceLabsHandler.Compare)
+			protected.GET("/pricelabs/kpi", priceLabsHandler.KPIs)
 
 			// 예약 관리
 			protected.GET("/reservations", reservationHandler.List)
@@ -109,6 +131,18 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/cleaning/records", cleaningHandler.AllRecords)
 			protected.GET("/cleaning/export", cleaningHandler.ExportCSV)
 			protected.GET("/cleaning/cost-match", cleaningHandler.CostMatch)
+
+			// 띵동 배정 시스템
+			protected.POST("/cleaning/parse-assignment", cleaningDispatchHandler.ParseAssignment)
+			protected.POST("/cleaning/confirm-assignment", cleaningDispatchHandler.ConfirmAssignment)
+			protected.GET("/cleaning/auto-assign", cleaningDispatchHandler.AutoAssign)
+			protected.POST("/cleaning/confirm-auto-assign", cleaningDispatchHandler.ConfirmAutoAssign)
+
+			// 청소비 대장
+			protected.GET("/cleaning-records", cleaningRecordsHandler.List)
+			protected.GET("/cleaning-records/summary", cleaningRecordsHandler.Summary)
+			protected.GET("/cleaning-records/cleaner/:name", cleaningRecordsHandler.CleanerDetail)
+			protected.GET("/cleaning-records/linked/:id", cleaningRecordsHandler.LinkedInfo)
 
 			// 청소코드
 			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
@@ -165,6 +199,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/messages/sync", messageHandler.SyncMessages)
 			protected.POST("/messages/sync-all", messageHandler.SyncAllMessages)
 			protected.GET("/messages/analysis", messageHandler.AnalyzeMessages)
+			protected.GET("/messages/stats", messageHandler.Stats)
 			protected.POST("/messages/sync-reviews", messageHandler.SyncReviews)
 			protected.POST("/messages/conversations/:conversation_id/requests", messageHandler.CreateGuestRequest)
 			protected.PATCH("/messages/requests/:id/status", messageHandler.UpdateGuestRequestStatus)
@@ -307,11 +342,34 @@ func registerAdminRoutes(r *gin.Engine) {
 			// 고객 메시지 이슈 감지
 			protected.GET("/issue-detections", issueDetectionHandler.ListPending)
 			protected.POST("/issue-detections/scan", issueDetectionHandler.Scan)
+			protected.POST("/issue-detections/backfill-reservation", issueDetectionHandler.BackfillReservation)
+			protected.POST("/issue-detections/batch-resolve", issueDetectionHandler.BatchResolve)
+			protected.POST("/issue-detections/reset-handlers", issueDetectionHandler.ResetHandlers)
+			protected.POST("/issue-detections/backfill-source", issueDetectionHandler.BackfillSource)
+			protected.GET("/issue-detections/ledger", issueDetectionHandler.Ledger)
+			protected.GET("/issue-detections/by-reservation/:code", issueDetectionHandler.ByReservation)
 			protected.POST("/issue-detections/:id/create-issue", issueDetectionHandler.CreateIssue)
 			protected.POST("/issue-detections/:id/dismiss", issueDetectionHandler.Dismiss)
+			protected.POST("/issue-detections/:id/respond", issueDetectionHandler.Respond)
+			protected.POST("/issue-detections/:id/resolve", issueDetectionHandler.Resolve)
+			protected.GET("/issue-detections/resolved", issueDetectionHandler.ListResolved)
 
 			// CS Agent (민원 대응 AI)
 			protected.POST("/cs-agent/suggest", csAgentHandler.Suggest)
+
+			// 운영 대화 히스토리 (단톡방 DB)
+			protected.GET("/chat-history", chatHistoryHandler.Search)
+			protected.GET("/chat-history/stats", chatHistoryHandler.Stats)
+			protected.GET("/chat-history/property", chatHistoryHandler.PropertyHistory)
+			protected.POST("/chat-history/upload", chatUploadHandler.Upload)
+			protected.POST("/chat-history/upload-text", chatUploadHandler.UploadText)
+
+			// CS 대응 프로세스 지식베이스
+			protected.GET("/cs-knowledge", csKnowledgeHandler.List)
+			protected.GET("/cs-knowledge/match", csKnowledgeHandler.Match)
+			protected.GET("/cs-knowledge/:id", csKnowledgeHandler.Get)
+			protected.POST("/cs-knowledge", csKnowledgeHandler.Create)
+			protected.PUT("/cs-knowledge/:id", csKnowledgeHandler.Update)
 
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)

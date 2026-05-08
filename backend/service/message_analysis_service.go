@@ -25,7 +25,7 @@ type IssueKeyword struct {
 	Keywords []string
 }
 
-var issueKeywords = []IssueKeyword{
+var analysisIssueKeywords = []IssueKeyword{
 	{Category: "시설 고장", Keywords: []string{"고장", "안돼", "안되", "작동", "broken", "not working", "doesn't work", "에어컨", "보일러", "온수", "냉방", "난방", "변기", "수도", "전등", "WiFi", "wifi", "인터넷", "리모컨", "리모콘"}},
 	{Category: "청결 불만", Keywords: []string{"더러", "깨끗", "청소", "먼지", "벌레", "dirty", "clean", "hair", "머리카락", "곰팡이", "냄새", "smell"}},
 	{Category: "소음", Keywords: []string{"소음", "시끄러", "noise", "noisy", "loud", "층간소음"}},
@@ -174,7 +174,7 @@ func (s *MessageAnalysisService) Analyze(period string) (*AnalysisSummary, error
 	propertyIssues := map[string]int{}
 
 	for _, msg := range messages {
-		for _, ik := range issueKeywords {
+		for _, ik := range analysisIssueKeywords {
 			if containsAny(msg.Content, ik.Keywords) {
 				conv := convMap[msg.ConversationID]
 				propName := ""
@@ -383,7 +383,7 @@ func (s *MessageAnalysisService) calcPeriodKPI(end, start time.Time, days int) K
 	issueCount := 0
 	praiseCount := 0
 	for _, msg := range messages {
-		for _, ik := range issueKeywords {
+		for _, ik := range analysisIssueKeywords {
 			if containsAny(msg.Content, ik.Keywords) {
 				if ik.Category == "칭찬" {
 					praiseCount++

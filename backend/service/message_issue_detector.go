@@ -3,6 +3,7 @@ package service
 import (
 	"log"
 	"strings"
+	"time"
 
 	"hiero-workflow/backend/config"
 	"hiero-workflow/backend/models"
@@ -63,7 +64,26 @@ var categoryIssueType = map[string]string{
 	"emergency":   "decision",
 }
 
+// 자동 메시지 패턴 — 호스트가 보낸 자동 안내 메시지
+var autoMessagePatterns = []string{
+	"숙박 일정이 예약되셨습니다",
+	"체크인 정보는 입실 당일",
+	"request to book accepted",
+	"booking confirmed",
+	"reservation confirmed",
+	"체크인 시간",
+	"체크아웃 시간",
+	"안내사항",
+	"이용 안내",
+}
+
+// 에스컬레이션 대상 카테고리 — 실제 민원/하자로 올려야 하는 것
+var escalateCategories = map[string]bool{
+	"boiler": true, "cleaning": true, "emergency": true, "parking": true,
+}
+
 // DetectFromMessage — 단일 메시지에서 이슈 감지
+// HS(자동처리) vs 사람개입 vs 에스컬레이션(민원) 3단 분류
 func (s *IssueDetectorService) DetectFromMessage(msg models.Message, conv models.Conversation) *models.IssueDetection {
 	if msg.SenderType != "guest" {
 		return nil
@@ -74,6 +94,14 @@ func (s *IssueDetectorService) DetectFromMessage(msg models.Message, conv models
 		return nil
 	}
 
+	// 호스트가 이미 응답했는지 확인
+	var hostReplyCount int64
+	config.DB.Model(&models.Message{}).
+		Where("conversation_id = ? AND sender_type = ? AND sent_at > ?",
+			conv.ConversationID, "host", msg.SentAt).
+		Count(&hostReplyCount)
+	hostReplied := hostReplyCount > 0
+
 	for category, keywords := range categoryKeywords {
 		matched := []string{}
 		for _, kw := range keywords {
@@ -82,42 +110,82 @@ func (s *IssueDetectorService) DetectFromMessage(msg models.Message, conv models
 			}
 		}
 
-		if len(matched) >= 1 {
-			// 중복 감지 방지 — 같은 대화+카테고리+pending 있으면 스킵
-			var existing models.IssueDetection
-			if err := config.DB.Where(
-				"conversation_id = ? AND detected_category = ? AND status = ?",
-				conv.ConversationID, category, "pending",
-			).First(&existing).Error; err == nil {
-				continue
-			}
-
-			detection := &models.IssueDetection{
-				ConversationID:   conv.ConversationID,
-				MessageID:        msg.ID,
-				GuestName:        conv.GuestName,
-				PropertyName:     "",
-				DetectedCategory: category,
-				DetectedKeywords: strings.Join(matched, ", "),
-				Severity:         categorySeverity[category],
-				MessageContent:   truncateStr(msg.Content, 500),
-				Status:           "pending",
-			}
-
-			// 숙소 이름 가져오기
-			if conv.InternalPropID != nil {
-				var prop models.Property
-				if err := config.DB.First(&prop, *conv.InternalPropID).Error; err == nil {
-					detection.PropertyName = prop.Name
-				}
-			}
-
-			config.DB.Create(detection)
-			log.Printf("[IssueDetect] 감지: %s (%s) — %s [%s]",
-				conv.GuestName, category, strings.Join(matched, ","), detection.Severity)
-
-			return detection
+		if len(matched) < 1 {
+			continue
 		}
+
+		// 중복 감지 방지 — 같은 대화+카테고리+최근 상태
+		var existing models.IssueDetection
+		if err := config.DB.Where(
+			"conversation_id = ? AND detected_category = ? AND status IN ?",
+			conv.ConversationID, category, []string{"pending", "responding", "resolved"},
+		).First(&existing).Error; err == nil {
+			continue
+		}
+
+		// 숙소 이름
+		propName := ""
+		if conv.InternalPropID != nil {
+			var prop models.Property
+			if err := config.DB.First(&prop, *conv.InternalPropID).Error; err == nil {
+				propName = prop.Name
+			}
+		}
+
+		detection := &models.IssueDetection{
+			ConversationID:   conv.ConversationID,
+			ReservationCode:  conv.ReservationCode,
+			MessageID:        msg.ID,
+			GuestName:        conv.GuestName,
+			PropertyName:     propName,
+			DetectedCategory: category,
+			DetectedKeywords: strings.Join(matched, ", "),
+			Severity:         categorySeverity[category],
+			MessageContent:   truncateStr(msg.Content, 500),
+		}
+
+		now := time.Now()
+
+		if hostReplied {
+			// 호스트가 이미 응답 → HS 자동 처리 완료
+			detection.Status = "resolved"
+			detection.ResolutionSource = "hs"
+			detection.ResolutionType = "guide"
+			detection.ResolutionTeam = "office"
+			detection.ResolvedAt = &now
+			detection.ResolutionNote = "HS 자동 — 호스트 응답 완료"
+		} else if escalateCategories[category] {
+			// 시설/청소/긴급 → 에스컬레이션 (pending + 이슈 자동 생성)
+			detection.Status = "pending"
+			detection.ResolutionSource = "escalated"
+			detection.Severity = categorySeverity[category]
+		} else {
+			// 예약/체크인 문의 → 사람 대응 필요
+			detection.Status = "pending"
+			detection.ResolutionSource = "human"
+		}
+
+		config.DB.Create(detection)
+
+		// 에스컬레이션: 이슈 자동 생성
+		if detection.ResolutionSource == "escalated" && detection.Status == "pending" {
+			issue, err := s.CreateIssueFromDetection(detection.ID)
+			if err == nil {
+				log.Printf("[HS→이슈] 자동 에스컬레이션: %s (%s) → Issue #%d",
+					conv.GuestName, category, issue.ID)
+			}
+		}
+
+		label := "HS"
+		if detection.ResolutionSource == "human" {
+			label = "HUMAN"
+		} else if detection.ResolutionSource == "escalated" {
+			label = "ESCALATED"
+		}
+		log.Printf("[Detect/%s] %s (%s) — %s [%s]",
+			label, conv.GuestName, category, strings.Join(matched, ","), detection.Severity)
+
+		return detection
 	}
 
 	return nil
@@ -184,11 +252,12 @@ func (s *IssueDetectorService) CreateIssueFromDetection(detectionID uint) (*mode
 	}
 
 	issue := models.Issue{
-		Title:        "[고객문의] " + detection.DetectedCategory + ": " + truncateStr(detection.MessageContent, 50),
-		Description:  "게스트: " + detection.GuestName + "\n키워드: " + detection.DetectedKeywords + "\n원문: " + detection.MessageContent,
-		IssueType:    issueType,
-		Priority:     priority,
-		PropertyName: detection.PropertyName,
+		Title:           "[고객문의] " + detection.DetectedCategory + ": " + truncateStr(detection.MessageContent, 50),
+		Description:     "게스트: " + detection.GuestName + "\n키워드: " + detection.DetectedKeywords + "\n원문: " + detection.MessageContent,
+		IssueType:       issueType,
+		Priority:        priority,
+		PropertyName:    detection.PropertyName,
+		ReservationCode: detection.ReservationCode,
 	}
 
 	created, err := s.issueSvc.Create(issue)

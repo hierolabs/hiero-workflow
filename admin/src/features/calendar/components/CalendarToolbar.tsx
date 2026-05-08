@@ -55,14 +55,24 @@ export default function CalendarToolbar({
             className="rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 focus:border-blue-500 focus:outline-none"
           />
         </div>
-        <button
-          type="button"
-          onClick={onSync}
-          disabled={syncing}
-          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {syncing ? "동기화..." : "동기화"}
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://hostex.io/app/calendar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Hostex 캘린더 &nearr;
+          </a>
+          <button
+            type="button"
+            onClick={onSync}
+            disabled={syncing}
+            className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {syncing ? "동기화..." : "동기화"}
+          </button>
+        </div>
       </div>
 
       {/* Row 2 */}

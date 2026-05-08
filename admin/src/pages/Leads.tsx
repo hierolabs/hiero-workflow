@@ -47,23 +47,24 @@ const GRADE_COLORS: Record<string, string> = {
   D: "bg-gray-100 text-gray-800",
 };
 
-type LaunchTab = 'investor' | 'property' | 'platform';
+type LaunchTab4 = 'investor' | 'contract' | 'design' | 'platform';
 
 export default function Leads() {
-  const [tab, setTab] = useState<LaunchTab>('investor');
+  const [tab, setTab] = useState<LaunchTab4>('investor');
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">신규런칭</h1>
-        <p className="mt-1 text-sm text-gray-500">투자자 확보 → 숙소 세팅 → 플랫폼 등록</p>
+        <h1 className="text-2xl font-bold text-gray-900">성장 관리</h1>
+        <p className="mt-1 text-sm text-gray-500">투자자 → 계약 → 공간 디자인 → 플랫폼 등록</p>
       </div>
 
       <div className="mb-4 flex gap-1 border-b border-gray-200">
         {([
-          { key: 'investor' as LaunchTab, label: '투자자', desc: '리드·상담·계약' },
-          { key: 'property' as LaunchTab, label: '숙소', desc: '세팅·촬영·등록' },
-          { key: 'platform' as LaunchTab, label: '플랫폼', desc: '온보딩·URL·최적화' },
+          { key: 'investor' as LaunchTab4, label: '투자자', desc: '리드·상담' },
+          { key: 'contract' as LaunchTab4, label: '계약', desc: '계약·조건·일정' },
+          { key: 'design' as LaunchTab4, label: '공간 디자인', desc: '세팅·촬영·콘텐츠' },
+          { key: 'platform' as LaunchTab4, label: '플랫폼 등록', desc: '온보딩·URL·최적화' },
         ]).map(t => (
           <button
             key={t.key}
@@ -81,7 +82,8 @@ export default function Leads() {
       </div>
 
       {tab === 'investor' && <InvestorTab />}
-      {tab === 'property' && <PropertyTab />}
+      {tab === 'contract' && <ContractTab />}
+      {tab === 'design' && <PropertyTab />}
       {tab === 'platform' && <PlatformTab />}
     </div>
   );
@@ -347,7 +349,156 @@ function CreateLeadModal({
   );
 }
 
-// ===================== 탭 2. 숙소 라이프사이클 =====================
+// ===================== 탭 2. 계약 관리 =====================
+interface ContractProperty {
+  id: number;
+  name: string;
+  code: string;
+  region: string;
+  lifecycle_status: string;
+  contract_type: string;
+  operation_type: string;
+  owner_name: string;
+  monthly_rent: number;
+  management_fee: number;
+  deposit: number;
+  contracted_at: string | null;
+  expected_active_date: string | null;
+  setting_type: string;
+}
+
+const LIFECYCLE_LABEL: Record<string, string> = {
+  lead: '리드', meeting: '미팅', negotiating: '협상중', contracted: '계약완료',
+  setting: '세팅중', filming: '촬영', ota_registering: 'OTA등록', operation_ready: '준비완료',
+  partially_active: '부분운영', fully_distributed: '전체배포', active: '운영중', paused: '일시중단', closed: '종료',
+};
+
+const CONTRACT_TYPE_LABEL: Record<string, string> = {
+  SUBLEASE_CONTRACT: '전대차', PLATFORM_BOOKING: '숙박예약', SERVICE_CONTRACT: '운영관리',
+};
+
+const OPERATION_TYPE_LABEL: Record<string, string> = {
+  MID_TERM_SUBLEASE: '중기전대', LICENSED_AIRBNB: '인허가 에어비앤비', MIXED: '혼합',
+};
+
+function ContractTab() {
+  const [properties, setProperties] = useState<ContractProperty[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pipeline' | 'active'>('pipeline');
+
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetch(`${API_URL}/properties?page=1&page_size=200`, { headers })
+      .then(r => r.json())
+      .then(data => setProperties(data.properties || []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const pipelineStatuses = ['lead','meeting','negotiating','contracted','setting','filming','ota_registering','operation_ready'];
+  const filtered = properties.filter(p => {
+    if (filter === 'pipeline') return pipelineStatuses.includes(p.lifecycle_status);
+    if (filter === 'active') return p.lifecycle_status === 'active';
+    return true;
+  });
+
+  // 파이프라인 단계별 카운트
+  const stageCounts = pipelineStatuses.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = properties.filter(p => p.lifecycle_status === s).length;
+    return acc;
+  }, {});
+
+  if (loading) return <div className="text-center text-gray-400 py-8">로딩 중...</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* 파이프라인 미니 요약 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {pipelineStatuses.map((s, i) => (
+            <div key={s} className="flex items-center gap-1">
+              <div className={`text-center px-3 py-2 rounded-lg min-w-[60px] ${stageCounts[s] > 0 ? 'bg-gray-100 font-bold text-gray-900' : 'bg-gray-50 text-gray-300'}`}>
+                <div className="text-lg">{stageCounts[s]}</div>
+                <div className="text-[10px]">{LIFECYCLE_LABEL[s]}</div>
+              </div>
+              {i < pipelineStatuses.length - 1 && <span className="text-gray-300 text-xs">→</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 필터 */}
+      <div className="flex gap-2">
+        {([
+          { key: 'pipeline' as const, label: '파이프라인 (진행 중)' },
+          { key: 'active' as const, label: '운영 중' },
+          { key: 'all' as const, label: '전체' },
+        ]).map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition ${
+              filter === f.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            {f.label} ({f.key === 'pipeline' ? properties.filter(p => pipelineStatuses.includes(p.lifecycle_status)).length : f.key === 'active' ? properties.filter(p => p.lifecycle_status === 'active').length : properties.length})
+          </button>
+        ))}
+      </div>
+
+      {/* 숙소 계약 리스트 */}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">숙소</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">단계</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">계약유형</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">운영유형</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">임대인</th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">월세</th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">관리비</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">계약일</th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">예상 Active</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filtered.map(p => (
+              <tr key={p.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                  <div className="text-[10px] text-gray-400">{p.code} · {p.region}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    p.lifecycle_status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                    p.lifecycle_status === 'contracted' ? 'bg-indigo-100 text-indigo-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {LIFECYCLE_LABEL[p.lifecycle_status] || p.lifecycle_status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">{CONTRACT_TYPE_LABEL[p.contract_type] || p.contract_type || '-'}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{OPERATION_TYPE_LABEL[p.operation_type] || p.operation_type || '-'}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{p.owner_name || '-'}</td>
+                <td className="px-4 py-3 text-sm text-right text-gray-900">{p.monthly_rent ? `${(p.monthly_rent / 10000).toFixed(0)}만` : '-'}</td>
+                <td className="px-4 py-3 text-sm text-right text-gray-600">{p.management_fee ? `${(p.management_fee / 10000).toFixed(0)}만` : '-'}</td>
+                <td className="px-4 py-3 text-xs text-gray-500">{p.contracted_at ? new Date(p.contracted_at).toLocaleDateString('ko') : '-'}</td>
+                <td className="px-4 py-3 text-xs text-gray-500">{p.expected_active_date ? new Date(p.expected_active_date).toLocaleDateString('ko') : '-'}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">해당 조건의 숙소가 없습니다</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ===================== 탭 3. 공간 디자인 (숙소 라이프사이클) =====================
 const API_URL = import.meta.env.VITE_API_URL;
 
 const LIFECYCLE_STAGES = [
@@ -437,30 +588,85 @@ const PLATFORMS = [
   { key: 'naver', name: '네이버 플레이스', color: 'bg-green-100 text-green-800', url: 'https://new-m.place.naver.com' },
 ];
 
-const ONBOARDING_PHASES = [
-  {
-    phase: 1, label: '물리 세팅', assignee: '현장',
-    items: ['인테리어 완료', '가구/가전 배치', '어메니티/비품 세팅', '사진 촬영 (10장+)', '도어락 설정', '와이파이 설정'],
-  },
-  {
-    phase: 2, label: 'HIERO 등록', assignee: '현장',
-    items: ['숙소 코드 생성', '기본 정보 입력', '소유 구조 설정', '비용 설정', '운영 변수 입력'],
-  },
-  {
-    phase: 3, label: '플랫폼 등록', assignee: '마케팅',
-    items: PLATFORMS.map(p => `${p.name} 등록`),
-  },
-  {
-    phase: 4, label: '리스팅 최적화', assignee: '마케팅',
-    items: ['대표사진 설정', '제목 작성', '설명문 작성', '가격 설정', '최소 숙박일 설정', 'SEO 확인'],
-  },
-  {
-    phase: 5, label: '운영 준비', assignee: '운영',
-    items: ['체크인 안내 메시지', '하우스룰 설정', '청소 스케줄 등록', '첫 예약 수신 확인'],
-  },
-];
+const PHASE_LABELS: Record<number, { label: string; assignee: string }> = {
+  1: { label: '공간 세팅', assignee: '현장' },
+  2: { label: '촬영 + 디지털', assignee: '현장' },
+  3: { label: '콘텐츠', assignee: '마케팅' },
+  4: { label: '플랫폼 등록', assignee: '마케팅' },
+  5: { label: '운영 준비', assignee: '운영' },
+};
+
+interface OnboardingCheck {
+  id: number;
+  property_id: number;
+  phase: number;
+  item: string;
+  is_checked: boolean;
+  checked_by_name: string;
+  checked_at: string | null;
+}
+
+interface SimpleProperty {
+  id: number;
+  name: string;
+  lifecycle_status: string;
+}
 
 function PlatformTab() {
+  const [properties, setProperties] = useState<SimpleProperty[]>([]);
+  const [selectedPropId, setSelectedPropId] = useState<number | null>(null);
+  const [checks, setChecks] = useState<OnboardingCheck[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  // 숙소 목록 (lead~operation_ready만 — 온보딩 대상)
+  useEffect(() => {
+    fetch(`${API_URL}/properties?page=1&page_size=200`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        const all: SimpleProperty[] = (data.properties || []).map((p: Record<string, unknown>) => ({
+          id: p.id as number,
+          name: p.name as string,
+          lifecycle_status: (p.lifecycle_status as string) || 'lead',
+        }));
+        // 온보딩 대상: active 이전 단계
+        const onboardingStatuses = ['lead','meeting','negotiating','contracted','setting','filming','ota_registering','operation_ready','partially_active'];
+        const filtered = all.filter(p => onboardingStatuses.includes(p.lifecycle_status));
+        // active 숙소도 뒤에 표시 (체크 확인용)
+        const active = all.filter(p => !onboardingStatuses.includes(p.lifecycle_status));
+        setProperties([...filtered, ...active]);
+      });
+  }, []);
+
+  // 체크리스트 조회
+  useEffect(() => {
+    if (!selectedPropId) { setChecks([]); return; }
+    setLoading(true);
+    fetch(`${API_URL}/properties/${selectedPropId}/onboarding`, { headers })
+      .then(r => r.json())
+      .then(data => setChecks(data.checks || []))
+      .finally(() => setLoading(false));
+  }, [selectedPropId]);
+
+  // 체크 토글
+  const toggleCheck = async (checkId: number) => {
+    const res = await fetch(`${API_URL}/properties/${selectedPropId}/onboarding/${checkId}`, {
+      method: 'PATCH', headers,
+    });
+    if (res.ok) {
+      const updated: OnboardingCheck = await res.json();
+      setChecks(prev => prev.map(c => c.id === checkId ? updated : c));
+    }
+  };
+
+  // Phase별 그룹핑
+  const phases = checks.reduce<Record<number, OnboardingCheck[]>>((acc, c) => {
+    (acc[c.phase] = acc[c.phase] || []).push(c);
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-6">
       {/* 플랫폼 바로가기 */}
@@ -487,31 +693,98 @@ function PlatformTab() {
 
       {/* 온보딩 체크리스트 */}
       <div>
-        <h2 className="text-sm font-bold text-gray-700 mb-3">신규 숙소 온보딩 체크리스트</h2>
-        <div className="space-y-4">
-          {ONBOARDING_PHASES.map(phase => (
-            <div key={phase.phase} className="bg-white border border-gray-200 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl font-bold text-gray-200">{String(phase.phase).padStart(2, '0')}</span>
-                  <div>
-                    <span className="text-sm font-bold text-gray-900">{phase.label}</span>
-                    <span className="text-xs text-gray-400 ml-2">담당: {phase.assignee}</span>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-700">온보딩 체크리스트</h2>
+          <select
+            value={selectedPropId || ''}
+            onChange={e => setSelectedPropId(e.target.value ? Number(e.target.value) : null)}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm min-w-[200px]"
+          >
+            <option value="">숙소 선택</option>
+            {properties.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.lifecycle_status})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {!selectedPropId && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-400">
+            숙소를 선택하면 온보딩 체크리스트가 표시됩니다
+          </div>
+        )}
+
+        {loading && <div className="text-center text-gray-400 py-8">로딩 중...</div>}
+
+        {selectedPropId && !loading && (
+          <div className="space-y-4">
+            {/* 진행률 */}
+            {checks.length > 0 && (() => {
+              const done = checks.filter(c => c.is_checked).length;
+              const pct = Math.round((done / checks.length) * 100);
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">전체 진행률</span>
+                    <span className="text-sm font-bold text-gray-900">{done}/{checks.length} ({pct}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
-                <span className="text-xs text-gray-400">{phase.items.length}개 항목</span>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {phase.items.map(item => (
-                  <label key={item} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100 transition">
-                    <input type="checkbox" className="rounded border-gray-300" />
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })()}
+
+            {Object.entries(phases).sort(([a],[b]) => Number(a) - Number(b)).map(([phaseNum, items]) => {
+              const p = Number(phaseNum);
+              const meta = PHASE_LABELS[p] || { label: `Phase ${p}`, assignee: '-' };
+              const done = items.filter(c => c.is_checked).length;
+              return (
+                <div key={p} className="bg-white border border-gray-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl font-bold text-gray-200">{String(p).padStart(2, '0')}</span>
+                      <div>
+                        <span className="text-sm font-bold text-gray-900">{meta.label}</span>
+                        <span className="text-xs text-gray-400 ml-2">담당: {meta.assignee}</span>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${done === items.length ? 'bg-emerald-100 text-emerald-700' : 'text-gray-400'}`}>
+                      {done}/{items.length}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {items.map(check => (
+                      <label
+                        key={check.id}
+                        onClick={() => toggleCheck(check.id)}
+                        className={`flex items-center justify-between text-sm rounded-lg px-3 py-2 cursor-pointer transition ${
+                          check.is_checked ? 'bg-emerald-50 text-emerald-800' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={check.is_checked}
+                            readOnly
+                            className="rounded border-gray-300"
+                          />
+                          <span className={check.is_checked ? 'line-through opacity-60' : ''}>{check.item}</span>
+                        </div>
+                        {check.is_checked && check.checked_by_name && (
+                          <span className="text-[10px] text-gray-400 ml-2 whitespace-nowrap">
+                            {check.checked_by_name} · {check.checked_at ? new Date(check.checked_at).toLocaleDateString('ko') : ''}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

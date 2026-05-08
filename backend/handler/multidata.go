@@ -256,5 +256,19 @@ func (h *MultidataHandler) Overview(c *gin.Context) {
 		},
 	})
 
+	// 16. 운영 대화 히스토리
+	var chatWork, chatClean int64
+	config.DB.Model(&models.ChatHistory{}).Where("room = ?", "work").Count(&chatWork)
+	config.DB.Model(&models.ChatHistory{}).Where("room = ?", "cleaning").Count(&chatClean)
+	folders = append(folders, DataFolder{
+		Key: "chat_history", Label: "운영 대화", Desc: "단톡방 원본 — 업무지시+청소배정",
+		Total: chatWork + chatClean,
+		Metrics: []DataMetric{
+			{Label: "일하는 방", Value: chatWork, Unit: "건"},
+			{Label: "청소 방", Value: chatClean, Unit: "건"},
+			{Label: "기간", Value: "2024.08~2026.05", Unit: ""},
+		},
+	})
+
 	c.JSON(http.StatusOK, gin.H{"folders": folders})
 }

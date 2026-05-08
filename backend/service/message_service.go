@@ -43,15 +43,39 @@ func (s *MessageService) SyncConversationsWithMessages() (int, int, error) {
 		return 0, 0, err
 	}
 
-	// 메시지 preview가 비어있는 대화만 우선 동기화
+	// 1순위: preview 없는 대화
 	var emptyConvs []models.Conversation
 	config.DB.Where("last_message_preview = '' OR last_message_preview IS NULL").
 		Order("last_message_at DESC").
 		Limit(50).
 		Find(&emptyConvs)
 
+	// 2순위: 최근 24시간 내 메시지가 있는 대화 (새 메시지 확인)
+	cutoff := time.Now().Add(-24 * time.Hour)
+	var recentConvs []models.Conversation
+	config.DB.Where("last_message_at > ? AND (last_message_preview != '' AND last_message_preview IS NOT NULL)", cutoff).
+		Order("last_message_at DESC").
+		Limit(30).
+		Find(&recentConvs)
+
+	// 중복 제거
+	seen := map[string]bool{}
+	var toSync []models.Conversation
+	for _, c := range emptyConvs {
+		if !seen[c.ConversationID] {
+			seen[c.ConversationID] = true
+			toSync = append(toSync, c)
+		}
+	}
+	for _, c := range recentConvs {
+		if !seen[c.ConversationID] {
+			seen[c.ConversationID] = true
+			toSync = append(toSync, c)
+		}
+	}
+
 	msgCount := 0
-	for _, conv := range emptyConvs {
+	for _, conv := range toSync {
 		count, err := s.SyncConversationMessages(conv.ConversationID)
 		if err != nil {
 			log.Printf("[MessageSync] 메시지 동기화 실패 (%s): %s", conv.ConversationID, err)
@@ -60,7 +84,8 @@ func (s *MessageService) SyncConversationsWithMessages() (int, int, error) {
 		msgCount += count
 	}
 
-	log.Printf("[MessageSync] 대화 %d건, 빈 preview %d건 메시지 동기화, 새 메시지 %d건", convCount, len(emptyConvs), msgCount)
+	log.Printf("[MessageSync] 대화 %d건, 동기화 대상 %d건 (빈 %d + 최근 %d), 새 메시지 %d건",
+		convCount, len(toSync), len(emptyConvs), len(recentConvs), msgCount)
 	return convCount, msgCount, nil
 }
 
@@ -281,6 +306,18 @@ func (s *MessageService) HandleIncomingMessage(reservationCode string) {
 		config.DB.Model(&models.Conversation{}).
 			Where("conversation_id = ?", conversationID).
 			Update("unread_count", conv.UnreadCount+newCount)
+
+		// 새 게스트 메시지 자동 감지
+		detector := NewIssueDetectorService()
+		var recentMsgs []models.Message
+		config.DB.Where("conversation_id = ? AND sender_type = ?", conversationID, "guest").
+			Order("sent_at DESC").Limit(newCount).Find(&recentMsgs)
+		for _, msg := range recentMsgs {
+			if d := detector.DetectFromMessage(msg, conv); d != nil {
+				log.Printf("[Webhook→Detect] 자동 감지: %s (%s) — %s",
+					conv.GuestName, d.DetectedCategory, d.Severity)
+			}
+		}
 	}
 
 	log.Printf("[Message] 새 메시지 %d건 동기화: %s (reservation: %s)", newCount, conversationID, reservationCode)
