@@ -430,16 +430,63 @@ export default function KnowledgeBase() {
       {/* ── Right: Activity Log Sidebar ── */}
       {selected && (
         <div className="w-56 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-3">
-          {/* 한 줄 요약 (항상 보임) */}
+
+          {/* 아카이빙 단계 (항상 보임 — 이 글이 어디까지 왔는지) */}
+          <div className="mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">아카이빙 단계</p>
+            {(() => {
+              const hasContent = (selected.word_count || 0) > 0;
+              const isDraft = selected.status === "draft";
+              const isReview = selected.status === "review";
+              const isPublished = selected.status === "published";
+              const hasRevisions = revisions.length > 1;
+              const steps = [
+                { label: "초안 작성", done: hasContent, desc: "첫 내용 입력" },
+                { label: "검토/보완", done: hasRevisions || isReview || isPublished, desc: "수정 1회+" },
+                { label: "발행 완료", done: isPublished, desc: "위키 확정" },
+                { label: "블로그 변환", done: false, desc: "외부 발행" },
+                { label: "백서/강의", done: false, desc: "콘텐츠 확장" },
+              ];
+              return (
+                <div className="space-y-1">
+                  {steps.map((step, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <div className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                        step.done
+                          ? "border-green-500 bg-green-500"
+                          : i === steps.findIndex(s => !s.done)
+                            ? "border-amber-400 bg-amber-50"
+                            : "border-gray-200 bg-white"
+                      }`}>
+                        {step.done && <svg className="h-2 w-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        {!step.done && i === steps.findIndex(s => !s.done) && <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
+                      </div>
+                      <div>
+                        <p className={`text-[11px] leading-tight ${step.done ? "font-semibold text-green-700" : i === steps.findIndex(s => !s.done) ? "font-semibold text-amber-700" : "text-gray-300"}`}>
+                          {step.label}
+                        </p>
+                        <p className="text-[9px] text-gray-400">{step.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 작성자 한 줄 */}
           <div className="mb-3 text-[11px] text-gray-500">
             <span className="font-semibold text-gray-700">{selected.author_name || "-"}</span>
             {" · "}{selected.word_count.toLocaleString()}자{" · "}수정 {revisions.length}회
           </div>
 
-          {/* 수정 이력 타임라인 (항상 보임 — 핵심) */}
-          <div>
+          {/* 수정 이력 타임라인 */}
+          <details className="group" open>
+            <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600 mb-2">
+              수정 이력 {revisions.length > 0 && `(${revisions.length})`}
+            </summary>
             {revisions.length === 0 ? (
-              <p className="text-[11px] text-gray-300 italic">수정 이력 없음</p>
+              <p className="text-[11px] text-gray-300 italic pl-1">아직 수정 이력 없음</p>
             ) : (
               <div className="relative">
                 <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gray-200" />
@@ -467,9 +514,9 @@ export default function KnowledgeBase() {
                 </div>
               </div>
             )}
-          </div>
+          </details>
 
-          {/* 드릴다운: 상세 정보 (접기/펼치기) */}
+          {/* 드릴다운: 상세 정보 */}
           <details className="mt-4 group">
             <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600">
               상세 정보
