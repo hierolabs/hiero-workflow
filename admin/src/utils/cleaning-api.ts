@@ -214,8 +214,11 @@ export async function fetchCleaningTasks(params: Record<string, string>): Promis
   return res.json();
 }
 
-export async function fetchCleaningSummary(date: string): Promise<CleaningSummary> {
-  const res = await apiRequest(`/cleaning/summary?date=${date}`);
+export async function fetchCleaningSummary(dateOrStart: string, endDate?: string): Promise<CleaningSummary> {
+  const qs = endDate
+    ? `start_date=${dateOrStart}&end_date=${endDate}`
+    : `date=${dateOrStart}`;
+  const res = await apiRequest(`/cleaning/summary?${qs}`);
   if (!res.ok) throw new Error("요약 조회 실패");
   return res.json();
 }

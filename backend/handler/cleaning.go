@@ -46,8 +46,15 @@ func (h *CleaningHandler) ListTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetSummary — 날짜별 청소 요약
+// GetSummary — 날짜별/기간별 청소 요약
 func (h *CleaningHandler) GetSummary(c *gin.Context) {
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	if startDate != "" && endDate != "" {
+		summary := h.svc.GetSummaryRange(startDate, endDate)
+		c.JSON(http.StatusOK, summary)
+		return
+	}
 	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
 	summary := h.svc.GetSummary(date)
 	c.JSON(http.StatusOK, summary)
@@ -241,6 +248,31 @@ func (h *CleaningHandler) DeleteCleaner(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "삭제 완료"})
+}
+
+// --- 동선 분석 ---
+
+func (h *CleaningHandler) TimeAnalysis(c *gin.Context) {
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	cleanerIDStr := c.Query("cleaner_id")
+
+	if startDate == "" {
+		startDate = time.Now().Format("2006-01-02")
+	}
+	if endDate == "" {
+		endDate = startDate
+	}
+
+	var cleanerID uint
+	if cleanerIDStr != "" {
+		if v, err := strconv.ParseUint(cleanerIDStr, 10, 64); err == nil {
+			cleanerID = uint(v)
+		}
+	}
+
+	result := h.svc.TimeAnalysis(startDate, endDate, cleanerID)
+	c.JSON(http.StatusOK, result)
 }
 
 // --- 청소코드 ---

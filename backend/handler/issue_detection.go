@@ -23,7 +23,9 @@ func NewIssueDetectionHandler() *IssueDetectionHandler {
 // GET /admin/issue-detections — 감지 목록 (status, date 필터)
 func (h *IssueDetectionHandler) ListPending(c *gin.Context) {
 	status := c.Query("status")
-	date := c.Query("date") // YYYY-MM-DD, 없으면 전체
+	date := c.Query("date")   // 단일 날짜
+	start := c.Query("start") // 범위 시작
+	end := c.Query("end")     // 범위 끝
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "500"))
 	if limit <= 0 || limit > 1000 {
 		limit = 500
@@ -33,7 +35,9 @@ func (h *IssueDetectionHandler) ListPending(c *gin.Context) {
 	query := config.DB.Model(&models.IssueDetection{})
 
 	// 날짜 필터
-	if date != "" {
+	if start != "" && end != "" {
+		query = query.Where("DATE(created_at) >= ? AND DATE(created_at) <= ?", start, end)
+	} else if date != "" {
 		query = query.Where("DATE(created_at) = ?", date)
 	}
 

@@ -117,7 +117,7 @@ export default function Messages() {
   const [newRequestType, setNewRequestType] = useState("special_request");
   const [newRequestNote, setNewRequestNote] = useState("");
   const [showManual, setShowManual] = useState(false);
-  const [rightTab, setRightTab] = useState<'detect' | 'requests' | 'ai' | 'issue' | 'stats' | 'ledger'>('detect');
+  const [rightTab, setRightTab] = useState<'detect' | 'requests' | 'issue' | 'ledger'>('detect');
   const [ledger, setLedger] = useState<{ days: any[]; summary: any } | null>(null);
   const [reservationView, setReservationView] = useState<any>(null);
   const [rvLoading, setRvLoading] = useState(false);
@@ -134,7 +134,9 @@ export default function Messages() {
 
   // 전체 감지 목록 로드
   async function loadAllDetections() {
-    const res = await api.get('/issue-detections');
+    // 전체 상태 (pending+resolved+dismissed) 로드 — 이모지/아이콘에 필요
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await api.get(`/issue-detections?status=all&start=${today}&end=${today}&limit=500`);
     setAllDetections(res.data?.detections || []);
   }
 
@@ -146,7 +148,7 @@ export default function Messages() {
   useEffect(() => { loadLedger(); }, []);
 
   // 감지 이력 로드 (날짜+상태)
-  async function loadDetHistory() {
+  async function loadDetHistory(period?: string) {
     const dateParam = detDateFilter ? `&date=${detDateFilter}` : '';
     const res = await api.get(`/issue-detections?status=${detStatusFilter}&limit=500${dateParam}`);
     setDetHistory(res.data?.detections || []);
@@ -269,6 +271,8 @@ export default function Messages() {
 
   // 메시지 + 감지 통계
   const [statPeriod, setStatPeriod] = useState('today');
+  const [customStart, setCustomStart] = useState(new Date().toISOString().slice(0, 10));
+  const [customEnd, setCustomEnd] = useState(new Date().toISOString().slice(0, 10));
   const [msgStats, setMsgStats] = useState<{ total: number; guest: number; host: number; convs: number } | null>(null);
   const [detStats, setDetStats] = useState<{
     total: number;
@@ -289,8 +293,10 @@ export default function Messages() {
       case 'this_month': return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
       case 'last_month': { const s = new Date(y, m - 1, 1); const e = new Date(y, m, 0); return [fmt(s), fmt(e)]; }
       case 'this_quarter': { const qm = Math.floor(m / 3) * 3; return [`${y}-${String(qm + 1).padStart(2, '0')}-01`, fmt(now)]; }
+      case 'last_quarter': { const qm = Math.floor(m / 3) * 3 - 3; const qy = qm < 0 ? y - 1 : y; const qms = qm < 0 ? qm + 12 : qm; const qe = new Date(qy, qms + 3, 0); return [`${qy}-${String(qms + 1).padStart(2, '0')}-01`, fmt(qe)]; }
       case 'this_year': return [`${y}-01-01`, fmt(now)];
       case 'last_year': return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+      case 'custom': return [customStart, customEnd];
       case '': return ['2020-01-01', fmt(now)]; // 전체
       default: return [fmt(now), fmt(now)];
     }
@@ -313,12 +319,14 @@ export default function Messages() {
     { value: 'today', label: '오늘' },
     { value: 'yesterday', label: '어제' },
     { value: 'this_week', label: '이번 주' },
-    { value: 'last_week', label: '저번 주' },
+    { value: 'last_week', label: '지난 주' },
     { value: 'this_month', label: '이번 달' },
-    { value: 'last_month', label: '저번 달' },
+    { value: 'last_month', label: '지난 달' },
     { value: 'this_quarter', label: '이번 분기' },
+    { value: 'last_quarter', label: '지난 분기' },
     { value: 'this_year', label: '올해' },
     { value: 'last_year', label: '작년' },
+    { value: 'custom', label: '기간설정' },
   ];
 
   return (
@@ -331,6 +339,7 @@ export default function Messages() {
             {PERIOD_OPTIONS.map(p => (
               <button key={p.value} onClick={() => {
                 setStatPeriod(p.value);
+                setFilter('all'); // 대화 필터 리셋
                 // 오른쪽 감지탭 날짜도 동일 기간으로 연동
                 const [s] = getPeriodDates(p.value);
                 setDetDateFilter(s);
@@ -339,6 +348,15 @@ export default function Messages() {
                 {p.label}
               </button>
             ))}
+            {statPeriod === 'custom' && (
+              <div className="flex items-center gap-1 ml-1">
+                <input type="date" value={customStart} onChange={e => { setCustomStart(e.target.value); setDetDateFilter(e.target.value); }}
+                  className="text-xs border border-gray-300 rounded px-1.5 py-0.5" />
+                <span className="text-gray-400">~</span>
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                  className="text-xs border border-gray-300 rounded px-1.5 py-0.5" />
+              </div>
+            )}
           </div>
           {msgStats && (
             <div className="flex gap-2.5 text-xs pl-3 border-l border-gray-200">
@@ -427,14 +445,13 @@ export default function Messages() {
               return d >= pS && d <= pE;
             });
             return ([
-              { key: 'all' as const, label: '전체', color: 'text-gray-700' },
               { key: 'today' as const, label: '오늘', color: 'text-gray-700' },
               { key: 'yesterday' as const, label: '어제', color: 'text-gray-500' },
               { key: 'urgent' as const, label: '감지', color: 'text-red-600' },
               { key: 'checkin' as const, label: '체크인중', color: 'text-blue-600' },
               { key: 'all' as const, label: '전체', color: 'text-gray-500' },
             ]).map(f => {
-              const src = typeof inPeriod !== 'undefined' ? inPeriod : conversations;
+              const src = inPeriod;
               const count = f.key === 'urgent'
                 ? src.filter((c: any) => c.detection_count > 0).length
                 : f.key === 'today'
@@ -484,13 +501,7 @@ export default function Messages() {
                 } ${conv.max_severity === 'critical' ? 'border-l-2 border-l-red-500' : conv.max_severity === 'high' ? 'border-l-2 border-l-orange-400' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    {/* 투숙 상태 뱃지 */}
-                    {conv.stay_status === 'checking_in' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
-                    {conv.stay_status === 'in_house' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
                     <span className="font-semibold text-sm text-gray-900 truncate">{conv.guest_name || "게스트"}</span>
-                    {conv.guest_type === 'inquiry' && <span className="text-[10px] px-1 py-px rounded bg-purple-100 text-purple-600 flex-shrink-0">문의</span>}
-                    {conv.guest_type === 'cancelled' && <span className="text-[10px] px-1 py-px rounded bg-gray-200 text-gray-500 flex-shrink-0 line-through">취소</span>}
-                    {conv.guest_type === 'upcoming' && <span className="text-[10px] px-1 py-px rounded bg-sky-100 text-sky-600 flex-shrink-0">예정</span>}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {conv.unread_count > 0 && (
@@ -499,6 +510,62 @@ export default function Messages() {
                     <span className="text-xs text-gray-400">{formatTime(conv.last_message_at)}</span>
                   </div>
                 </div>
+                {/* 상태 이모지 줄 (시간 아래) */}
+                {(() => {
+                  const dets = allDetections.filter(d => d.conversation_id === conv.conversation_id);
+                  const pending = dets.filter(d => d.status === 'pending' || d.status === 'responding');
+                  const resolved = dets.filter(d => d.status === 'resolved');
+                  const lp = (conv.last_message_preview || '').toLowerCase();
+                  const neg = ['안됩니다','안돼','안나와','없어요','ㅜㅜ','ㅠㅠ','안 켜','안켜'].some(k => lp.includes(k));
+
+                  // 상태 이모지 — 감지가 없으면 표시 안 함
+                  let emoji = '';
+                  if (dets.length === 0) {
+                    emoji = ''; // 감지 없음 = 이모지 없음
+                  } else if (pending.length > 0 && neg) {
+                    emoji = '🔴'; // 미해결 + 부정
+                  } else if (pending.length > 0) {
+                    emoji = '🟠'; // 대응 중
+                  } else if (resolved.length > 0 && resolved.length === dets.length) {
+                    emoji = '🟢'; // 전부 해결
+                  } else if (resolved.length > 0) {
+                    emoji = '🟡'; // 일부 해결
+                  } else {
+                    emoji = '';
+                  }
+
+                  // 문제 아이콘 — 감지된 게스트 메시지 내용만 (호스트 안내 메시지 제외)
+                  const cats = new Set(dets.map(d => d.detected_category));
+                  const icons: string[] = [];
+                  if (cats.has('boiler')) icons.push('🔥');
+                  if (cats.has('parking')) icons.push('🚗');
+                  if (cats.has('cleaning')) icons.push('🧹');
+                  if (cats.has('emergency')) icons.push('🚨');
+
+                  // 게스트가 제기한 문제 키워드만 (감지된 메시지 내용 기준)
+                  const guestContent = dets.map(d => (d.message_content || '').toLowerCase()).join(' ');
+                  if (guestContent.includes('빔') || guestContent.includes('프로젝터')) icons.push('📽️');
+                  if (guestContent.includes('tv') || guestContent.includes('티비') || guestContent.includes('리모컨') || guestContent.includes('넷플릭스')) icons.push('📺');
+                  if (guestContent.includes('와이파이') || guestContent.includes('wifi')) icons.push('📶');
+                  if (guestContent.includes('카드키') || guestContent.includes('도어락') || guestContent.includes('열쇠')) icons.push('🗝️');
+                  if (guestContent.includes('비밀번호') || guestContent.includes('비번')) icons.push('🔐');
+                  if (guestContent.includes('세탁') || guestContent.includes('세탁기')) icons.push('👕');
+                  if (guestContent.includes('주차')) icons.push('🚗');
+                  if (cats.has('checkin') && !icons.includes('🗝️') && !icons.includes('🔐')) icons.push('🔑');
+                  if (cats.has('reservation')) icons.push('💰');
+
+                  // 중복 제거
+                  const uniqueIcons = [...new Set(icons)];
+
+                  if (!emoji && uniqueIcons.length === 0) return null;
+                  const allResolved = dets.length > 0 && pending.length === 0;
+                  return (
+                    <div className={`flex items-center justify-end gap-0.5 mt-0.5 ${allResolved ? 'opacity-40 grayscale' : ''}`}>
+                      {uniqueIcons.map((ic, i) => <span key={i} className="text-sm">{ic}</span>)}
+                      {emoji && <span className="text-sm">{emoji}</span>}
+                    </div>
+                  );
+                })()}
                 {/* 숙소/체크인 */}
                 {conv.property_name && (
                   <div className="text-xs text-gray-400 mt-0.5 truncate">
@@ -673,6 +740,135 @@ export default function Messages() {
               )}
             </div>
 
+            {/* 게스트 문제 요약 */}
+            {selected && messages.length > 0 && (() => {
+              // 게스트 메시지에서 문제 흐름 추출
+              const guestMsgs = messages.filter(m => m.sender_type === 'guest');
+              const lastMsg = messages[messages.length - 1];
+              const isGuestWaiting = lastMsg?.sender_type === 'guest';
+
+              // 문제 키워드 감지
+              const issueKeywords: Record<string, string[]> = {
+                '시설': ['빔', '프로젝터', 'TV', '티비', '리모컨', '세탁기', '에어컨', '보일러', '온수', '와이파이', 'wifi', '고장', '안 켜', '안됩니다', '작동'],
+                '출입': ['비밀번호', '카드키', '도어락', '열리지', '잠겨', '출입', '현관'],
+                '청소': ['더러', '냄새', '머리카락', '수건', '침구', '청소'],
+                '주차': ['주차', '출차', '차량'],
+              };
+              const issues: {category: string; msg: string; time: string; idx: number}[] = [];
+              guestMsgs.forEach((m, i) => {
+                const lower = m.content.toLowerCase();
+                for (const [cat, kws] of Object.entries(issueKeywords)) {
+                  if (kws.some(kw => lower.includes(kw))) {
+                    issues.push({ category: cat, msg: m.content.slice(0, 60), time: m.sent_at, idx: i });
+                    break;
+                  }
+                }
+              });
+
+              if (issues.length === 0) return null;
+
+              // 해결 여부 판별
+              const lastIssue = issues[issues.length - 1];
+              const lastIssueTime = lastIssue?.time || '';
+              const guestAfterIssue = guestMsgs.filter(m => m.sent_at > lastIssueTime);
+              const lastGuestMsg = guestAfterIssue[guestAfterIssue.length - 1];
+
+              // 미해결: 게스트가 부정적 키워드로 끝남
+              const unresolvedKw = ['안됩니다', '안돼', '안 돼', '안되', '안나와', '없습니다', '없어요', '모르겠', 'ㅜㅜ', 'ㅠㅠ', '안 켜', '안켜'];
+              // 해결: 게스트가 감사/긍정으로 끝남
+              const resolvedKw = ['감사', '고마', '됐어', '됐습', '해결', '괜찮', '네 ㄱ', '넵', '알겠', '좋아요', '!!'];
+
+              const stillUnresolved = lastGuestMsg && unresolvedKw.some(kw => lastGuestMsg.content.includes(kw));
+              const isResolved = lastGuestMsg && resolvedKw.some(kw => lastGuestMsg.content.includes(kw));
+
+              // 이슈 카테고리 통합 (같은 카테고리 묶기)
+              const mainCategory = issues[0]?.category || '';
+              const totalTime = issues.length > 1
+                ? Math.round((new Date(issues[issues.length-1].time).getTime() - new Date(issues[0].time).getTime()) / 60000)
+                : 0;
+
+              return (
+                <div className={`border-b px-4 py-2.5 flex-shrink-0 ${
+                  stillUnresolved ? 'bg-red-50 border-red-200' :
+                  isGuestWaiting ? 'bg-amber-50 border-amber-200' :
+                  isResolved ? 'bg-emerald-50 border-emerald-200' :
+                  'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-800">게스트 문제 요약</span>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        mainCategory === '시설' ? 'bg-orange-100 text-orange-700' :
+                        mainCategory === '출입' ? 'bg-blue-100 text-blue-700' :
+                        mainCategory === '청소' ? 'bg-cyan-100 text-cyan-700' :
+                        'bg-purple-100 text-purple-700'
+                      }`}>{mainCategory}</span>
+                      <span className="text-xs text-gray-500">{issues.length}회 문의</span>
+                    </div>
+                    {stillUnresolved && <span className="text-xs font-bold text-red-600 animate-pulse">미해결 — 게스트 대기 중</span>}
+                    {!stillUnresolved && isGuestWaiting && <span className="text-xs font-medium text-amber-600">게스트 응답 대기</span>}
+                    {isResolved && !stillUnresolved && (
+                      <span className="text-xs font-bold text-emerald-600">
+                        ✓ {totalTime > 0 ? `${totalTime < 60 ? `${totalTime}분` : `${Math.floor(totalTime/60)}시간 ${totalTime%60}분`} 만에 해결` : '해결'}
+                      </span>
+                    )}
+                  </div>
+                  {issues.map((iss, i) => {
+                    const sinceFirst = Math.round((new Date(iss.time).getTime() - new Date(issues[0].time).getTime()) / 60000);
+                    const sinceNow = Math.round((Date.now() - new Date(iss.time).getTime()) / 60000);
+                    const isLast = i === issues.length - 1;
+                    const fmtMin = (m: number) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간${m%60 ? ` ${m%60}분` : ''}`;
+                    return (
+                      <div key={i} className={`flex items-center gap-2 mb-1 ${isLast && stillUnresolved ? 'py-1' : ''}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                          isLast && stillUnresolved ? 'bg-red-500 text-white' :
+                          isLast ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {i + 1}차
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${
+                          iss.category === '시설' ? 'bg-orange-100 text-orange-700' :
+                          iss.category === '출입' ? 'bg-blue-100 text-blue-700' :
+                          iss.category === '청소' ? 'bg-cyan-100 text-cyan-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>{iss.category}</span>
+                        <span className="text-xs text-gray-700 flex-1">{iss.msg}</span>
+                        <span className="text-xs text-gray-400 whitespace-nowrap">
+                          {new Date(iss.time).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}
+                        </span>
+                        {i > 0 && (
+                          <span className={`text-xs font-medium whitespace-nowrap ${sinceFirst > 60 ? 'text-red-600' : sinceFirst > 30 ? 'text-amber-600' : 'text-gray-500'}`}>
+                            +{fmtMin(sinceFirst)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {/* 전체 경과 시간 바 */}
+                  {issues.length > 0 && (
+                    <div className={`mt-2 rounded-lg p-2 ${stillUnresolved ? 'bg-red-100' : isGuestWaiting ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${stillUnresolved ? 'text-red-700' : 'text-gray-700'}`}>
+                            1차 문제제기부터 {(() => { const t = Math.round((Date.now() - new Date(issues[0].time).getTime()) / 60000); return t < 60 ? `${t}분` : `${Math.floor(t/60)}시간 ${t%60}분`; })()} 경과
+                          </span>
+                          {issues.length > 1 && (
+                            <span className="text-xs text-gray-500">({issues.length}회 제기)</span>
+                          )}
+                        </div>
+                        {stillUnresolved && (
+                          <span className="text-xs font-bold text-red-600 animate-pulse">즉시 대응 필요</span>
+                        )}
+                      </div>
+                      {stillUnresolved && lastGuestAfter && (
+                        <div className="text-xs text-red-700 mt-1">마지막: "{lastGuestAfter.content.slice(0, 40)}"</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* 메시지 목록 */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {messages.map((msg) => {
@@ -771,6 +967,60 @@ export default function Messages() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* 응대 가이드 — 게스트 마지막 메시지가 문의일 때 자동 표시 */}
+            {(() => {
+              const lastGuest = [...messages].reverse().find(m => m.sender_type === 'guest');
+              const lastMsg = messages[messages.length - 1];
+              if (!lastGuest || lastMsg?.sender_type === 'host') return null; // 호스트가 마지막이면 안 보임
+
+              const gc = lastGuest.content.toLowerCase();
+              const guides: {emoji: string; title: string; tip: string; reply: string}[] = [];
+
+              if (gc.includes('비밀번호') || gc.includes('비번') || gc.includes('도어락'))
+                guides.push({emoji:'🔐', title:'비밀번호/도어락', tip:'안내문 재전송, 공동현관·객실 구분 확인', reply:'안내드린 비밀번호를 다시 확인해 주세요. 공동현관과 객실 비밀번호가 다를 수 있습니다.'});
+              if (gc.includes('카드키') || gc.includes('열쇠'))
+                guides.push({emoji:'🗝️', title:'카드키', tip:'소화기함 위치, 경비실 호출 안내', reply:'1층 공동현관 소화기함에 카드키가 비치되어 있습니다. 없으시면 경비실에 문의해 주세요.'});
+              if (gc.includes('주차') || gc.includes('차량'))
+                guides.push({emoji:'🚗', title:'주차', tip:'차량번호 확인 → 등록 처리, 기계식 제한 안내', reply:'차량번호를 알려주시면 주차 등록 도와드리겠습니다.'});
+              if (gc.includes('와이파이') || gc.includes('wifi') || gc.includes('인터넷'))
+                guides.push({emoji:'📶', title:'와이파이', tip:'SSID+비밀번호 재안내, 5G/2.4G 구분', reply:'와이파이 정보를 다시 안내드립니다.'});
+              if (gc.includes('온수') || gc.includes('보일러') || gc.includes('난방'))
+                guides.push({emoji:'🔥', title:'보일러/온수', tip:'전원·온수모드 확인 요청, 에러코드 사진 요청', reply:'보일러 전원이 켜져 있는지, 온수 모드가 설정되어 있는지 확인해 주세요. 에러코드가 보이시면 사진 부탁드립니다.'});
+              if (gc.includes('빔') || gc.includes('프로젝터'))
+                guides.push({emoji:'📽️', title:'빔프로젝터', tip:'전원·리모컨·HDMI 입력 확인, 비밀번호 0000 시도', reply:'리모컨으로 전원을 켜시고, 외부입력을 HDMI로 변경해 보세요.'});
+              if (gc.includes('tv') || gc.includes('티비') || gc.includes('리모컨') || gc.includes('넷플릭스'))
+                guides.push({emoji:'📺', title:'TV/OTT', tip:'셋탑박스 전원 확인, 외부입력 변경, 리모컨 건전지', reply:'셋탑박스가 켜져 있는 상태에서 외부입력을 HDMI로 변경해 보세요.'});
+              if (gc.includes('청소') || gc.includes('더러') || gc.includes('냄새') || gc.includes('머리카락'))
+                guides.push({emoji:'🧹', title:'청소/위생', tip:'사진 요청 → 즉시 재청소 또는 부분 환불 검토', reply:'불편을 드려 죄송합니다. 불편한 부분을 사진으로 보내주시면 바로 조치하겠습니다.'});
+              if (gc.includes('환불') || gc.includes('취소'))
+                guides.push({emoji:'💸', title:'환불/취소', tip:'예약 채널 정책 우선, 취소 사유 확인', reply:'취소 및 환불은 예약 채널의 정책을 기준으로 안내드립니다. 취소 사유를 알려주시면 확인해 드리겠습니다.'});
+              if (gc.includes('연장') || gc.includes('레이트'))
+                guides.push({emoji:'⏰', title:'연장/레이트', tip:'다음 예약 확인 → 가능 여부 답변, 추가비 안내', reply:'다음 예약을 확인하고 가능 여부를 안내드리겠습니다.'});
+              if (gc.includes('체크인') || gc.includes('입실') || gc.includes('도착'))
+                guides.push({emoji:'🔑', title:'체크인', tip:'안내문 재전송, 얼리체크인은 청소 완료 후 가능', reply:'체크인 안내문을 다시 보내드리겠습니다.'});
+
+              if (guides.length === 0) return null;
+
+              return (
+                <div className="px-4 py-2 bg-indigo-50 border-t border-indigo-200 flex-shrink-0">
+                  <div className="text-[10px] font-bold text-indigo-700 mb-1">응대 가이드</div>
+                  {guides.map((g, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-1.5">
+                      <span className="text-sm">{g.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-800">{g.title}</div>
+                        <div className="text-[10px] text-gray-500">{g.tip}</div>
+                      </div>
+                      <button
+                        onClick={() => setInput(g.reply)}
+                        className="flex-shrink-0 px-2 py-0.5 text-[10px] bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                      >사용</button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* 입력창 */}
             <div className="px-4 py-3 bg-white border-t border-gray-200">
               <div className="flex gap-2">
@@ -799,14 +1049,12 @@ export default function Messages() {
       <div className="w-[480px] border-l border-gray-200 bg-white flex flex-col">
         <div className="flex items-center justify-end px-2 py-1 border-b border-gray-100">
           <button onClick={() => setShowManual(true)}
-            className="text-xs px-2 py-1 rounded text-gray-400 hover:bg-gray-100">가이드</button>
+            className="text-xs px-2 py-1 rounded text-gray-400 hover:bg-gray-100">히로가이드</button>
         </div>
         <div className="flex border-b border-gray-200">
           {[
             { key: 'detect' as const, label: '감지' },
             { key: 'ledger' as const, label: '대장' },
-            { key: 'stats' as const, label: '통합뷰' },
-            { key: 'ai' as const, label: 'AI' },
           ].map(t => (
             <button key={t.key} onClick={() => setRightTab(t.key)}
               className={`flex-1 py-2.5 text-xs font-medium ${rightTab === t.key ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`}>
@@ -819,110 +1067,201 @@ export default function Messages() {
           {/* 감지 탭 — DB 이력 테이블 (기본: 오늘) */}
           {rightTab === 'detect' && (
             <div className="flex flex-col h-full">
-              {/* 날짜 + 상태 필터 */}
-              <div className="p-2 border-b border-gray-100 space-y-1.5 flex-shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <input type="date" value={detDateFilter}
-                    onChange={e => { setDetDateFilter(e.target.value); setStatPeriod(''); }}
-                    className="text-xs border border-gray-200 rounded px-1.5 py-0.5 w-[110px]" />
-                  <button onClick={() => { setDetDateFilter(new Date().toISOString().slice(0, 10)); setStatPeriod('today'); }}
-                    className={`text-xs px-1.5 py-0.5 rounded ${detDateFilter === new Date().toISOString().slice(0, 10) ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'}`}>오늘</button>
-                  <button onClick={() => { setDetDateFilter(''); setStatPeriod('this_year'); }}
-                    className={`text-xs px-1.5 py-0.5 rounded ${!detDateFilter ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'}`}>전체</button>
-                </div>
-                <div className="flex gap-1">
-                  {([
-                    ['all', '전체'],
-                    ['pending', '대기'],
-                    ['resolved', '해결'],
-                    ['issue_created', '이슈'],
-                    ['dismissed', '넘김'],
-                  ] as const).map(([key, label]) => (
-                    <button key={key} onClick={() => setDetStatusFilter(key)}
-                      className={`px-1.5 py-0.5 text-xs rounded ${detStatusFilter === key ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
-                      {label}
-                    </button>
+              {/* 당일 이슈 종합 */}
+              <div className="p-3 border-b border-gray-100 flex-shrink-0 space-y-2">
+                <div className="text-xs font-bold text-gray-800">오늘 이슈 종합</div>
+
+                {/* 대화/메시지 통계 */}
+                {msgStats && (
+                  <div className="flex items-center justify-between bg-gray-50 rounded px-2 py-1.5">
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-gray-500">대화 <b className="text-gray-900">{msgStats.convs}</b>명</span>
+                      <span className="text-gray-500">메시지 <b className="text-gray-900">{msgStats.total}</b>건</span>
+                    </div>
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-gray-500">게스트 <b className="text-blue-600">{msgStats.guest}</b></span>
+                      <span className="text-gray-500">호스트 <b className="text-emerald-600">{msgStats.host}</b></span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 이슈 요약 */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { label: '감지', value: detHistory.length, color: 'text-amber-600' },
+                    { label: '해결', value: detHistory.filter((d: any) => d.status === 'resolved').length, color: 'text-emerald-600' },
+                    { label: '대기', value: detHistory.filter((d: any) => d.status === 'pending' || d.status === 'responding').length, color: 'text-red-600' },
+                    { label: '이슈', value: detHistory.filter((d: any) => d.status === 'issue_created').length, color: 'text-blue-600' },
+                  ].map(s => (
+                    <div key={s.label} className="text-center bg-gray-50 rounded py-1">
+                      <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                      <div className="text-[10px] text-gray-400">{s.label}</div>
+                    </div>
                   ))}
                 </div>
+
+                {/* 유형별 이모지 카드 */}
+                {(() => {
+                  const catEmoji: Record<string, string> = {
+                    checkin: '🔑', parking: '🚗', boiler: '🔥', cleaning: '🧹',
+                    reservation: '💰', emergency: '🚨',
+                  };
+                  // 세부 키워드별 집계
+                  const details: Record<string, { emoji: string; count: number; resolved: number }> = {};
+                  detHistory.forEach((d: any) => {
+                    const mc = (d.message_content || '').toLowerCase();
+                    let key = d.detected_category;
+                    let emoji = catEmoji[key] || '📋';
+
+                    // 세분화
+                    if (mc.includes('빔') || mc.includes('프로젝터')) { key = '빔프로젝터'; emoji = '📽️'; }
+                    else if (mc.includes('tv') || mc.includes('티비') || mc.includes('리모컨') || mc.includes('넷플릭스')) { key = 'TV/OTT'; emoji = '📺'; }
+                    else if (mc.includes('와이파이') || mc.includes('wifi')) { key = '와이파이'; emoji = '📶'; }
+                    else if (mc.includes('카드키') || mc.includes('열쇠')) { key = '카드키'; emoji = '🗝️'; }
+                    else if (mc.includes('비밀번호') || mc.includes('비번')) { key = '비밀번호'; emoji = '🔐'; }
+                    else if (mc.includes('도어락')) { key = '도어락'; emoji = '🚪'; }
+                    else if (mc.includes('보일러') || mc.includes('온수')) { key = '보일러/온수'; emoji = '🔥'; }
+                    else if (mc.includes('주차')) { key = '주차'; emoji = '🚗'; }
+                    else if (mc.includes('청소') || mc.includes('머리카락') || mc.includes('냄새')) { key = '청소/위생'; emoji = '🧹'; }
+                    else if (mc.includes('수건') || mc.includes('침구')) { key = '수건/침구'; emoji = '🛏️'; }
+                    else if (mc.includes('환불') || mc.includes('취소')) { key = '환불/취소'; emoji = '💸'; }
+                    else if (mc.includes('연장') || mc.includes('레이트')) { key = '연장/레이트'; emoji = '⏰'; }
+                    else if (mc.includes('입금') || mc.includes('결제')) { key = '입금/결제'; emoji = '💰'; }
+                    else if (mc.includes('세탁')) { key = '세탁기'; emoji = '👕'; }
+                    else { key = CAT_LABELS[key] || key; }
+
+                    if (!details[key]) details[key] = { emoji, count: 0, resolved: 0 };
+                    details[key].count++;
+                    if (d.status === 'resolved') details[key].resolved++;
+                  });
+
+                  const sorted = Object.entries(details).sort((a, b) => b[1].count - a[1].count);
+                  if (sorted.length === 0) return null;
+
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {sorted.map(([key, { emoji, count, resolved }]) => {
+                        const allDone = resolved === count;
+                        return (
+                          <div key={key} className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs ${
+                            allDone ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-amber-50 border-amber-200'
+                          }`}>
+                            <span className={allDone ? 'grayscale' : ''}>{emoji}</span>
+                            <span className="font-medium text-gray-700">{key}</span>
+                            <span className={`font-bold ${allDone ? 'text-emerald-600' : 'text-amber-700'}`}>{count}</span>
+                            {allDone && <span className="text-emerald-500 text-[10px]">✓</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* 평균 응답 시간 */}
+                {(() => {
+                  const withTime = detHistory.filter((d: any) => d.response_time_sec > 0);
+                  if (withTime.length === 0) return null;
+                  const avg = Math.round(withTime.reduce((s: number, d: any) => s + d.response_time_sec, 0) / withTime.length);
+                  const fmtT = (s: number) => s < 60 ? `${s}초` : s < 3600 ? `${Math.floor(s/60)}분` : `${Math.floor(s/3600)}시간`;
+                  return (
+                    <div className="flex items-center justify-between text-xs bg-gray-50 rounded px-2 py-1">
+                      <span className="text-gray-500">평균 응답</span>
+                      <span className={`font-bold ${avg < 600 ? 'text-emerald-600' : avg < 1800 ? 'text-amber-600' : 'text-red-600'}`}>{fmtT(avg)}</span>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* 테이블 */}
+              {/* 필터 */}
+              <div className="px-2 py-1.5 border-b border-gray-50 flex gap-1 flex-shrink-0">
+                {([
+                  ['all', '전체'],
+                  ['pending', '대기'],
+                  ['resolved', '해결'],
+                  ['issue_created', '이슈'],
+                  ['dismissed', '넘김'],
+                ] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setDetStatusFilter(key)}
+                    className={`px-1.5 py-0.5 text-xs rounded ${detStatusFilter === key ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 상세 이슈 로그 */}
               <div className="flex-1 overflow-y-auto">
                 {detHistory.length === 0 ? (
                   <div className="p-6 text-xs text-gray-400 text-center">감지 이력 없음</div>
                 ) : (
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50 z-10">
-                      <tr className="text-gray-400 text-left">
-                        <th className="px-2 py-1.5 font-medium">게스트</th>
-                        <th className="px-1 py-1.5 font-medium">유형</th>
-                        <th className="px-1 py-1.5 font-medium">상태</th>
-                        <th className="px-1 py-1.5 font-medium">담당</th>
-                        <th className="px-1 py-1.5 font-medium">시간</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {detHistory.map((d: any) => (
-                        <tr key={d.id}
+                  <div className="divide-y divide-gray-50">
+                    {detHistory.map((d: any) => {
+                      // 구체적 아이콘 추출
+                      const mc = (d.message_content || '').toLowerCase();
+                      const icons: string[] = [];
+                      if (mc.includes('카드키') || mc.includes('열쇠')) icons.push('🗝️');
+                      if (mc.includes('비밀번호') || mc.includes('비번')) icons.push('🔐');
+                      if (mc.includes('빔') || mc.includes('프로젝터')) icons.push('📽️');
+                      if (mc.includes('tv') || mc.includes('티비') || mc.includes('리모컨') || mc.includes('넷플릭스')) icons.push('📺');
+                      if (mc.includes('와이파이') || mc.includes('wifi') || mc.includes('인터넷')) icons.push('📶');
+                      if (mc.includes('보일러') || mc.includes('온수') || mc.includes('난방')) icons.push('🔥');
+                      if (mc.includes('주차') || mc.includes('출차')) icons.push('🚗');
+                      if (mc.includes('청소') || mc.includes('수건') || mc.includes('침구')) icons.push('🧹');
+                      if (mc.includes('환불') || mc.includes('결제') || mc.includes('입금')) icons.push('💰');
+                      if (mc.includes('세탁')) icons.push('👕');
+                      if (mc.includes('도어락')) icons.push('🚪');
+                      if (icons.length === 0) icons.push(
+                        d.detected_category === 'checkin' ? '🔑' :
+                        d.detected_category === 'parking' ? '🚗' :
+                        d.detected_category === 'boiler' ? '🔥' :
+                        d.detected_category === 'cleaning' ? '🧹' :
+                        d.detected_category === 'reservation' ? '💰' :
+                        d.detected_category === 'emergency' ? '🚨' : '📋'
+                      );
+
+                      // 해결 내용 요약
+                      const note = d.resolution_note || d.message_content || '';
+                      const parts = note.split('→');
+                      const question = (parts[0] || '').trim().slice(0, 35);
+                      const answer = parts[1] ? parts[1].trim().slice(0, 30) : '';
+
+                      const isResolved = d.status === 'resolved' || d.status === 'dismissed';
+                      const respTime = d.response_time_sec > 0
+                        ? d.response_time_sec < 60 ? `${d.response_time_sec}초` : d.response_time_sec < 3600 ? `${Math.round(d.response_time_sec/60)}분` : `${Math.round(d.response_time_sec/3600)}시간`
+                        : '';
+
+                      return (
+                        <div key={d.id}
                           onClick={() => { if (d.conversation_id) selectConversation(d.conversation_id); }}
-                          className={`cursor-pointer hover:bg-blue-50 ${
-                            d.status === 'pending' ? 'bg-yellow-50/40' :
-                            d.severity === 'critical' ? 'bg-red-50/30' : ''
-                          }`}>
-                          <td className="px-2 py-1.5">
-                            <div className="font-medium text-gray-800 truncate max-w-[70px]">{d.guest_name || '-'}</div>
-                            <div className="text-gray-400 truncate max-w-[70px] text-[10px]">{d.property_name || ''}</div>
-                          </td>
-                          <td className="px-1 py-1.5">
-                            <span className={`px-1 py-px rounded ${
-                              d.detected_category === 'emergency' ? 'bg-red-100 text-red-700' :
-                              d.detected_category === 'boiler' ? 'bg-orange-100 text-orange-700' :
-                              d.detected_category === 'checkin' ? 'bg-blue-100 text-blue-700' :
-                              d.detected_category === 'parking' ? 'bg-purple-100 text-purple-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {CAT_LABELS[d.detected_category] || d.detected_category}
-                              {d.response_time_sec > 0 && (
-                                <span className={`ml-1 ${d.response_time_sec < 600 ? 'text-green-600' : d.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
-                                  {d.response_time_sec < 60 ? `${d.response_time_sec}초` : d.response_time_sec < 3600 ? `${Math.round(d.response_time_sec/60)}분` : `${Math.round(d.response_time_sec/3600)}시간`}
+                          className={`px-3 py-2 cursor-pointer hover:bg-blue-50 ${
+                            d.status === 'pending' ? 'bg-amber-50/50' : ''
+                          } ${isResolved ? 'opacity-70' : ''}`}>
+                          {/* 1줄: 아이콘 + 게스트 + 시간 + 상태 */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm ${isResolved ? 'grayscale opacity-50' : ''}`}>{icons.join('')}</span>
+                              <span className="text-xs font-medium text-gray-900">{d.guest_name || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {respTime && (
+                                <span className={`text-[10px] font-medium ${d.response_time_sec < 600 ? 'text-emerald-600' : d.response_time_sec < 1800 ? 'text-amber-600' : 'text-red-600'}`}>
+                                  {respTime}
                                 </span>
                               )}
-                            </span>
-                          </td>
-                          <td className="px-1 py-1.5">
-                            <span className={`px-1 py-px rounded ${
-                              d.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' :
-                              d.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                              d.status === 'responding' ? 'bg-blue-100 text-blue-700' :
-                              d.status === 'issue_created' ? 'bg-red-100 text-red-700' :
-                              'bg-gray-100 text-gray-500'
-                            }`}>
-                              {d.status === 'resolved' ? '해결' :
-                               d.status === 'pending' ? '대기' :
-                               d.status === 'responding' ? '대응' :
-                               d.status === 'issue_created' ? '이슈' :
-                               d.status === 'dismissed' ? '넘김' : d.status}
-                            </span>
-                          </td>
-                          <td className="px-1 py-1.5 text-gray-600 truncate max-w-[35px]">{d.assigned_to || '-'}</td>
-                          <td className="px-1 py-1.5 text-gray-400 text-[10px]">
-                            {new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                              <span className={`text-[10px] px-1 py-px rounded ${
+                                d.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' :
+                                d.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>{d.status === 'resolved' ? '✓' : d.status === 'pending' ? '!' : '—'}</span>
+                            </div>
+                          </div>
+                          {/* 2줄: 문의 → 응답 */}
+                          <div className="text-[10px] text-gray-500 mt-0.5 truncate">{question}</div>
+                          {answer && <div className="text-[10px] text-emerald-600 truncate">→ {answer}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
-
-              {/* 하단 요약 */}
-              <div className="px-2 py-1.5 border-t border-gray-100 flex-shrink-0 flex items-center justify-between text-xs text-gray-500">
-                <span>{detDateFilter || '전체'}</span>
-                <div className="flex gap-2">
-                  <span>총 <b className="text-gray-700">{detHistory.length}</b></span>
-                  <span>대기 <b className="text-yellow-600">{detHistory.filter((d: any) => d.status === 'pending' || d.status === 'responding').length}</b></span>
-                  <span>해결 <b className="text-emerald-600">{detHistory.filter((d: any) => d.status === 'resolved').length}</b></span>
-                </div>
               </div>
             </div>
           )}

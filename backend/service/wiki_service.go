@@ -144,6 +144,7 @@ type UpdateArticleReq struct {
 	Content      string `json:"content"`
 	Status       string `json:"status"`
 	RevisionNote string `json:"revision_note"`
+	References   string `json:"references"`
 }
 
 func (s *WikiService) UpdateArticle(id uint, req UpdateArticleReq, authorID uint, authorName string) (*models.WikiArticle, error) {
@@ -162,6 +163,9 @@ func (s *WikiService) UpdateArticle(id uint, req UpdateArticleReq, authorID uint
 	updates := map[string]interface{}{
 		"content": req.Content, "word_count": wc,
 		"author_id": authorID, "author_name": authorName,
+	}
+	if req.References != "" {
+		updates["references"] = req.References
 	}
 	if req.Status != "" {
 		updates["status"] = req.Status

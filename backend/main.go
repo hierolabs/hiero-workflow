@@ -76,6 +76,9 @@ func main() {
 		&models.PriceLabsListing{},
 		&models.PriceLabsPrice{},
 		&models.ChatHistory{},
+		&models.MarketPrice{},
+		&models.MarketContract{},
+		&models.CrawlJob{},
 	)
 	seedAdminUser()
 	service.SeedCSKnowledge()
@@ -109,9 +112,9 @@ func main() {
 		plSvc.SyncAll()
 	}()
 
-	// 1시간마다 자동 동기화
+	// 5분마다 메시지 동기화
 	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
+		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
 			log.Println("[Cron] 정기 동기화 시작...")
@@ -336,212 +339,183 @@ func seedChatChannels() {
 }
 
 func seedWikiArticles() {
-	// 기존 섹션 수 확인 — 새 파트가 추가되면 없는 것만 INSERT
-	var existingCount int64
-	config.DB.Model(&models.WikiArticle{}).Count(&existingCount)
+	// v2 시드 마커 확인 — 이미 v2로 전환됐으면 스킵
+	var v2Count int64
+	config.DB.Model(&models.WikiArticle{}).Where("part_title = ?", "PROLOGUE — 프롤로그").Count(&v2Count)
+	if v2Count > 0 {
+		return // 이미 v2 시드 완료
+	}
+
+	// 기존 데이터 전체 삭제 후 새 구조로 재생성
+	config.DB.Exec("DELETE FROM wiki_revisions")
+	config.DB.Exec("DELETE FROM wiki_articles")
+	log.Println("[seed] Hestory v2: 기존 위키 초기화 완료")
+
 	type s struct {
 		P  int; PT string; C int; CT string; S string; T string; A string
 	}
 	data := []s{
-		{0,"HIERO Ontology",0,"HIERO Ontology란 무엇인가","0.1","온톨로지의 정의","cto"},
-		{0,"HIERO Ontology",0,"HIERO Ontology란 무엇인가","0.2","왜 숙박·중단기 임대에 온톨로지가 필요한가","cto"},
-		{0,"HIERO Ontology",0,"HIERO Ontology란 무엇인가","0.3","핵심 엔티티 15개","cto"},
-		{0,"HIERO Ontology",0,"HIERO Ontology란 무엇인가","0.4","엔티티 간 관계","cto"},
-		{0,"HIERO Ontology",0,"HIERO Ontology란 무엇인가","0.5","온톨로지의 목적","cto"},
-		{1,"Vision & Structure",1,"heiro.labs란 무엇인가","1.1","공유숙박·중단기 임대 운영의 문제 정의","ceo"},
-		{1,"Vision & Structure",1,"heiro.labs란 무엇인가","1.2","100채 → 300채, 엑셀에서 OS로","ceo"},
-		{1,"Vision & Structure",1,"heiro.labs란 무엇인가","1.3","핵심 가설: 운영 자동화 = 인당 관리 숙소 3배","ceo"},
-		{1,"Vision & Structure",1,"heiro.labs란 무엇인가","1.4","4개 모듈: HIERO Core / ThingDone / Back Office / AI Agent","cto"},
-		{1,"Vision & Structure",2,"시스템 아키텍처","2.1","전체 레이어 구조","cto"},
-		{1,"Vision & Structure",2,"시스템 아키텍처","2.2","기술 스택: Go + React + Vercel","cto"},
-		{1,"Vision & Structure",2,"시스템 아키텍처","2.3","데이터 3층 구조: Data1 API / Data2 CSV / Data3 JOIN","cto"},
-		{1,"Vision & Structure",2,"시스템 아키텍처","2.4","권한 체계: 7등급 역할 기반 접근","cto"},
-		{1,"Vision & Structure",2,"시스템 아키텍처","2.5","운영 데이터의 흐름","cto"},
-		{1,"Vision & Structure",3,"팀과 역할","3.1","운영팀 구조와 각 역할","ceo"},
-		{1,"Vision & Structure",3,"팀과 역할","3.2","매뉴얼 3모드: 의사결정 / 관리 / 실행","ceo"},
-		{1,"Vision & Structure",3,"팀과 역할","3.3","이슈 자동 배정 규칙","ceo"},
-		{1,"Vision & Structure",3,"팀과 역할","3.4","팀원 Dashboard와 KPI","ceo"},
-		{1,"Vision & Structure",99,"비즈니스 모델","1.5.1","내부 운영 효율화 모델","ceo"},
-		{1,"Vision & Structure",99,"비즈니스 모델","1.5.2","외부 SaaS 모델","ceo"},
-		{1,"Vision & Structure",99,"비즈니스 모델","1.5.3","데이터 플랫폼 모델","ceo"},
-		{2,"HIERO Core",4,"Hostex 연동","4.1","Hostex API 숙소·예약 동기화","operations"},
-		{2,"HIERO Core",4,"Hostex 연동","4.2","Webhook 수신","cto"},
-		{2,"HIERO Core",4,"Hostex 연동","4.3","내부 Property DB 매칭","cto"},
-		{2,"HIERO Core",4,"Hostex 연동","4.4","동기화 정합성 문제와 해결","cto"},
-		{2,"HIERO Core",4,"Hostex 연동","4.5","API 누락과 CSV 보완 구조","cfo"},
-		{2,"HIERO Core",5,"예약 관리","5.1","Daily Operation Board","operations"},
-		{2,"HIERO Core",5,"예약 관리","5.2","오늘 체크인 / 오늘 체크아웃","operations"},
-		{2,"HIERO Core",5,"예약 관리","5.3","예약 상태 관리","operations"},
-		{2,"HIERO Core",5,"예약 관리","5.4","기간별 정렬·필터·프리셋","cto"},
-		{2,"HIERO Core",5,"예약 관리","5.5","연장예약 감지와 청소 스킵 로직","cleaning_dispatch"},
-		{2,"HIERO Core",6,"랜딩페이지와 리드 확보","6.1","통합 랜딩 구조","marketing"},
-		{2,"HIERO Core",6,"랜딩페이지와 리드 확보","6.2","CTA → 리드 자동 생성 파이프라인","marketing"},
-		{2,"HIERO Core",6,"랜딩페이지와 리드 확보","6.3","타겟별 광고 랜딩 확장 전략","marketing"},
-		{2,"HIERO Core",6,"랜딩페이지와 리드 확보","6.4","메시지 분리","cto"},
-		{3,"ThingDone",7,"제품 정의","7.1","HIERO vs ThingDone의 관계","cto"},
-		{3,"ThingDone",7,"제품 정의","7.2","카카오톡 배정 → 앱 자동화","cleaning_dispatch"},
-		{3,"ThingDone",7,"제품 정의","7.3","핵심 7기능과 MVP 범위","cto"},
-		{3,"ThingDone",7,"제품 정의","7.4","첫 목표: 배정 1~2시간 → 20분","ceo"},
-		{3,"ThingDone",8,"청소코드와 청소자 DB화","8.1","엑셀 → DB 전환 설계","cto"},
-		{3,"ThingDone",8,"청소코드와 청소자 DB화","8.2","14권역 체계 A~N","cleaning_dispatch"},
-		{3,"ThingDone",8,"청소코드와 청소자 DB화","8.3","단가 체계","cfo"},
-		{3,"ThingDone",8,"청소코드와 청소자 DB화","8.4","청소자 22명 프로필","cleaning_dispatch"},
-		{3,"ThingDone",8,"청소코드와 청소자 DB화","8.5","권역/요일/이동수단/역량 데이터화","cleaning_dispatch"},
-		{3,"ThingDone",9,"청소 업무 자동 생성","9.1","체크아웃 → CleaningTask 자동 생성","cto"},
-		{3,"ThingDone",9,"청소 업무 자동 생성","9.2","청소코드 매칭 → 단가 자동 연결","cto"},
-		{3,"ThingDone",9,"청소 업무 자동 생성","9.3","동일 게스트 연장 예약 감지","cto"},
-		{3,"ThingDone",9,"청소 업무 자동 생성","9.4","우선순위 분류","operations"},
-		{3,"ThingDone",10,"매니저 대시보드","10.1","권역별 뷰 vs 전체 목록 뷰","cleaning_dispatch"},
-		{3,"ThingDone",10,"매니저 대시보드","10.2","청소자별 워크로드 게이지","cleaning_dispatch"},
-		{3,"ThingDone",10,"매니저 대시보드","10.3","미배정 경고","cleaning_dispatch"},
-		{3,"ThingDone",10,"매니저 대시보드","10.4","연장 감지 알림","cleaning_dispatch"},
-		{3,"ThingDone",10,"매니저 대시보드","10.5","청소코드·청소자 관리 탭","cleaning_dispatch"},
-		{3,"ThingDone",11,"청소자 모바일 앱","11.1","청소자 JWT 인증","cto"},
-		{3,"ThingDone",11,"청소자 모바일 앱","11.2","모바일 API","cto"},
-		{3,"ThingDone",11,"청소자 모바일 앱","11.3","배정 확인 → 시작 → 완료 → 문제등록","cleaning_dispatch"},
-		{3,"ThingDone",11,"청소자 모바일 앱","11.4","주간 지급액 조회","cfo"},
-		{3,"ThingDone",12,"배정 메시지 자동 생성","12.1","메시지 포맷","cleaning_dispatch"},
-		{3,"ThingDone",12,"배정 메시지 자동 생성","12.2","숙소명/주소/시간/특이사항","cleaning_dispatch"},
-		{3,"ThingDone",12,"배정 메시지 자동 생성","12.3","카카오톡/SMS 연동 계획","cto"},
-		{3,"ThingDone",12,"배정 메시지 자동 생성","12.4","자동 발송 전 관리자 승인 구조","ceo"},
-		{3,"ThingDone",13,"사진·이슈·추가비","13.1","비포/애프터 사진 업로드","cleaning_dispatch"},
-		{3,"ThingDone",13,"사진·이슈·추가비","13.2","문제 등록 → 유지보수 이슈 전환","field"},
-		{3,"ThingDone",13,"사진·이슈·추가비","13.3","추가비 입력","cfo"},
-		{3,"ThingDone",13,"사진·이슈·추가비","13.4","소모품/택시비/기상악화/세탁비 정산","cfo"},
-		{3,"ThingDone",14,"주간 정산과 KPI","14.1","청소자별 주간 정산 자동 생성","cfo"},
-		{3,"ThingDone",14,"주간 정산과 KPI","14.2","운영 KPI","ceo"},
-		{3,"ThingDone",14,"주간 정산과 KPI","14.3","비용 KPI","cfo"},
-		{3,"ThingDone",14,"주간 정산과 KPI","14.4","효율 KPI","ceo"},
-		{3,"ThingDone",14,"주간 정산과 KPI","14.5","외부 SaaS 판매 기준 KPI","ceo"},
-		{4,"Back Office",15,"데이터 정합성","15.1","CSV가 유일한 신뢰 소스인 이유","cfo"},
-		{4,"Back Office",15,"데이터 정합성","15.2","API 78% 누락 사례","cto"},
-		{4,"Back Office",15,"데이터 정합성","15.3","hostex_transactions 16개월 12,990건","cfo"},
-		{4,"Back Office",15,"데이터 정합성","15.4","카테고리 매핑: 수입 3종 / 비용 13종","cfo"},
-		{4,"Back Office",15,"데이터 정합성","15.5","Data1+Data2 → Data3 JOIN 구조","cto"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.1","OTA 단기임대 과세","cfo"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.2","중기임대 기간 기준 분류","cfo"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.3","면세 전대임대료","cfo"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.4","과세 숙박매출","cfo"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.5","과세 서비스매출","cfo"},
-		{4,"Back Office",16,"매출 과세/면세 분류","16.6","인라인 확장 UI 설계","cto"},
-		{4,"Back Office",17,"숙소별 P&L","17.1","property_costs 모델","cfo"},
-		{4,"Back Office",17,"숙소별 P&L","17.2","소유구조 4종","cfo"},
-		{4,"Back Office",17,"숙소별 P&L","17.3","월세/위탁료/공과금/관리비","cfo"},
-		{4,"Back Office",17,"숙소별 P&L","17.4","monthly_property_reports 스냅샷","cfo"},
-		{4,"Back Office",17,"숙소별 P&L","17.5","Settlement 페이지","cfo"},
-		{4,"Back Office",17,"숙소별 P&L","17.6","연도별 그리드/다중 필터/CSV Export","cto"},
-		{4,"Back Office",18,"세무·회계 구조","18.1","매출 3분류","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.2","계정과목 체계 4101~6117","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.3","operation_type 5종","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.4","tax_category 4종","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.5","숙소별 구분회계","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.6","REVIEW 항목 처리","cfo"},
-		{4,"Back Office",18,"세무·회계 구조","18.7","세무사 전달자료 생성","cfo"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.1","운영 판단 보조자","cto"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.2","예약 데이터 해석","cto"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.3","청소 누락 위험 감지","cto"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.4","정산 이상치 감지","cto"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.5","세무 분류 보조","cfo"},
-		{5,"AI Agent",21,"AI Agent의 역할","21.6","월간 운영 리포트 자동 작성","cto"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.1","예약 Agent","cto"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.2","청소 Agent","cto"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.3","정산 Agent","cfo"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.4","세무 Agent","cfo"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.5","CS Agent","operations"},
-		{5,"AI Agent",22,"Agent별 역할 분리","22.6","대표 보고 Agent","cto"},
-		{5,"AI Agent",23,"AI 의사결정 권한","23.1","자동 실행 가능한 일","cto"},
-		{5,"AI Agent",23,"AI 의사결정 권한","23.2","관리자 승인 필요한 일","ceo"},
-		{5,"AI Agent",23,"AI 의사결정 권한","23.3","절대 자동화하면 안 되는 일","ceo"},
-		{5,"AI Agent",23,"AI 의사결정 권한","23.4","감사 로그와 책임 구조","cto"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.1","property_costs CRUD","cfo"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.2","CSV Import 고도화","cto"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.3","배정 메시지 자동화","cleaning_dispatch"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.4","우연 배정시간 20분 목표 달성","cleaning_dispatch"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.5","멀티인박스","operations"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.6","AI 응대","cto"},
-		{6,"Scale-up",19,"다음 단계 로드맵","19.7","통화 녹음 분석","cto"},
-		{6,"Scale-up",20,"300채 스케일링","20.1","월 3.5억, 팀 27명 목표 구조","ceo"},
-		{6,"Scale-up",20,"300채 스케일링","20.2","인당 관리 숙소 수","ceo"},
-		{6,"Scale-up",20,"300채 스케일링","20.3","띵동 SaaS 외부 판매 전략","ceo"},
-		{6,"Scale-up",20,"300채 스케일링","20.4","임대인 포털 구상","ceo"},
-		{6,"Scale-up",20,"300채 스케일링","20.5","중단기 주거 운영 OS로 확장","cto"},
-		{6,"Scale-up",20,"300채 스케일링","20.6","MORO와의 수요 안착 연동","cto"},
-		{7,"Business Model",24,"내부 효율화 → 외부 판매 → 데이터 플랫폼","24.1","3대 비즈니스 모델 상세","ceo"},
-		{7,"Business Model",24,"내부 효율화 → 외부 판매 → 데이터 플랫폼","24.2","매출 구조와 가격 전략","ceo"},
-		{7,"Business Model",24,"내부 효율화 → 외부 판매 → 데이터 플랫폼","24.3","시장 규모와 타겟","ceo"},
+		// ═══ Part 0. PROLOGUE — 프롤로그 ═══
+		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.0","도시계획의 구조와 가치 — 기본계획, 관리계획, 부문별 체계","cto"},
+		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.1","도시계획가가 OS를 만드는 이유","ceo"},
+		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.2","끊어진 연결 — 비전은 있으나 실행이 없다","ceo"},
+		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.3","숙소 100채라는 작은 도시","ceo"},
+		{0,"PROLOGUE — 프롤로그",0,"Urban Planning × OS","0.4","온톨로지가 답이다","cto"},
+
+		// ═══ Part 1. SPACE — 공간 ═══
+		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.0","토지이용계획의 가치 — 용도지역, 공간 위계, 상태 관리","cto"},
+		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.1","101개 숙소라는 토지","operations"},
+		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.2","Property 모델 — hostex_id, 등급, 권역, 운영유형","cto"},
+		{1,"SPACE — 공간",1,"토지이용과 공간 관리","1.3","공간의 상태 — active, maintenance, onboarding","cto"},
+		{1,"SPACE — 공간",2,"공급 라이프사이클","2.1","Lead → Active 9단계","ceo"},
+		{1,"SPACE — 공간",2,"공급 라이프사이클","2.2","셋업 → 촬영 → OTA 등록 → 운영","field"},
+		{1,"SPACE — 공간",2,"공급 라이프사이클","2.3","플랫폼 매트릭스 — Airbnb Master, Fast Copy, Complex","cto"},
+		{1,"SPACE — 공간",2,"공급 라이프사이클","2.4","투자자·주차·온보딩 체크리스트","ceo"},
+		{1,"SPACE — 공간",3,"가격과 공실","3.1","PriceLabs — 동적 가격 연동","cto"},
+		{1,"SPACE — 공간",3,"가격과 공실","3.2","Demand-Aware Markdown Engine","cto"},
+		{1,"SPACE — 공간",3,"가격과 공실","3.3","채널별 가격 구조의 현실","operations"},
+		{1,"SPACE — 공간",3,"가격과 공실","3.4","5엔진 진단 — 25개 지표","cto"},
+
+		// ═══ Part 2. PEOPLE — 사람 ═══
+		{2,"PEOPLE — 사람",4,"인구와 주거이동","2.0","인구계획의 가치 — 주거이동, 체류패턴, 가구구조","cto"},
+		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.1","6,364건의 예약 — 인구 유입","operations"},
+		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.2","Reservation 모델 — reservation_code가 주민등록번호","cto"},
+		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.3","guest_type 6종 — 이 도시의 주민 분류","cto"},
+		{2,"PEOPLE — 사람",4,"인구와 주거이동","4.4","체크인/체크아웃 — 체류와 이동","operations"},
+		{2,"PEOPLE — 사람",5,"주민의 목소리","5.1","42,568건의 메시지 분석","cto"},
+		{2,"PEOPLE — 사람",5,"주민의 목소리","5.2","1,129건의 통화 분석","cto"},
+		{2,"PEOPLE — 사람",5,"주민의 목소리","5.3","게스트 리뷰와 평점","operations"},
+		{2,"PEOPLE — 사람",5,"주민의 목소리","5.4","Guest Request — 얼리체크인, 수건, 특수요청","operations"},
+		{2,"PEOPLE — 사람",6,"팀과 역할","6.1","운영팀 5명 구조","ceo"},
+		{2,"PEOPLE — 사람",6,"팀과 역할","6.2","RBAC — 8역할 47권한","cto"},
+		{2,"PEOPLE — 사람",6,"팀과 역할","6.3","3모드 — 의사결정/관리/실행","ceo"},
+
+		// ═══ Part 3. FLOW — 흐름 ═══
+		{3,"FLOW — 흐름",7,"교통과 통행","3.0","교통계획의 가치 — O-D, 통행배분, 수단선택","cto"},
+		{3,"FLOW — 흐름",7,"교통과 통행","7.1","3개 채널, 3개의 관문","operations"},
+		{3,"FLOW — 흐름",7,"교통과 통행","7.2","Airbnb — API 자동, 전체 30%","operations"},
+		{3,"FLOW — 흐름",7,"교통과 통행","7.3","삼삼엠투 — 승인제, 주단위, 관리비 별도","operations"},
+		{3,"FLOW — 흐름",7,"교통과 통행","7.4","개인입금 — CRM, 수동 관리","operations"},
+		{3,"FLOW — 흐름",8,"중앙 관제","8.1","Hostex — API 숙소·예약 동기화","cto"},
+		{3,"FLOW — 흐름",8,"중앙 관제","8.2","Webhook 수신 — 실시간 이벤트 처리","cto"},
+		{3,"FLOW — 흐름",8,"중앙 관제","8.3","동기화 정합성 — 누락, 중복, 시간대","cto"},
+		{3,"FLOW — 흐름",8,"중앙 관제","8.4","멀티인박스 — 모든 경로의 통합","cto"},
+
+		// ═══ Part 4. TURNOVER — 현장 ═══
+		{4,"TURNOVER — 현장",9,"환경과 유지관리","4.0","환경계획의 가치 — 환경용량, 폐기물, 유지관리","cto"},
+		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.1","청소 = 도시의 환경 관리","cleaning_dispatch"},
+		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.2","체크아웃 → CleaningTask 자동 생성","cto"},
+		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.3","14권역 체계와 22명 청소자","cleaning_dispatch"},
+		{4,"TURNOVER — 현장",9,"환경과 유지관리","9.4","단가 체계 — 평수별, 추가비, 할증","cfo"},
+		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.1","엑셀→DB 12단계 전환","cto"},
+		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.2","배정 자동화 — 2시간을 20분으로","cleaning_dispatch"},
+		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.3","카카오톡 메시지 파싱 → 자동 배정","cto"},
+		{4,"TURNOVER — 현장",10,"카카오톡에서 OS로","10.4","연장예약 감지와 청소 스킵","cto"},
+		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.1","HIERO vs ThingDone의 관계","cto"},
+		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.2","청소자 모바일 앱 — JWT, API, UX","cto"},
+		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.3","사진·이슈·추가비 — 현장 데이터 수집","cleaning_dispatch"},
+		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.4","주간 정산과 KPI","cfo"},
+		{4,"TURNOVER — 현장",11,"띵동 — 현장 SaaS","11.5","Odyssey-X 데모데이 — 2026-06-27","ceo"},
+
+		// ═══ Part 5. ECONOMY — 돈 ═══
+		{5,"ECONOMY — 돈",12,"재정과 수입구조","5.0","도시재정의 가치 — 세입·세출, 수익자부담, 결산","cto"},
+		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.1","매출의 구조 — 수입 3종","cfo"},
+		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.2","CSV가 유일한 신뢰 소스 — API 78% 누락","cfo"},
+		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.3","hostex_transactions — 16개월 12,990건","cfo"},
+		{5,"ECONOMY — 돈",12,"재정과 수입구조","12.4","Data1 + Data2 = Data3 JOIN","cto"},
+		{5,"ECONOMY — 돈",13,"비용과 분할","13.1","cost_raw → cost_allocations — 1/n 분할","cfo"},
+		{5,"ECONOMY — 돈",13,"비용과 분할","13.2","property_costs — 숙소별 고정비","cfo"},
+		{5,"ECONOMY — 돈",13,"비용과 분할","13.3","카테고리 매핑 — 수입 3종, 비용 13종","cfo"},
+		{5,"ECONOMY — 돈",14,"정산과 세무","14.1","Settlement — 숙소별 P&L","cfo"},
+		{5,"ECONOMY — 돈",14,"정산과 세무","14.2","monthly_property_reports — 월간 스냅샷","cfo"},
+		{5,"ECONOMY — 돈",14,"정산과 세무","14.3","세무 3분류 — 전대업/숙박업/서비스","cfo"},
+		{5,"ECONOMY — 돈",14,"정산과 세무","14.4","계정과목 체계 4101~6117","cfo"},
+		{5,"ECONOMY — 돈",14,"정산과 세무","14.5","세무사 전달자료 생성","cfo"},
+
+		// ═══ Part 6. RISK — 위기 ═══
+		{6,"RISK — 위기",15,"방재와 위기대응","6.0","방재계획의 가치 — 재난분류, 4단계 대응, 에스컬레이션","cto"},
+		{6,"RISK — 위기",15,"방재와 위기대응","15.1","33개 이슈 유형 — 재난 분류 체계","operations"},
+		{6,"RISK — 위기",15,"방재와 위기대응","15.2","담당자 자동 배정 — 33유형→8담당자","cto"},
+		{6,"RISK — 위기",15,"방재와 위기대응","15.3","에스컬레이션 피라미드","ceo"},
+		{6,"RISK — 위기",16,"감지→대응→해결","16.1","메시지 기반 이슈 자동 감지","cto"},
+		{6,"RISK — 위기",16,"감지→대응→해결","16.2","CS 지식베이스 — 6대 카테고리, FAQ","cto"},
+		{6,"RISK — 위기",16,"감지→대응→해결","16.3","통화 분석 — 1,129건, 대응 프로세스","operations"},
+		{6,"RISK — 위기",17,"HS 시스템","17.1","HS = 자동, human = 사람, escalated = 민원","cto"},
+		{6,"RISK — 위기",17,"HS 시스템","17.2","97% 자동 처리의 구조","cto"},
+		{6,"RISK — 위기",17,"HS 시스템","17.3","대장 — 일별 HS/사람/민원/HS률","operations"},
+		{6,"RISK — 위기",17,"HS 시스템","17.4","오탐 관리와 규칙 보정","cto"},
+
+		// ═══ Part 7. INTELLIGENCE — 지능 ═══
+		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","7.0","정보통신계획의 가치 — 디지털트윈, 도시데이터, 스마트시티","cto"},
+		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.1","온톨로지 설계 — 15엔티티, 4대 레이어","cto"},
+		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.2","State Transition — 기능이 아니라 상태 전환","cto"},
+		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.3","reservation_code — 전체 파이프라인의 조인키","cto"},
+		{7,"INTELLIGENCE — 지능",18,"스마트시티와 자동화","18.4","개발 10계명","cto"},
+		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.1","Level 1~3 — 수동→수집→분류 (완료)","cto"},
+		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.2","Level 4 — 자동 판단 (부분 구현)","cto"},
+		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.3","Level 5~6 — 자동 실행→학습 (다음)","cto"},
+		{7,"INTELLIGENCE — 지능",19,"AI 7레벨","19.4","Level 7 — 자동 생성 (보고서부터)","cto"},
+		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.1","페이지별 AI Agent — GPT-4o-mini","cto"},
+		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.2","대화 저장 + 크로스페이지 + 장기기억","cto"},
+		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.3","CS Agent — 메시지 분석, 응답 제안","cto"},
+		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.4","Founder OS — Daily Brief, Top Decisions","cto"},
+		{7,"INTELLIGENCE — 지능",20,"6개 Agent","20.5","ETF Board — CEO/CFO/CTO 대시보드","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.1","Go + Gin + GORM + MySQL","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.2","React + Vite + TypeScript","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.3","6 Layer — Data→Integration→Domain→App→AI→Presentation","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.4","RBAC — 8역할 47권한 구현","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.5","Hostex API 클라이언트 — client.go","cto"},
+		{7,"INTELLIGENCE — 지능",21,"시스템 아키텍처","21.6","PriceLabs 연동 — 캐시, 비교, KPI","cto"},
+
+		// ═══ Part 8. BUSINESS — 사업 ═══
+		{8,"BUSINESS — 사업",22,"산업과 플랫폼","8.0","산업계획의 가치 — 클러스터, 혁신생태계, 플랫폼경제","cto"},
+		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.1","내부 효율화 — 100채→300채","ceo"},
+		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.2","띵동 SaaS — 29k/59k/99k, 외부 판매","ceo"},
+		{8,"BUSINESS — 사업",22,"산업과 플랫폼","22.3","데이터 플랫폼 — 운영 데이터가 자산","ceo"},
+		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.1","위탁운영 마케팅 — 랜딩페이지, CRM","marketing"},
+		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.2","Lead 파이프라인 — 리드 스코어링, 제안서 자동화","marketing"},
+		{8,"BUSINESS — 사업",23,"마케팅과 리드","23.3","타겟별 광고 랜딩 — /lp/* 확장","marketing"},
+		{8,"BUSINESS — 사업",24,"투자와 확장","24.1","투자 제안서 — 심사위원 3대 질문","ceo"},
+		{8,"BUSINESS — 사업",24,"투자와 확장","24.2","시장 규모와 타겟 — TAM/SAM/SOM","ceo"},
+		{8,"BUSINESS — 사업",24,"투자와 확장","24.3","Palantir 비유 — 국가 OS vs 도시 OS","ceo"},
+
+		// ═══ Part 9. HORIZON — 확장 ═══
+		{9,"HORIZON — 확장",25,"미래상","9.0","도시기본계획의 가치 — 20년 비전, 공간구조, 생활권","cto"},
+		{9,"HORIZON — 확장",25,"미래상","25.1","MORO — 주거이동 OS, 7 Score, 동네 안착","cto"},
+		{9,"HORIZON — 확장",25,"미래상","25.2","서울 AI 도시계획 연구소 — Odyssey-X, 33/84/256","ceo"},
+		{9,"HORIZON — 확장",25,"미래상","25.3","숙소에서 도시로 — 3단계 확장","ceo"},
+		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.1","만드는 과정이 교육이 된다","cto"},
+		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.2","글쓰기 3종 — 에세이/논문형/블로그","cto"},
+		{9,"HORIZON — 확장",26,"콘텐츠 파이프라인","26.3","CTO 역할 = 아카이빙","cto"},
+
+		// ═══ Part 10. URBAN THEORY INDEX — 강의 원천 ═══
+		{10,"URBAN THEORY INDEX — 강의 원천",27,"도시계획 체계 총론","10.0","국토계획법 — 기본계획↔관리계획↔지구단위","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",27,"도시계획 체계 총론","10.01","온톨로지 부재가 왜 구조적 한계인가","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",28,"토지이용 (SPACE)","10.1","Lynch, 공간 위계, 용도지역·지구·구역","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",29,"인구·주거 (PEOPLE)","10.2","Rossi, 주거이동, 가구구조 변화","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",30,"교통 (FLOW)","10.3","4단계 추정, O-D, 통행배분","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",31,"환경 (TURNOVER)","10.4","환경용량, 폐기물, 유지관리","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",32,"재정 (ECONOMY)","10.5","세입·세출, 수익자부담, 도시경제학","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",33,"방재 (RISK)","10.6","위기관리 4단계, 재난분류","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",34,"스마트시티 (INTELLIGENCE)","10.7","디지털트윈, 도시데이터플랫폼, 스마트시티법","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",35,"산업 (BUSINESS)","10.8","클러스터, 플랫폼경제, 혁신생태계","cto"},
+		{10,"URBAN THEORY INDEX — 강의 원천",36,"미래상 (HORIZON)","10.9","생활권, 중간영역이론, Jan Gehl","cto"},
+
+		// ═══ 부록 ═══
 		{99,"부록",90,"부록","A","핵심 파일 맵","cto"},
-		{99,"부록",90,"부록","B","API 엔드포인트 전체 목록","cto"},
-		{99,"부록",90,"부록","C","DB 스키마","cto"},
-		{99,"부록",90,"부록","D","운영 전략 흐름도","ceo"},
-		{99,"부록",90,"부록","E","청소자 계정 및 권역 배정표","cleaning_dispatch"},
+		{99,"부록",90,"부록","B","API 엔드포인트 전체 목록 (50+ handler)","cto"},
+		{99,"부록",90,"부록","C","DB 스키마 (45+ 테이블)","cto"},
+		{99,"부록",90,"부록","D","개발 세션 로그","cto"},
+		{99,"부록",90,"부록","E","글쓰기 가이드 v1","cto"},
 		{99,"부록",90,"부록","F","계정과목 매핑표","cfo"},
-		{99,"부록",90,"부록","G","세무사 확인 질문 리스트","cfo"},
-		{99,"부록",90,"부록","H","Claude Code 개발 지시문 모음","cto"},
-
-		// Part 8: ETF 보고서
-		{8,"ETF 보고서",25,"CEO 월간 보고서","25.1","월간 경영 현황 리포트","ceo"},
-		{8,"ETF 보고서",25,"CEO 월간 보고서","25.2","투자 제안서 / 피칭 자료","ceo"},
-		{8,"ETF 보고서",25,"CEO 월간 보고서","25.3","사업계획서 업데이트","ceo"},
-		{8,"ETF 보고서",25,"CEO 월간 보고서","25.4","팀 성과 리포트","ceo"},
-		{8,"ETF 보고서",26,"CFO 월간 보고서","26.1","월간 재무제표","cfo"},
-		{8,"ETF 보고서",26,"CFO 월간 보고서","26.2","결산 보고서","cfo"},
-		{8,"ETF 보고서",26,"CFO 월간 보고서","26.3","세무 신고 자료","cfo"},
-		{8,"ETF 보고서",26,"CFO 월간 보고서","26.4","비용 분석 리포트","cfo"},
-		{8,"ETF 보고서",26,"CFO 월간 보고서","26.5","숙소별 P&L 월간 스냅샷","cfo"},
-		{8,"ETF 보고서",27,"CTO 월간 보고서","27.1","기술 현황 리포트","cto"},
-		{8,"ETF 보고서",27,"CTO 월간 보고서","27.2","콘텐츠 파이프라인 현황","cto"},
-		{8,"ETF 보고서",27,"CTO 월간 보고서","27.3","연구 산출물 현황","cto"},
-		{8,"ETF 보고서",27,"CTO 월간 보고서","27.4","데이터 아키텍처 변경 이력","cto"},
-
-		// Part 9: 공문서·계약
-		{9,"공문서·계약",28,"임대차 계약","28.1","전대차 계약서 (임대인↔heiro)","cfo"},
-		{9,"공문서·계약",28,"임대차 계약","28.2","위탁운영 계약서 (임대인↔heiro)","cfo"},
-		{9,"공문서·계약",28,"임대차 계약","28.3","렌탈·리스 계약서 (가전·가구)","cfo"},
-		{9,"공문서·계약",28,"임대차 계약","28.4","계약 갱신·해지 이력","cfo"},
-		{9,"공문서·계약",29,"노동·인사","29.1","근로계약서 (정규직)","cfo"},
-		{9,"공문서·계약",29,"노동·인사","29.2","업무위탁계약서 (청소자·프리랜서)","cfo"},
-		{9,"공문서·계약",29,"노동·인사","29.3","급여 대장 / 지급 내역","cfo"},
-		{9,"공문서·계약",29,"노동·인사","29.4","4대보험 관리","cfo"},
-		{9,"공문서·계약",29,"노동·인사","29.5","인사 기록 (입사·퇴사·이동)","ceo"},
-		{9,"공문서·계약",30,"사업자·행정","30.1","사업자등록증 / 변경 이력","cfo"},
-		{9,"공문서·계약",30,"사업자·행정","30.2","숙박업·전대업 신고서","cfo"},
-		{9,"공문서·계약",30,"사업자·행정","30.3","보험 증권 (화재·배상·상해)","cfo"},
-		{9,"공문서·계약",30,"사업자·행정","30.4","관공서 공문 수발 이력","ceo"},
-		{9,"공문서·계약",31,"파트너·외부 계약","31.1","OTA 채널 계약 (Airbnb·Booking 등)","operations"},
-		{9,"공문서·계약",31,"파트너·외부 계약","31.2","세무사·법무사 위임 계약","cfo"},
-		{9,"공문서·계약",31,"파트너·외부 계약","31.3","외주 개발·디자인 계약","cto"},
-		{9,"공문서·계약",31,"파트너·외부 계약","31.4","제휴·협업 MOU","ceo"},
-
-		// Part 10: 운영 데이터 자동 축적
-		{10,"운영 데이터",32,"예약 데이터","32.1","월별 예약 건수 / 가동률 추이","operations"},
-		{10,"운영 데이터",32,"예약 데이터","32.2","채널별 예약 비중","operations"},
-		{10,"운영 데이터",32,"예약 데이터","32.3","ADR / RevPAR 추이","cfo"},
-		{10,"운영 데이터",32,"예약 데이터","32.4","게스트 국적·체류기간 분석","cto"},
-		{10,"운영 데이터",33,"이슈 데이터","33.1","월별 이슈 건수 / 유형 분류","operations"},
-		{10,"운영 데이터",33,"이슈 데이터","33.2","반복 이슈 TOP 10","ceo"},
-		{10,"운영 데이터",33,"이슈 데이터","33.3","평균 해결 시간 추이","ceo"},
-		{10,"운영 데이터",34,"자산·비용 데이터","34.1","관리 숙소 수 / 객실 수 추이","ceo"},
-		{10,"운영 데이터",34,"자산·비용 데이터","34.2","월별 매출 / 비용 / 순이익 추이","cfo"},
-		{10,"운영 데이터",34,"자산·비용 데이터","34.3","권역별 수익률 비교","cfo"},
-		{10,"운영 데이터",34,"자산·비용 데이터","34.4","인당 관리 숙소 수 추이","ceo"},
-		{10,"운영 데이터",35,"청소 데이터","35.1","월별 청소 건수 / 평균 소요시간","cleaning_dispatch"},
-		{10,"운영 데이터",35,"청소 데이터","35.2","청소자별 생산성 추이","cleaning_dispatch"},
-		{10,"운영 데이터",35,"청소 데이터","35.3","청소 비용 / 매출 비율 추이","cfo"},
+		{99,"부록",90,"부록","G","청소자 계정 및 권역 배정표","cleaning_dispatch"},
+		{99,"부록",90,"부록","H","Claude Code 개발 지시문","cto"},
 	}
-	created := 0
 	for i, d := range data {
-		var exists int64
-		config.DB.Model(&models.WikiArticle{}).Where("part_number = ? AND section = ?", d.P, d.S).Count(&exists)
-		if exists > 0 {
-			continue
-		}
 		config.DB.Create(&models.WikiArticle{
 			PartNumber: d.P, PartTitle: d.PT, Chapter: d.C, ChapterTitle: d.CT,
-			Section: d.S, Title: d.T, Status: "empty", AssignedTo: d.A, SortOrder: int(existingCount) + i,
+			Section: d.S, Title: d.T, Status: "empty", AssignedTo: d.A, SortOrder: i,
 		})
-		created++
 	}
-	if created > 0 {
-		log.Printf("[seed] Hestory %d건 새 섹션 추가 (전체 %d건)", created, len(data))
-	}
+	log.Printf("[seed] Hestory v2: %d건 새 목차 생성 완료", len(data))
 }

@@ -172,6 +172,8 @@ type CleaningListQuery struct {
 	Page         int    `form:"page"`
 	PageSize     int    `form:"page_size"`
 	CleaningDate string `form:"cleaning_date"`
+	StartDate    string `form:"start_date"`
+	EndDate      string `form:"end_date"`
 	Status       string `form:"status"`
 	CleanerID    uint   `form:"cleaner_id"`
 	Priority     string `form:"priority"`
@@ -203,6 +205,13 @@ func (s *CleaningService) List(query CleaningListQuery) (CleaningListResult, err
 
 	if query.CleaningDate != "" {
 		db = db.Where("cleaning_date = ?", query.CleaningDate)
+	} else {
+		if query.StartDate != "" {
+			db = db.Where("cleaning_date >= ?", query.StartDate)
+		}
+		if query.EndDate != "" {
+			db = db.Where("cleaning_date <= ?", query.EndDate)
+		}
 	}
 	if query.Status != "" {
 		db = db.Where("status = ?", query.Status)
@@ -529,6 +538,254 @@ func (s *CleaningService) GetSummary(date string) CleaningSummary {
 	}
 
 	return summary
+}
+
+func (s *CleaningService) GetSummaryRange(startDate, endDate string) CleaningSummary {
+	var summary CleaningSummary
+
+	type statusCount struct {
+		Status string
+		Count  int64
+	}
+	var rows []statusCount
+	config.DB.Model(&models.CleaningTask{}).
+		Where("cleaning_date >= ? AND cleaning_date <= ?", startDate, endDate).
+		Select("status, COUNT(*) as count").
+		Group("status").
+		Scan(&rows)
+
+	for _, r := range rows {
+		summary.Total += r.Count
+		switch r.Status {
+		case "pending":
+			summary.Pending = r.Count
+		case "assigned":
+			summary.Assigned = r.Count
+		case "in_progress":
+			summary.InProgress = r.Count
+		case "completed":
+			summary.Completed = r.Count
+		case "issue":
+			summary.Issue = r.Count
+		}
+	}
+
+	return summary
+}
+
+// --- 동선 분석 ---
+
+type TimeAnalysisTask struct {
+	Order              int     `json:"order"`
+	TaskID             uint    `json:"task_id"`
+	PropertyCode       string  `json:"property_code"`
+	PropertyName       string  `json:"property_name"`
+	Address            string  `json:"address"`
+	Region             string  `json:"region"`
+	CleaningDate       string  `json:"cleaning_date"`
+	StartedAt          string  `json:"started_at"`
+	CompletedAt        string  `json:"completed_at"`
+	CleaningMinutes    float64 `json:"cleaning_minutes"`
+	TravelMinutesToNext float64 `json:"travel_minutes_to_next"`
+	NextRegion         string  `json:"next_region,omitempty"`
+	IsCrossRegion      bool    `json:"is_cross_region"`
+	Status             string  `json:"status"`
+}
+
+type TimeAnalysisSummary struct {
+	TotalTasks           int     `json:"total_tasks"`
+	CompletedTasks       int     `json:"completed_tasks"`
+	TotalWorkMinutes     float64 `json:"total_work_minutes"`
+	TotalCleaningMinutes float64 `json:"total_cleaning_minutes"`
+	TotalTravelMinutes   float64 `json:"total_travel_minutes"`
+	EfficiencyPct        float64 `json:"efficiency_pct"`
+	AvgCleaningMinutes   float64 `json:"avg_cleaning_minutes"`
+	AvgTravelMinutes     float64 `json:"avg_travel_minutes"`
+	CrossRegionMoves     int     `json:"cross_region_moves"`
+}
+
+type CleanerTimeAnalysis struct {
+	CleanerID   uint                `json:"cleaner_id"`
+	CleanerName string              `json:"cleaner_name"`
+	Dates       []CleanerDayAnalysis `json:"dates"`
+}
+
+type CleanerDayAnalysis struct {
+	Date    string              `json:"date"`
+	Tasks   []TimeAnalysisTask  `json:"tasks"`
+	Summary TimeAnalysisSummary `json:"summary"`
+}
+
+type TimeAnalysisResult struct {
+	StartDate string                `json:"start_date"`
+	EndDate   string                `json:"end_date"`
+	Cleaners  []CleanerTimeAnalysis `json:"cleaners"`
+}
+
+func extractRegion(code string) string {
+	if code == "" {
+		return "기타"
+	}
+	region := ""
+	for _, ch := range code {
+		if ch >= '0' && ch <= '9' {
+			break
+		}
+		region += string(ch)
+	}
+	if region == "" {
+		return "기타"
+	}
+	return region
+}
+
+func (s *CleaningService) TimeAnalysis(startDate, endDate string, cleanerID uint) TimeAnalysisResult {
+	result := TimeAnalysisResult{StartDate: startDate, EndDate: endDate}
+
+	db := config.DB.Where("cleaning_date >= ? AND cleaning_date <= ?", startDate, endDate).
+		Where("cleaner_id IS NOT NULL")
+	if cleanerID > 0 {
+		db = db.Where("cleaner_id = ?", cleanerID)
+	}
+
+	var tasks []models.CleaningTask
+	db.Order("cleaner_id ASC, cleaning_date ASC, started_at ASC, id ASC").Find(&tasks)
+
+	if len(tasks) == 0 {
+		return result
+	}
+
+	// 청소자 + 날짜별 그룹핑
+	type key struct {
+		CleanerID uint
+		Date      string
+	}
+	grouped := map[key][]models.CleaningTask{}
+	cleanerNames := map[uint]string{}
+	var keys []key
+
+	for _, t := range tasks {
+		cid := uint(0)
+		if t.CleanerID != nil {
+			cid = *t.CleanerID
+		}
+		k := key{CleanerID: cid, Date: t.CleaningDate}
+		if _, ok := grouped[k]; !ok {
+			keys = append(keys, k)
+		}
+		grouped[k] = append(grouped[k], t)
+		if t.CleanerName != "" {
+			cleanerNames[cid] = t.CleanerName
+		}
+	}
+
+	// 청소자별로 집계
+	cleanerMap := map[uint]*CleanerTimeAnalysis{}
+	var cleanerOrder []uint
+
+	for _, k := range keys {
+		dayTasks := grouped[k]
+		cta, ok := cleanerMap[k.CleanerID]
+		if !ok {
+			cta = &CleanerTimeAnalysis{
+				CleanerID:   k.CleanerID,
+				CleanerName: cleanerNames[k.CleanerID],
+			}
+			cleanerMap[k.CleanerID] = cta
+			cleanerOrder = append(cleanerOrder, k.CleanerID)
+		}
+
+		day := CleanerDayAnalysis{Date: k.Date}
+		var completedCount int
+		var totalCleaning, totalTravel float64
+		var firstStart, lastComplete *time.Time
+		var crossMoves int
+
+		for i, t := range dayTasks {
+			region := extractRegion(t.PropertyCode)
+			at := TimeAnalysisTask{
+				Order:        i + 1,
+				TaskID:       t.ID,
+				PropertyCode: t.PropertyCode,
+				PropertyName: t.PropertyName,
+				Address:      t.Address,
+				Region:       region,
+				CleaningDate: t.CleaningDate,
+				Status:       t.Status,
+			}
+
+			if t.StartedAt != nil {
+				at.StartedAt = t.StartedAt.Format("15:04")
+				if firstStart == nil {
+					firstStart = t.StartedAt
+				}
+			}
+			if t.CompletedAt != nil {
+				at.CompletedAt = t.CompletedAt.Format("15:04")
+				lastComplete = t.CompletedAt
+				completedCount++
+			}
+
+			// 청소시간
+			if t.StartedAt != nil && t.CompletedAt != nil {
+				mins := t.CompletedAt.Sub(*t.StartedAt).Minutes()
+				if mins > 0 && mins < 300 { // 5시간 이상은 이상치
+					at.CleaningMinutes = mins
+					totalCleaning += mins
+				}
+			}
+
+			// 다음 태스크와의 이동시간
+			if i < len(dayTasks)-1 {
+				next := dayTasks[i+1]
+				nextRegion := extractRegion(next.PropertyCode)
+				at.NextRegion = nextRegion
+				at.IsCrossRegion = region != nextRegion
+				if at.IsCrossRegion {
+					crossMoves++
+				}
+
+				if t.CompletedAt != nil && next.StartedAt != nil {
+					travel := next.StartedAt.Sub(*t.CompletedAt).Minutes()
+					if travel >= 0 && travel < 120 { // 2시간 이상은 이상치 (휴식 등)
+						at.TravelMinutesToNext = travel
+						totalTravel += travel
+					}
+				}
+			}
+
+			day.Tasks = append(day.Tasks, at)
+		}
+
+		// 일일 요약
+		day.Summary.TotalTasks = len(dayTasks)
+		day.Summary.CompletedTasks = completedCount
+		day.Summary.TotalCleaningMinutes = totalCleaning
+		day.Summary.TotalTravelMinutes = totalTravel
+		day.Summary.CrossRegionMoves = crossMoves
+
+		if firstStart != nil && lastComplete != nil {
+			day.Summary.TotalWorkMinutes = lastComplete.Sub(*firstStart).Minutes()
+		}
+		if day.Summary.TotalWorkMinutes > 0 {
+			day.Summary.EfficiencyPct = (totalCleaning / day.Summary.TotalWorkMinutes) * 100
+		}
+		if completedCount > 0 {
+			day.Summary.AvgCleaningMinutes = totalCleaning / float64(completedCount)
+		}
+		travelCount := len(dayTasks) - 1
+		if travelCount > 0 && totalTravel > 0 {
+			day.Summary.AvgTravelMinutes = totalTravel / float64(travelCount)
+		}
+
+		cta.Dates = append(cta.Dates, day)
+	}
+
+	for _, cid := range cleanerOrder {
+		result.Cleaners = append(result.Cleaners, *cleanerMap[cid])
+	}
+
+	return result
 }
 
 // --- 청소코드 ---

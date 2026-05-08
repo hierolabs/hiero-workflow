@@ -3,6 +3,7 @@ import OperationManual from "../components/OperationManual";
 import { fetchPricingData, fetchCalendarData, fetchPriceComparison, updatePrice, updateRestrictions, updateAvailability } from "../features/calendar/api/calendarApi";
 import type { PricingMap, DayPricing, CalendarReservation } from "../features/calendar/types/calendar";
 import type { PriceCompareMap, PriceCompareDay } from "../features/calendar/api/calendarApi";
+import MarketDataPanel from "../features/calendar/components/MarketDataPanel";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -82,7 +83,7 @@ export default function PriceCalendar() {
   const [reservations, setReservations] = useState<CalendarReservation[]>([]);
   const [links, setLinks] = useState<Record<number, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"hostex" | "compare">("compare");
+  const [viewMode, setViewMode] = useState<"hostex" | "compare" | "market">("compare");
   const [baseDate, setBaseDate] = useState(new Date());
   const dates = generateDates(baseDate, 60);
   const startDate = dates[0];
@@ -225,6 +226,10 @@ export default function PriceCalendar() {
               onClick={() => setViewMode("compare")}
               className={`px-2 py-0.5 text-[10px] rounded ${viewMode === "compare" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}
             >PriceLabs 비교</button>
+            <button
+              onClick={() => setViewMode("market")}
+              className={`px-2 py-0.5 text-[10px] rounded ${viewMode === "market" ? "bg-emerald-700 text-white" : "bg-gray-100 text-gray-500"}`}
+            >시장 데이터</button>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -265,6 +270,11 @@ export default function PriceCalendar() {
         </div>
       </div>
 
+      {/* 시장 데이터 모드 */}
+      {viewMode === "market" ? (
+        <MarketDataPanel />
+      ) : (
+      <>
       {/* 캘린더 그리드 */}
       <div
         ref={scrollRef}
@@ -503,6 +513,8 @@ export default function PriceCalendar() {
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-orange-50 border border-orange-200" /> 주말</span>
         <span className="flex items-center gap-1">- = 미연동</span>
       </div>
+      </>
+      )}
 
       {/* 히로가이드 */}
       {showManual && <OperationManual page="price-calendar" onClose={() => setShowManual(false)} />}

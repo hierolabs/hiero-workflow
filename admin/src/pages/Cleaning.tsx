@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import OperationManual from "../components/OperationManual";
 import AiAgentPanel from "../components/AiAgentPanel";
+import PeriodFilter, { calcRange, type PeriodKey } from "../components/PeriodFilter";
 import {
   fetchCleaningTasks,
   fetchCleaningSummary,
@@ -25,7 +26,7 @@ import {
   type CleaningCode,
 } from "../utils/cleaning-api";
 
-type Tab = "dashboard" | "dispatch" | "ledger" | "cleaners" | "settlement" | "records" | "costmatch" | "codes";
+type Tab = "dashboard" | "dispatch" | "ledger" | "cleaners" | "settlement" | "records" | "costmatch" | "codes" | "route";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   walk: "도보",
@@ -59,6 +60,7 @@ export default function Cleaning() {
         <TabBtn active={tab === "records"} onClick={() => setTab("records")}>전체 기록</TabBtn>
         <TabBtn active={tab === "costmatch"} onClick={() => setTab("costmatch")}>비용 매칭</TabBtn>
         <TabBtn active={tab === "codes"} onClick={() => setTab("codes")}>청소코드</TabBtn>
+        <TabBtn active={tab === "route"} onClick={() => setTab("route")}>동선 분석</TabBtn>
       </div>
       {tab === "dashboard" && <DashboardTab />}
       {tab === "dispatch" && <DispatchTab />}
@@ -68,6 +70,7 @@ export default function Cleaning() {
       {tab === "records" && <RecordsTab />}
       {tab === "costmatch" && <CostMatchTab />}
       {tab === "codes" && <CodesTab />}
+      {tab === "route" && <RouteAnalysisTab />}
       {showManual && <OperationManual page="cleaning" onClose={() => setShowManual(false)} />}
 
       <AiAgentPanel page="cleaning" pageLabel="청소 관리" getPageData={() => `현재 탭: ${tab}. 청소 대시보드/청소자 관리/청소코드 3개 탭 구조. 데이터는 탭 내부에서 관리됨.`} />
@@ -87,9 +90,9 @@ interface Extension {
 }
 
 function DashboardTab() {
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const [date, setDate] = useState(today);
+  const [period, setPeriod] = useState<PeriodKey>("today");
+  const [rangeStart, setRangeStart] = useState(() => calcRange("today")[0]);
+  const [rangeEnd, setRangeEnd] = useState(() => calcRange("today")[1]);
   const [tasks, setTasks] = useState<CleaningTask[]>([]);
   const [summary, setSummary] = useState<CleaningSummary | null>(null);
   const [cleaners, setCleaners] = useState<Cleaner[]>([]);
@@ -97,6 +100,12 @@ function DashboardTab() {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+
+  const handlePeriodChange = useCallback((p: PeriodKey, start: string, end: string) => {
+    setPeriod(p);
+    setRangeStart(start);
+    setRangeEnd(end);
+  }, []);
   const [assigningId, setAssigningId] = useState<number | null>(null);
   const [selectedCleanerId, setSelectedCleanerId] = useState(0);
   const [issueTaskId, setIssueTaskId] = useState<number | null>(null);
@@ -108,18 +117,22 @@ function DashboardTab() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
+  const isSingleDay = rangeStart === rangeEnd;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { cleaning_date: date, page_size: "200" };
+      const params: Record<string, string> = isSingleDay
+        ? { cleaning_date: rangeStart, page_size: "200" }
+        : { start_date: rangeStart, end_date: rangeEnd, page_size: "200" };
       if (statusFilter) params.status = statusFilter;
       const token = localStorage.getItem("token");
       const [taskData, summaryData, cleanerData, workloadData, extRes] = await Promise.all([
         fetchCleaningTasks(params),
-        fetchCleaningSummary(date),
+        isSingleDay ? fetchCleaningSummary(rangeStart) : fetchCleaningSummary(rangeStart, rangeEnd),
         fetchCleaners(),
-        fetchCleanerWorkload(date),
-        fetch(`${API_URL}/cleaning/extensions?date=${date}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetchCleanerWorkload(rangeStart),
+        fetch(`${API_URL}/cleaning/extensions?date=${rangeStart}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       setTasks(taskData.tasks || []);
       setSummary(summaryData);
@@ -132,14 +145,14 @@ function DashboardTab() {
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
-  }, [date, statusFilter]);
+  }, [rangeStart, rangeEnd, isSingleDay, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const result = await generateCleaningTasks(date);
+      const result = await generateCleaningTasks(rangeStart);
       alert(`${result.created}건 청소 업무 생성`);
       load();
     } catch { alert("생성 실패"); } finally { setGenerating(false); }
@@ -177,10 +190,10 @@ function DashboardTab() {
   };
 
   const handleBulkDispatch = async () => {
-    if (!confirm(`${date} 배정된 모든 업무를 발송 처리하시겠습니까?`)) return;
+    if (!confirm(`${rangeStart} 배정된 모든 업무를 발송 처리하시겠습니까?`)) return;
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}/cleaning/bulk-dispatch?date=${date}`, {
+      const res = await fetch(`${API_URL}/cleaning/bulk-dispatch?date=${rangeStart}`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -240,29 +253,32 @@ function DashboardTab() {
   return (
     <div>
       {/* Controls */}
-      <div className="mb-4 flex items-center gap-3 flex-wrap">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm" />
-        <button onClick={handleGenerate} disabled={generating}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
-          {generating ? "생성 중..." : "청소 업무 생성"}
-        </button>
-        <button onClick={handleBulkDispatch}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-          일괄 발송
-        </button>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-          <option value="">전체 상태</option>
-          {Object.entries(CLEANING_STATUS_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <div className="ml-auto flex gap-1">
-          <button onClick={() => setViewMode("region")}
-            className={`rounded px-3 py-1.5 text-xs font-medium ${viewMode === "region" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-600"}`}>권역별</button>
-          <button onClick={() => setViewMode("list")}
-            className={`rounded px-3 py-1.5 text-xs font-medium ${viewMode === "list" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-600"}`}>전체 목록</button>
+      <div className="mb-4 space-y-3">
+        <PeriodFilter value={period} onChange={handlePeriodChange} />
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={handleGenerate} disabled={generating || !isSingleDay}
+            title={isSingleDay ? "" : "단일 날짜에서만 생성 가능"}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+            {generating ? "생성 중..." : "청소 업무 생성"}
+          </button>
+          <button onClick={handleBulkDispatch} disabled={!isSingleDay}
+            title={isSingleDay ? "" : "단일 날짜에서만 발송 가능"}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+            일괄 발송
+          </button>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <option value="">전체 상태</option>
+            {Object.entries(CLEANING_STATUS_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <div className="ml-auto flex gap-1">
+            <button onClick={() => setViewMode("region")}
+              className={`rounded px-3 py-1.5 text-xs font-medium ${viewMode === "region" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-600"}`}>권역별</button>
+            <button onClick={() => setViewMode("list")}
+              className={`rounded px-3 py-1.5 text-xs font-medium ${viewMode === "list" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-600"}`}>전체 목록</button>
+          </div>
         </div>
       </div>
 
@@ -655,41 +671,31 @@ interface WeeklySettlementData {
 function SettlementTab() {
   const [data, setData] = useState<WeeklySettlementData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0); // 0=이번주, -1=지난주
+  const [period, setPeriod] = useState<PeriodKey>('today');
+  const [rangeStart, setRangeStart] = useState(() => calcRange('today')[0]);
+  const [rangeEnd, setRangeEnd] = useState(() => calcRange('today')[1]);
   const API_URL = import.meta.env.VITE_API_URL;
   const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
 
-  const getWeekRange = (offset: number) => {
-    const now = new Date();
-    now.setDate(now.getDate() + offset * 7);
-    let weekday = now.getDay();
-    if (weekday === 0) weekday = 7;
-    const mon = new Date(now); mon.setDate(now.getDate() - (weekday - 1));
-    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    const f = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    return { start: f(mon), end: f(sun) };
-  };
+  const handlePeriodChange = useCallback((p: PeriodKey, start: string, end: string) => {
+    setPeriod(p);
+    setRangeStart(start);
+    setRangeEnd(end);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
-    const { start, end } = getWeekRange(weekOffset);
     const token = localStorage.getItem('token');
-    fetch(`${API_URL}/cleaning/weekly-settlement?week_start=${start}&week_end=${end}`, {
+    fetch(`${API_URL}/cleaning/weekly-settlement?week_start=${rangeStart}&week_end=${rangeEnd}`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.json()).then(setData).finally(() => setLoading(false));
-  }, [weekOffset]);
+  }, [rangeStart, rangeEnd]);
 
   if (loading) return <div className="text-center text-gray-400 py-8">로딩 중...</div>;
 
   return (
     <div className="space-y-4">
-      {/* 주차 선택 */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => setWeekOffset(w => w - 1)} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50">← 이전 주</button>
-        <span className="text-sm font-semibold text-gray-700">{data?.week_start} ~ {data?.week_end}</span>
-        <button onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= 0} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-30">다음 주 →</button>
-        {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="text-xs text-blue-600">이번 주</button>}
-      </div>
+      <PeriodFilter value={period} onChange={handlePeriodChange} />
 
       {/* 요약 카드 */}
       {data && (
@@ -783,8 +789,9 @@ function RecordsTab() {
   const [tasks, setTasks] = useState<CleaningTask[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [period, setPeriod] = useState<PeriodKey>('today');
+  const [rangeStart, setRangeStart] = useState(() => calcRange('today')[0]);
+  const [rangeEnd, setRangeEnd] = useState(() => calcRange('today')[1]);
   const [filterCleaner, setFilterCleaner] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [sumTotal, setSumTotal] = useState(0);
@@ -792,12 +799,19 @@ function RecordsTab() {
   const API_URL = import.meta.env.VITE_API_URL;
   const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
 
+  const handlePeriodChange = useCallback((p: PeriodKey, start: string, end: string) => {
+    setPeriod(p);
+    setRangeStart(start);
+    setRangeEnd(end);
+    setPage(1);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     const token = localStorage.getItem('token');
     const params = new URLSearchParams({ page: String(page), page_size: '50' });
-    if (startDate) params.set('start_date', startDate);
-    if (endDate) params.set('end_date', endDate);
+    if (rangeStart) params.set('start_date', rangeStart);
+    if (rangeEnd) params.set('end_date', rangeEnd);
     if (filterCleaner) params.set('cleaner_id', filterCleaner);
     if (filterStatus) params.set('status', filterStatus);
     const res = await fetch(`${API_URL}/cleaning/records?${params}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -806,15 +820,15 @@ function RecordsTab() {
     setTotal(data.total || 0);
     setSumTotal(data.sum_total || 0);
     setLoading(false);
-  }, [page, startDate, endDate, filterCleaner, filterStatus]);
+  }, [page, rangeStart, rangeEnd, filterCleaner, filterStatus]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleExport = () => {
     const token = localStorage.getItem('token');
     const params = new URLSearchParams();
-    if (startDate) params.set('start_date', startDate);
-    if (endDate) params.set('end_date', endDate);
+    if (rangeStart) params.set('start_date', rangeStart);
+    if (rangeEnd) params.set('end_date', rangeEnd);
     if (filterCleaner) params.set('cleaner_id', filterCleaner);
     window.open(`${API_URL}/cleaning/export?${params}&token=${token}`, '_blank');
   };
@@ -823,13 +837,10 @@ function RecordsTab() {
 
   return (
     <div className="space-y-4">
-      {/* 필터 + 엑스포트 */}
+      {/* 기간 필터 */}
+      <PeriodFilter value={period} onChange={handlePeriodChange} />
+      {/* 추가 필터 + 엑스포트 */}
       <div className="flex flex-wrap items-center gap-3">
-        <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setPage(1); }}
-          className="rounded border px-3 py-1.5 text-sm" />
-        <span className="text-gray-400">~</span>
-        <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setPage(1); }}
-          className="rounded border px-3 py-1.5 text-sm" />
         <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="rounded border px-3 py-1.5 text-sm">
           <option value="">전체 상태</option>
@@ -1400,14 +1411,9 @@ interface CleanerStat2 {
 interface PropStat2 { property_code: string; property_name: string; count: number; total_cost: number; }
 
 function LedgerTab() {
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  const dow = now.getDay() || 7;
-
-  const [period, setPeriod] = useState('this_month');
-  const [customStart, setCustomStart] = useState(fmt(now));
-  const [customEnd, setCustomEnd] = useState(fmt(now));
+  const [period, setPeriod] = useState<PeriodKey>('today');
+  const [rangeStart, setRangeStart] = useState(() => calcRange('today')[0]);
+  const [rangeEnd, setRangeEnd] = useState(() => calcRange('today')[1]);
   const [summary, setSummary] = useState<{
     grand: { count: number; total_cost: number; base_cost: number; extra_cost: number };
     by_cleaner: CleanerStat2[]; by_property: PropStat2[];
@@ -1419,82 +1425,32 @@ function LedgerTab() {
   const API_URL = import.meta.env.VITE_API_URL;
   const token = localStorage.getItem('token');
 
-  const getDateRange = useCallback((): [string, string] => {
-    switch (period) {
-      case 'today': return [fmt(now), fmt(now)];
-      case 'yesterday': { const t = new Date(y, m, d - 1); return [fmt(t), fmt(t)]; }
-      case 'last_week': { const mon = new Date(y, m, d - dow - 6); const sun = new Date(y, m, d - dow); return [fmt(mon), fmt(sun)]; }
-      case 'this_week': { const mon = new Date(y, m, d - dow + 1); return [fmt(mon), fmt(now)]; }
-      case 'this_month': return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
-      case 'last_month': { const s = new Date(y, m - 1, 1); const e = new Date(y, m, 0); return [fmt(s), fmt(e)]; }
-      case 'custom': return [customStart, customEnd];
-      default: return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
-    }
-  }, [period, customStart, customEnd]);
+  const handlePeriodChange = useCallback((p: PeriodKey, start: string, end: string) => {
+    setPeriod(p);
+    setRangeStart(start);
+    setRangeEnd(end);
+  }, []);
 
   const loadSummary = useCallback(async () => {
     setLoading(true); setDetail(null);
-    const [start, end] = getRange(period);
-    const res = await fetch(`${API_URL}/cleaning-records/summary?start=${start}&end=${end}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${API_URL}/cleaning-records/summary?start=${rangeStart}&end=${rangeEnd}`, { headers: { Authorization: `Bearer ${token}` } });
     setSummary(await res.json());
     setLoading(false);
-  }, [getDateRange, API_URL, token]);
+  }, [rangeStart, rangeEnd, API_URL, token]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
   const loadCleanerDetail = async (name: string) => {
-    const [start, end] = getRange(period);
-    const res = await fetch(`${API_URL}/cleaning-records/cleaner/${encodeURIComponent(name)}?start=${start}&end=${end}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${API_URL}/cleaning-records/cleaner/${encodeURIComponent(name)}?start=${rangeStart}&end=${rangeEnd}`, { headers: { Authorization: `Bearer ${token}` } });
     setDetail(await res.json());
   };
-
-  const getRange = useCallback((p: string): [string, string] => {
-    switch (p) {
-      case 'today': return [fmt(now), fmt(now)];
-      case 'yesterday': { const t = new Date(y, m, d - 1); return [fmt(t), fmt(t)]; }
-      case 'this_week': { const mon = new Date(y, m, d - dow + 1); return [fmt(mon), fmt(now)]; }
-      case 'last_week': { const mon = new Date(y, m, d - dow - 6); const sun = new Date(y, m, d - dow); return [fmt(mon), fmt(sun)]; }
-      case 'this_month': return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
-      case 'last_month': { const s = new Date(y, m - 1, 1); const e = new Date(y, m, 0); return [fmt(s), fmt(e)]; }
-      case 'this_quarter': { const qm = Math.floor(m / 3) * 3; return [`${y}-${String(qm + 1).padStart(2, '0')}-01`, fmt(now)]; }
-      case 'this_year': return [`${y}-01-01`, fmt(now)];
-      case 'last_year': return [`${y - 1}-01-01`, `${y - 1}-12-31`];
-      case 'custom': return [customStart, customEnd];
-      default: return [`${y}-${String(m + 1).padStart(2, '0')}-01`, fmt(now)];
-    }
-  }, [customStart, customEnd]);
-
-  const PERIODS = [
-    { key: 'today', label: '오늘' },
-    { key: 'yesterday', label: '어제' },
-    { key: 'this_week', label: '이번 주' },
-    { key: 'last_week', label: '저번 주' },
-    { key: 'this_month', label: '이번 달' },
-    { key: 'last_month', label: '저번 달' },
-    { key: 'this_quarter', label: '이번 분기' },
-    { key: 'this_year', label: '올해' },
-    { key: 'last_year', label: '작년' },
-    { key: 'custom', label: '기간별' },
-  ];
 
   if (loading) return <div className="py-20 text-center text-gray-500">로딩 중...</div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
-        {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)}
-            className={`px-3 py-1.5 text-xs rounded-full transition ${period === p.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {p.label}
-          </button>
-        ))}
-        {period === 'custom' && (
-          <div className="flex items-center gap-1">
-            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="rounded border border-gray-300 px-2 py-1 text-xs" />
-            <span className="text-gray-400">~</span>
-            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="rounded border border-gray-300 px-2 py-1 text-xs" />
-          </div>
-        )}
+        <PeriodFilter value={period} onChange={handlePeriodChange} />
         {detail && (
           <button onClick={() => setDetail(null)} className="text-sm text-blue-600 hover:text-blue-800 ml-2">← 전체 요약</button>
         )}
@@ -1757,6 +1713,305 @@ function ReservationPopup({ guestName, reservationCode, checkIn, cleaningDate, c
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ===================== Route Analysis Tab =====================
+
+interface TimeTask {
+  order: number;
+  task_id: number;
+  property_code: string;
+  property_name: string;
+  address: string;
+  region: string;
+  cleaning_date: string;
+  started_at: string;
+  completed_at: string;
+  cleaning_minutes: number;
+  travel_minutes_to_next: number;
+  next_region: string;
+  is_cross_region: boolean;
+  status: string;
+}
+
+interface TimeSummary {
+  total_tasks: number;
+  completed_tasks: number;
+  total_work_minutes: number;
+  total_cleaning_minutes: number;
+  total_travel_minutes: number;
+  efficiency_pct: number;
+  avg_cleaning_minutes: number;
+  avg_travel_minutes: number;
+  cross_region_moves: number;
+}
+
+interface CleanerDayAnalysis {
+  date: string;
+  tasks: TimeTask[];
+  summary: TimeSummary;
+}
+
+interface CleanerTimeAnalysis {
+  cleaner_id: number;
+  cleaner_name: string;
+  dates: CleanerDayAnalysis[];
+}
+
+interface TimeAnalysisResult {
+  start_date: string;
+  end_date: string;
+  cleaners: CleanerTimeAnalysis[];
+}
+
+const REGION_COLORS: Record<string, string> = {
+  A: "bg-blue-500", A2: "bg-blue-400", B: "bg-emerald-500", GN: "bg-purple-500",
+  SD: "bg-orange-500", SD2: "bg-orange-400", V: "bg-pink-500",
+};
+
+function RouteAnalysisTab() {
+  const [period, setPeriod] = useState<PeriodKey>("today");
+  const [rangeStart, setRangeStart] = useState(() => calcRange("today")[0]);
+  const [rangeEnd, setRangeEnd] = useState(() => calcRange("today")[1]);
+  const [data, setData] = useState<TimeAnalysisResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCleaner, setSelectedCleaner] = useState<number>(0);
+
+  const API_URL = import.meta.env.VITE_API_URL;
+
+  const handlePeriodChange = useCallback((p: PeriodKey, start: string, end: string) => {
+    setPeriod(p);
+    setRangeStart(start);
+    setRangeEnd(end);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    const qs = new URLSearchParams({ start_date: rangeStart, end_date: rangeEnd });
+    if (selectedCleaner > 0) qs.set("cleaner_id", String(selectedCleaner));
+    fetch(`${API_URL}/cleaning/time-analysis?${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [rangeStart, rangeEnd, selectedCleaner]);
+
+  // 전체 요약 집계
+  const totalSummary = useMemo(() => {
+    if (!data?.cleaners?.length) return null;
+    const s = { tasks: 0, completed: 0, cleaning: 0, travel: 0, work: 0, cross: 0, hasTime: 0 };
+    for (const c of data.cleaners) {
+      for (const d of c.dates) {
+        s.tasks += d.summary.total_tasks;
+        s.completed += d.summary.completed_tasks;
+        s.cleaning += d.summary.total_cleaning_minutes;
+        s.travel += d.summary.total_travel_minutes;
+        s.work += d.summary.total_work_minutes;
+        s.cross += d.summary.cross_region_moves;
+        for (const t of d.tasks) {
+          if (t.started_at && t.completed_at) s.hasTime++;
+        }
+      }
+    }
+    return {
+      ...s,
+      efficiency: s.work > 0 ? (s.cleaning / s.work) * 100 : 0,
+      timeInputRate: s.tasks > 0 ? (s.hasTime / s.tasks) * 100 : 0,
+    };
+  }, [data]);
+
+  return (
+    <div>
+      <PeriodFilter value={period} onChange={handlePeriodChange} />
+
+      <div className="mt-3 flex items-center gap-3">
+        <select
+          value={selectedCleaner}
+          onChange={(e) => setSelectedCleaner(Number(e.target.value))}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+        >
+          <option value={0}>전체 청소자</option>
+          {data?.cleaners?.map((c) => (
+            <option key={c.cleaner_id} value={c.cleaner_id}>{c.cleaner_name}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="mt-6 text-center text-gray-400 text-sm">불러오는 중...</div>}
+
+      {!loading && !data?.cleaners?.length && (
+        <div className="mt-6 text-center text-gray-400 text-sm">
+          해당 기간에 시작/완료 데이터가 있는 청소 기록이 없습니다.
+        </div>
+      )}
+
+      {/* 전체 요약 카드 */}
+      {totalSummary && (
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <MiniCard label="총 업무" value={`${totalSummary.tasks}건`} />
+          <MiniCard label="완료" value={`${totalSummary.completed}건`} />
+          <MiniCard label="총 청소" value={`${Math.round(totalSummary.cleaning)}분`} />
+          <MiniCard label="총 이동" value={`${Math.round(totalSummary.travel)}분`} />
+          <MiniCard label="총 업무시간" value={`${Math.round(totalSummary.work)}분`} />
+          <MiniCard label="효율" value={`${totalSummary.efficiency.toFixed(1)}%`}
+            color={totalSummary.efficiency >= 70 ? "text-green-600" : totalSummary.efficiency >= 50 ? "text-yellow-600" : "text-red-600"} />
+          <MiniCard label="권역 이동" value={`${totalSummary.cross}회`} />
+        </div>
+      )}
+
+      {totalSummary && totalSummary.timeInputRate < 50 && (
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>시간 데이터 입력률 {totalSummary.timeInputRate.toFixed(0)}%</strong> — 시작/완료 시간이 입력된 건만 분석에 반영됩니다.
+          청소자가 앱에서 [시작]/[완료] 버튼을 누르면 정확한 동선 분석이 가능합니다.
+        </div>
+      )}
+
+      {/* 청소자별 상세 */}
+      {data?.cleaners?.map((cleaner) => (
+        <div key={cleaner.cleaner_id} className="mt-6">
+          <h3 className="text-base font-semibold text-gray-900 mb-3">{cleaner.cleaner_name}</h3>
+
+          {cleaner.dates.map((day) => (
+            <div key={day.date} className="mb-5">
+              {data.start_date !== data.end_date && (
+                <div className="text-xs font-medium text-gray-500 mb-2">{day.date}</div>
+              )}
+
+              {/* 타임라인 바 */}
+              <div className="relative mb-3">
+                {day.tasks.length > 0 && day.summary.total_work_minutes > 0 && (
+                  <div className="flex items-center gap-0.5 h-10 rounded-lg overflow-hidden bg-gray-100">
+                    {day.tasks.map((t, i) => {
+                      const cleanPct = day.summary.total_work_minutes > 0
+                        ? (t.cleaning_minutes / day.summary.total_work_minutes) * 100 : 0;
+                      const travelPct = day.summary.total_work_minutes > 0
+                        ? (t.travel_minutes_to_next / day.summary.total_work_minutes) * 100 : 0;
+                      const regionColor = REGION_COLORS[t.region] || "bg-gray-500";
+                      return (
+                        <div key={t.task_id} className="flex" style={{ display: "contents" }}>
+                          {cleanPct > 0 && (
+                            <div
+                              className={`${regionColor} relative group cursor-pointer flex items-center justify-center`}
+                              style={{ width: `${Math.max(cleanPct, 2)}%` }}
+                              title={`${t.property_code} ${t.property_name} — ${Math.round(t.cleaning_minutes)}분`}
+                            >
+                              <span className="text-[10px] text-white font-medium truncate px-1">
+                                {t.property_code}
+                              </span>
+                            </div>
+                          )}
+                          {travelPct > 0 && i < day.tasks.length - 1 && (
+                            <div
+                              className={`${t.is_cross_region ? "bg-red-200" : "bg-gray-200"} flex items-center justify-center`}
+                              style={{ width: `${Math.max(travelPct, 1)}%` }}
+                              title={`이동 ${Math.round(t.travel_minutes_to_next)}분${t.is_cross_region ? " (권역 이동)" : ""}`}
+                            >
+                              <span className="text-[9px] text-gray-500">{Math.round(t.travel_minutes_to_next)}m</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 상세 테이블 */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-gray-500">
+                      <th className="py-1.5 text-left font-medium w-8">#</th>
+                      <th className="py-1.5 text-left font-medium">숙소</th>
+                      <th className="py-1.5 text-left font-medium">권역</th>
+                      <th className="py-1.5 text-center font-medium">시작</th>
+                      <th className="py-1.5 text-center font-medium">완료</th>
+                      <th className="py-1.5 text-right font-medium">청소</th>
+                      <th className="py-1.5 text-right font-medium">이동</th>
+                      <th className="py-1.5 text-center font-medium">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {day.tasks.map((t) => (
+                      <tr key={t.task_id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-1.5 text-gray-400">{t.order}</td>
+                        <td className="py-1.5">
+                          <span className="font-medium text-gray-900">{t.property_code}</span>
+                          <span className="ml-1 text-gray-500">{t.property_name}</span>
+                        </td>
+                        <td className="py-1.5">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium text-white ${REGION_COLORS[t.region] || "bg-gray-400"}`}>
+                            {t.region}
+                          </span>
+                          {t.is_cross_region && t.next_region && (
+                            <span className="ml-1 text-red-500 text-[10px] font-medium">
+                              → {t.next_region}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 text-center text-gray-700">{t.started_at || "-"}</td>
+                        <td className="py-1.5 text-center text-gray-700">{t.completed_at || "-"}</td>
+                        <td className="py-1.5 text-right font-medium">
+                          {t.cleaning_minutes > 0 ? (
+                            <span className={t.cleaning_minutes > 50 ? "text-red-600" : "text-gray-900"}>
+                              {Math.round(t.cleaning_minutes)}분
+                            </span>
+                          ) : "-"}
+                        </td>
+                        <td className="py-1.5 text-right">
+                          {t.travel_minutes_to_next > 0 ? (
+                            <span className={t.is_cross_region ? "text-red-600 font-medium" : "text-gray-600"}>
+                              {Math.round(t.travel_minutes_to_next)}분
+                            </span>
+                          ) : ""}
+                        </td>
+                        <td className="py-1.5 text-center">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            t.status === "completed" ? "bg-green-100 text-green-700" :
+                            t.status === "in_progress" ? "bg-yellow-100 text-yellow-700" :
+                            t.status === "issue" ? "bg-red-100 text-red-700" :
+                            "bg-gray-100 text-gray-500"
+                          }`}>
+                            {CLEANING_STATUS_LABELS[t.status as keyof typeof CLEANING_STATUS_LABELS] || t.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 일일 요약 */}
+              <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                <span>업무 <strong className="text-gray-900">{day.summary.total_tasks}건</strong> (완료 {day.summary.completed_tasks})</span>
+                <span>청소 <strong className="text-gray-900">{Math.round(day.summary.total_cleaning_minutes)}분</strong> (평균 {Math.round(day.summary.avg_cleaning_minutes)}분/건)</span>
+                <span>이동 <strong className="text-gray-900">{Math.round(day.summary.total_travel_minutes)}분</strong> (평균 {Math.round(day.summary.avg_travel_minutes)}분)</span>
+                <span>총 <strong className="text-gray-900">{Math.round(day.summary.total_work_minutes)}분</strong></span>
+                <span>효율 <strong className={day.summary.efficiency_pct >= 70 ? "text-green-600" : day.summary.efficiency_pct >= 50 ? "text-yellow-600" : "text-red-600"}>
+                  {day.summary.efficiency_pct.toFixed(1)}%
+                </strong></span>
+                {day.summary.cross_region_moves > 0 && (
+                  <span className="text-red-600">권역이동 {day.summary.cross_region_moves}회</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniCard({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+      <div className="text-[10px] text-gray-400">{label}</div>
+      <div className={`text-lg font-bold ${color || "text-gray-900"}`}>{value}</div>
     </div>
   );
 }

@@ -32,7 +32,14 @@ interface Article {
   author_name: string;
   word_count: number;
   tags: string;
+  references: string;
   updated_at: string;
+}
+
+interface RefItem {
+  url: string;
+  title: string;
+  note: string;
 }
 
 interface Revision {
@@ -106,8 +113,18 @@ export default function KnowledgeBase() {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-  const [filter, setFilter] = useState<string>("all"); // all, empty, draft, review, published
+  const [filter, setFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  // References
+  const [refs, setRefs] = useState<RefItem[]>([]);
+  const [refUrl, setRefUrl] = useState("");
+  const [refTitle, setRefTitle] = useState("");
+  const [refNote, setRefNote] = useState("");
+  // AI Research Chat
+  const [chatMessages, setChatMessages] = useState<{role: string; content: string}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [rightTab, setRightTab] = useState<"info"|"refs"|"ai">("info");
 
   // Fetch TOC + Progress
   const loadData = useCallback(async () => {
@@ -135,6 +152,8 @@ export default function KnowledgeBase() {
       const a = await artRes.json();
       setSelected(a);
       setDraft(a.content ?? "");
+      try { setRefs(JSON.parse(a.references || "[]")); } catch { setRefs([]); }
+      setChatMessages([]);
     }
     if (revRes.ok) {
       const d = await revRes.json();
@@ -408,221 +427,250 @@ export default function KnowledgeBase() {
         )}
       </div>
 
-      {/* ── Right: Activity Log Sidebar ── */}
+      {/* ── Right: 3-Tab Sidebar (정보/참고자료/AI) ── */}
       {selected && (
-        <div className="w-56 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50/50 p-3">
-
-          {/* 전체 아카이빙 현황 (맨 위) */}
-          {progress && (() => {
-            const completed = progress.published;
-            const draftCount = progress.draft;
-            const total = progress.total;
-            return (
-              <div className="mb-3 rounded-lg bg-white p-2.5 border border-gray-100">
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[11px] font-medium text-gray-700">전체 아카이빙</span>
-                  <span className="text-[10px] text-gray-400">{completed + draftCount} / {total}</span>
-                </div>
-                <div className="h-1 rounded-full bg-gray-100 mb-2">
-                  <div className="h-1 rounded-full bg-green-500 transition-all" style={{ width: `${((completed + draftCount) / Math.max(total, 1)) * 100}%` }} />
-                </div>
-                <div className="flex gap-3 text-[10px] text-gray-400">
-                  <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />완료 {completed}</span>
-                  <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />초안 {draftCount}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* 완료/초안 드릴다운 리스트 */}
-          {(() => {
-            const published = toc.filter((i) => i.status === "published");
-            const drafts = toc.filter((i) => i.status === "draft");
-            const reviews = toc.filter((i) => i.status === "review");
-
-            const renderItem = (item: TOCItem) => (
-              <button
-                key={item.id}
-                onClick={() => selectArticle(item.id)}
-                className={`flex w-full items-start gap-1.5 rounded px-1.5 py-1 text-left transition-colors ${
-                  selected?.id === item.id ? "bg-gray-200" : "hover:bg-gray-100"
-                }`}
-              >
-                <span className="flex-1 truncate text-[10px]">{item.title}</span>
-              </button>
-            );
-
-            return (
-              <div className="mb-3 space-y-1">
-                {published.length > 0 && (
-                  <details className="group">
-                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-green-700 hover:text-green-900">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />완료 {published.length}
-                    </summary>
-                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
-                      {published.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
-                    </div>
-                  </details>
-                )}
-                {reviews.length > 0 && (
-                  <details className="group">
-                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-blue-700 hover:text-blue-900">
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />검토중 {reviews.length}
-                    </summary>
-                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
-                      {reviews.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
-                    </div>
-                  </details>
-                )}
-                {drafts.length > 0 && (
-                  <details className="group">
-                    <summary className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-amber-700 hover:text-amber-900">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />초안 {drafts.length}
-                    </summary>
-                    <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-2">
-                      {drafts.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).map(renderItem)}
-                    </div>
-                  </details>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* 아카이빙 단계 (이 글이 어디까지 왔는지) */}
-          <div className="mb-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">아카이빙 단계</p>
-            {(() => {
-              const hasContent = (selected.word_count || 0) > 0;
-              const isDraft = selected.status === "draft";
-              const isReview = selected.status === "review";
-              const isPublished = selected.status === "published";
-              const hasRevisions = revisions.length > 1;
-              // content에서 탭 존재 여부로 단계 판단
-              const hasTabs = (selected.content || '').includes('<!-- TAB:');
-              const tabCount = ((selected.content || '').match(/<!-- TAB:/g) || []).length;
-              const hasWorkLog = (selected.content || '').includes('TAB: 작업 기록');
-              const hasFlow = (selected.content || '').includes('TAB: 시스템 흐름도');
-              const hasConcept = (selected.content || '').includes('TAB: 개념 설명');
-              const hasGuide = (selected.content || '').includes('TAB: 업무 지침');
-
-              const steps = [
-                { label: "작업 기록", done: hasWorkLog, desc: "코드/설계/데이터" },
-                { label: "시스템 흐름도", done: hasFlow, desc: "데이터 흐름 + 의사결정" },
-                { label: "개념 설명", done: hasConcept, desc: "왜 이렇게 만들었는가" },
-                { label: "업무 지침", done: hasGuide, desc: "실무에서 쓰는 법" },
-                { label: "에세이", done: false, desc: "느낀 것, 배운 것" },
-                { label: "논문형", done: false, desc: "인과관계 + 근거" },
-                { label: "블로그", done: false, desc: "대외 공감대" },
-                { label: "검토/퇴고", done: isPublished, desc: "Founder + CTO" },
-              ];
-              return (
-                <div className="space-y-1">
-                  {steps.map((step, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <div className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${
-                        step.done
-                          ? "border-green-500 bg-green-500"
-                          : i === steps.findIndex(s => !s.done)
-                            ? "border-amber-400 bg-amber-50"
-                            : "border-gray-200 bg-white"
-                      }`}>
-                        {step.done && <svg className="h-2 w-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                        {!step.done && i === steps.findIndex(s => !s.done) && <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
-                      </div>
-                      <div>
-                        <p className={`text-[11px] leading-tight ${step.done ? "font-semibold text-green-700" : i === steps.findIndex(s => !s.done) ? "font-semibold text-amber-700" : "text-gray-300"}`}>
-                          {step.label}
-                        </p>
-                        <p className="text-[9px] text-gray-400">{step.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
+        <div className="w-72 shrink-0 flex flex-col border-l border-gray-200 bg-gray-50/50">
+          {/* 탭 헤더 */}
+          <div className="flex border-b border-gray-200 shrink-0">
+            {([["info","정보"],["refs","참고자료"],["ai","AI 리서치"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setRightTab(key)}
+                className={`flex-1 py-2 text-[11px] font-semibold transition-colors ${
+                  rightTab === key ? "text-slate-800 border-b-2 border-slate-800 bg-white" : "text-gray-400 hover:text-gray-600"
+                }`}>{label}{key === "refs" && refs.length > 0 ? ` (${refs.length})` : ""}</button>
+            ))}
           </div>
 
-          {/* 작성자 한 줄 */}
-          <div className="mb-3 text-[11px] text-gray-500">
-            <span className="font-semibold text-gray-700">{selected.author_name || "-"}</span>
-            {" · "}{selected.word_count.toLocaleString()}자{" · "}수정 {revisions.length}회
-          </div>
-
-          {/* 수정 이력 타임라인 */}
-          <details className="group" open>
-            <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600 mb-2">
-              수정 이력 {revisions.length > 0 && `(${revisions.length})`}
-            </summary>
-            {revisions.length === 0 ? (
-              <p className="text-[11px] text-gray-300 italic pl-1">아직 수정 이력 없음</p>
-            ) : (
-              <div className="relative">
-                <div className="absolute left-[5px] top-2 bottom-2 w-px bg-gray-200" />
-                <div className="space-y-2.5">
-                  {revisions.map((rev, idx) => {
-                    const d = new Date(rev.created_at);
-                    const isFirst = idx === 0;
-                    return (
-                      <div key={rev.id} className="relative pl-4">
-                        <div className={`absolute left-0 top-1 h-2.5 w-2.5 rounded-full border-2 ${
-                          isFirst ? "border-slate-700 bg-slate-700" : "border-gray-300 bg-white"
-                        }`} />
-                        <p className={`text-[11px] ${isFirst ? "font-semibold text-gray-800" : "text-gray-500"}`}>
-                          {rev.author_name}
-                        </p>
-                        {rev.revision_note && (
-                          <p className="text-[10px] text-gray-400 leading-snug">{rev.revision_note}</p>
-                        )}
-                        <p className="text-[9px] text-gray-300">
-                          {d.getFullYear()}.{String(d.getMonth()+1).padStart(2,"0")}.{String(d.getDate()).padStart(2,"0")} {String(d.getHours()).padStart(2,"0")}:{String(d.getMinutes()).padStart(2,"0")}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="flex-1 overflow-y-auto p-3">
+            {/* ── 정보 탭 ── */}
+            {rightTab === "info" && (<>
+              {/* 아카이빙 단계 */}
+              <div className="mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">아카이빙 단계</p>
+                {(() => {
+                  const isPublished = selected.status === "published";
+                  const hasWorkLog = (selected.content || '').includes('TAB: 작업 기록');
+                  const hasFlow = (selected.content || '').includes('TAB: 시스템 흐름도');
+                  const hasConcept = (selected.content || '').includes('TAB: 개념 설명');
+                  const hasGuide = (selected.content || '').includes('TAB: 업무 지침');
+                  const hasEssay = (selected.content || '').includes('TAB: 에세이');
+                  const hasPaper = (selected.content || '').includes('TAB: 논문형');
+                  const hasBlog = (selected.content || '').includes('TAB: 블로그');
+                  const steps = [
+                    { label: "작업 기록", done: hasWorkLog, desc: "코드/설계/데이터" },
+                    { label: "시스템 흐름도", done: hasFlow, desc: "데이터 흐름" },
+                    { label: "개념 설명", done: hasConcept, desc: "왜 이렇게" },
+                    { label: "업무 지침", done: hasGuide, desc: "실무 가이드" },
+                    { label: "에세이", done: hasEssay, desc: "느낀 것" },
+                    { label: "논문형", done: hasPaper, desc: "인과관계" },
+                    { label: "블로그", done: hasBlog, desc: "공감대" },
+                    { label: "검토/퇴고", done: isPublished, desc: "Founder" },
+                  ];
+                  return (
+                    <div className="space-y-1">
+                      {steps.map((step, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className={`h-3 w-3 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                            step.done ? "border-green-500 bg-green-500" : i === steps.findIndex(s => !s.done) ? "border-amber-400 bg-amber-50" : "border-gray-200 bg-white"
+                          }`}>
+                            {step.done && <svg className="h-1.5 w-1.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                          <span className={`text-[11px] ${step.done ? "text-green-700 font-medium" : i === steps.findIndex(s => !s.done) ? "text-amber-700 font-medium" : "text-gray-300"}`}>{step.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
-            )}
-          </details>
 
-          {/* 드릴다운: 상세 정보 */}
-          <details className="mt-4 group">
-            <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600">
-              상세 정보
-            </summary>
-            <div className="mt-2 space-y-1.5 text-[11px] text-gray-500">
-              <div className="flex justify-between"><span>담당</span><span className="text-gray-700">{roleLabel[selected.assigned_to] ?? selected.assigned_to}</span></div>
-              <div className="flex justify-between"><span>상태</span><span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusColor[selected.status]}`}>{statusLabel[selected.status]}</span></div>
-              {selected.tags && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {selected.tags.split(",").map((tag, i) => (
-                    <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500">{tag.trim()}</span>
+              {/* 메타 정보 */}
+              <div className="mb-3 space-y-1 text-[11px] text-gray-500">
+                <div className="flex justify-between"><span>담당</span><span className="text-gray-700">{roleLabel[selected.assigned_to] ?? selected.assigned_to}</span></div>
+                <div className="flex justify-between"><span>작성자</span><span className="text-gray-700">{selected.author_name || "-"}</span></div>
+                <div className="flex justify-between"><span>분량</span><span>{selected.word_count.toLocaleString()}자</span></div>
+                <div className="flex justify-between"><span>수정</span><span>{revisions.length}회</span></div>
+              </div>
+
+              {/* 수정 이력 */}
+              {revisions.length > 0 && (
+                <details className="group">
+                  <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">수정 이력 ({revisions.length})</summary>
+                  <div className="space-y-2">
+                    {revisions.slice(0, 5).map((rev) => {
+                      const d = new Date(rev.created_at);
+                      return (
+                        <div key={rev.id} className="text-[10px] text-gray-500">
+                          <span className="font-medium text-gray-700">{rev.author_name}</span>
+                          {rev.revision_note && <span> — {rev.revision_note}</span>}
+                          <p className="text-[9px] text-gray-300">{d.toLocaleString("ko-KR")}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
+            </>)}
+
+            {/* ── 참고자료 탭 ── */}
+            {rightTab === "refs" && (<>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">참고자료 · 논문 · 링크</p>
+
+              {/* 추가 폼 */}
+              <div className="mb-4 space-y-1.5 rounded-lg border border-gray-200 bg-white p-2.5">
+                <input value={refUrl} onChange={e => setRefUrl(e.target.value)}
+                  placeholder="URL" className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-700 placeholder:text-gray-300" />
+                <input value={refTitle} onChange={e => setRefTitle(e.target.value)}
+                  placeholder="제목 (논문명, 사이트명)" className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-700 placeholder:text-gray-300" />
+                <input value={refNote} onChange={e => setRefNote(e.target.value)}
+                  placeholder="메모 (왜 참고하는지)" className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-700 placeholder:text-gray-300" />
+                <button onClick={async () => {
+                  if (!refUrl.trim() && !refTitle.trim()) return;
+                  const newRefs = [...refs, { url: refUrl.trim(), title: refTitle.trim(), note: refNote.trim() }];
+                  setRefs(newRefs);
+                  setRefUrl(""); setRefTitle(""); setRefNote("");
+                  // Save to server
+                  await apiRequest(`/wiki/articles/${selected.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({ content: selected.content || "", references: JSON.stringify(newRefs) }),
+                  });
+                }} className="w-full rounded bg-slate-800 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700">
+                  추가
+                </button>
+              </div>
+
+              {/* 참고자료 목록 */}
+              {refs.length === 0 ? (
+                <p className="text-[11px] text-gray-300 italic">아직 참고자료가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {refs.map((ref, i) => (
+                    <div key={i} className="group rounded-lg border border-gray-100 bg-white p-2.5">
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex-1 min-w-0">
+                          {ref.url ? (
+                            <a href={ref.url} target="_blank" rel="noopener noreferrer"
+                              className="text-[11px] font-medium text-blue-600 hover:underline truncate block">
+                              {ref.title || ref.url}
+                            </a>
+                          ) : (
+                            <p className="text-[11px] font-medium text-gray-700">{ref.title}</p>
+                          )}
+                          {ref.note && <p className="text-[10px] text-gray-400 mt-0.5">{ref.note}</p>}
+                        </div>
+                        <button onClick={async () => {
+                          const newRefs = refs.filter((_, j) => j !== i);
+                          setRefs(newRefs);
+                          await apiRequest(`/wiki/articles/${selected.id}`, {
+                            method: "PUT",
+                            body: JSON.stringify({ content: selected.content || "", references: JSON.stringify(newRefs) }),
+                          });
+                        }} className="shrink-0 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-xs">
+                          ×
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
-            </div>
-          </details>
+            </>)}
 
-          {/* 드릴다운: 진행률 (접기/펼치기) */}
-          {progress && (
-            <details className="mt-3 group">
-              <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600">
-                전체 진행 {progress.total - progress.empty}/{progress.total}
-              </summary>
-              <div className="mt-2 space-y-1">
-                {(progress.by_part ?? [])
-                  .filter(p => p.filled > 0)
-                  .sort((a, b) => a.part_number - b.part_number)
-                  .map((p) => (
-                  <div key={p.part_number} className="flex items-center gap-1.5">
-                    <span className="w-6 text-[9px] text-gray-400 shrink-0">P{p.part_number === 99 ? "+" : p.part_number}</span>
-                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-gray-200">
-                      <div className="h-1 rounded-full bg-green-500" style={{ width: `${(p.filled / Math.max(p.total, 1)) * 100}%` }} />
+            {/* ── AI 리서치 탭 ── */}
+            {rightTab === "ai" && (<>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">AI 리서치 어시스턴트</p>
+              <p className="text-[10px] text-gray-400 mb-3">이 글과 관련된 자료 검색, 논문 찾기, 개념 질문</p>
+
+              {/* 채팅 메시지 */}
+              <div className="mb-3 space-y-2 max-h-[calc(100vh-20rem)] overflow-y-auto">
+                {chatMessages.length === 0 && (
+                  <div className="text-center py-6">
+                    <p className="text-[11px] text-gray-300">질문을 입력하세요</p>
+                    <div className="mt-2 space-y-1">
+                      {[
+                        "이 주제의 관련 논문 찾아줘",
+                        "도시계획에서 이건 뭐에 해당해?",
+                        "유사 사례가 있을까?",
+                      ].map((q, i) => (
+                        <button key={i} onClick={() => { setChatInput(q); }}
+                          className="block w-full rounded bg-gray-100 px-2 py-1.5 text-left text-[10px] text-gray-500 hover:bg-gray-200 transition-colors">
+                          {q}
+                        </button>
+                      ))}
                     </div>
-                    <span className="w-6 text-right text-[9px] text-gray-400">{p.filled}/{p.total}</span>
+                  </div>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`rounded-lg p-2.5 text-[11px] leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-slate-800 text-white ml-4"
+                      : "bg-white border border-gray-100 text-gray-700 mr-2"
+                  }`}>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
                   </div>
                 ))}
+                {chatLoading && (
+                  <div className="flex items-center gap-2 text-[11px] text-gray-400 p-2">
+                    <div className="h-2 w-2 rounded-full bg-gray-300 animate-pulse" />
+                    생각 중...
+                  </div>
+                )}
               </div>
-            </details>
+            </>)}
+          </div>
+
+          {/* AI 입력 (AI 탭일 때만) */}
+          {rightTab === "ai" && (
+            <div className="shrink-0 border-t border-gray-200 p-2.5">
+              <div className="flex gap-1.5">
+                <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {
+                      e.preventDefault();
+                      const msg = chatInput.trim();
+                      setChatInput("");
+                      setChatMessages(prev => [...prev, { role: "user", content: msg }]);
+                      setChatLoading(true);
+                      try {
+                        const context = `현재 위키 글: "${selected.title}" (Part ${selected.part_number}. ${selected.part_title})\n내용 요약: ${(selected.content || "").slice(0, 500)}`;
+                        const res = await apiRequest("/ai/agent", {
+                          method: "POST",
+                          body: JSON.stringify({ page: "wiki", message: msg, data: context }),
+                        });
+                        if (res.ok) {
+                          const d = await res.json();
+                          setChatMessages(prev => [...prev, { role: "assistant", content: d.response || d.message || "응답 없음" }]);
+                        } else {
+                          setChatMessages(prev => [...prev, { role: "assistant", content: "오류가 발생했습니다." }]);
+                        }
+                      } catch {
+                        setChatMessages(prev => [...prev, { role: "assistant", content: "네트워크 오류" }]);
+                      }
+                      setChatLoading(false);
+                    }
+                  }}
+                  placeholder="질문하세요..."
+                  className="flex-1 rounded border border-gray-200 px-2.5 py-1.5 text-[11px] text-gray-700 placeholder:text-gray-300 focus:border-slate-500 focus:ring-1 focus:ring-slate-500" />
+                <button onClick={async () => {
+                  if (!chatInput.trim()) return;
+                  const msg = chatInput.trim();
+                  setChatInput("");
+                  setChatMessages(prev => [...prev, { role: "user", content: msg }]);
+                  setChatLoading(true);
+                  try {
+                    const context = `현재 위키 글: "${selected.title}" (Part ${selected.part_number}. ${selected.part_title})\n내용 요약: ${(selected.content || "").slice(0, 500)}`;
+                    const res = await apiRequest("/ai/agent", {
+                      method: "POST",
+                      body: JSON.stringify({ page: "wiki", message: msg, data: context }),
+                    });
+                    if (res.ok) {
+                      const d = await res.json();
+                      setChatMessages(prev => [...prev, { role: "assistant", content: d.response || d.message || "응답 없음" }]);
+                    }
+                  } catch {}
+                  setChatLoading(false);
+                }} className="shrink-0 rounded bg-slate-800 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700">
+                  전송
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

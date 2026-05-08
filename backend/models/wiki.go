@@ -19,6 +19,7 @@ type WikiArticle struct {
 	ReviewedBy   string     `gorm:"size:100" json:"reviewed_by"`
 	SortOrder    int        `gorm:"not null;default:0" json:"sort_order"`
 	Tags         string     `gorm:"size:500" json:"tags"`
+	References   string     `gorm:"type:text" json:"references"` // JSON array [{url, title, note}]
 	WordCount    int        `gorm:"not null;default:0" json:"word_count"`
 	PublishedAt  *time.Time `json:"published_at"`
 	CreatedAt    time.Time  `json:"created_at"`

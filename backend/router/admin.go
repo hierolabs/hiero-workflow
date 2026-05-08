@@ -51,6 +51,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	csKnowledgeHandler := handler.NewCSKnowledgeHandler()
 	pricingHandler := handler.NewPricingHandler()
 	priceLabsHandler := handler.NewPriceLabsHandler()
+	marketDataHandler := handler.NewMarketDataHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -100,6 +101,15 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/pricelabs/compare", priceLabsHandler.Compare)
 			protected.GET("/pricelabs/kpi", priceLabsHandler.KPIs)
 
+			// 시장 데이터 (외부 OTA 크롤링)
+			protected.POST("/market/import/rooms", marketDataHandler.ImportRooms)
+			protected.POST("/market/import/contracts", marketDataHandler.ImportContracts)
+			protected.POST("/market/import/auto", marketDataHandler.AutoImport)
+			protected.GET("/market/prices", marketDataHandler.GetPrices)
+			protected.GET("/market/compare", marketDataHandler.GetComparison)
+			protected.GET("/market/summary", marketDataHandler.GetSummary)
+			protected.GET("/market/jobs", marketDataHandler.GetJobs)
+
 			// 예약 관리
 			protected.GET("/reservations", reservationHandler.List)
 			protected.GET("/reservations/:id", reservationHandler.Get)
@@ -146,6 +156,7 @@ func registerAdminRoutes(r *gin.Engine) {
 
 			// 청소코드
 			protected.GET("/cleaning-codes", cleaningHandler.ListCleaningCodes)
+			protected.GET("/cleaning/time-analysis", cleaningHandler.TimeAnalysis)
 			protected.GET("/cleaning/workload", cleaningHandler.CleanerWorkload)
 			protected.GET("/cleaning/extensions", cleaningHandler.Extensions)
 
