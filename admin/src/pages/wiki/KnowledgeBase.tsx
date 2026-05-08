@@ -105,6 +105,7 @@ export default function KnowledgeBase() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
   const [filter, setFilter] = useState<string>("all"); // all, empty, draft, review, published
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
@@ -337,11 +338,60 @@ export default function KnowledgeBase() {
                     편집
                   </button>
                 </div>
-                {selected.content ? (
-                  <div className="prose prose-sm max-w-none whitespace-pre-wrap rounded-lg border border-gray-100 bg-white p-6 text-gray-800">
-                    {selected.content}
-                  </div>
-                ) : (
+                {selected.content ? (() => {
+                  // <!-- TAB: 이름 --> 구분자로 탭 분리
+                  const tabRegex = /<!-- TAB: (.+?) -->/g;
+                  const tabNames: string[] = [];
+                  let match;
+                  while ((match = tabRegex.exec(selected.content)) !== null) {
+                    tabNames.push(match[1]);
+                  }
+
+                  if (tabNames.length === 0) {
+                    // 탭 구분자 없으면 기존처럼 전체 표시
+                    return (
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap rounded-lg border border-gray-100 bg-white p-6 text-gray-800">
+                        {selected.content}
+                      </div>
+                    );
+                  }
+
+                  // 탭별 콘텐츠 분리
+                  const sections = selected.content.split(/<!-- TAB: .+? -->/).filter(Boolean);
+                  const safeTab = Math.min(activeTab, tabNames.length - 1);
+                  const tabColors = [
+                    "border-slate-600 text-slate-800",
+                    "border-blue-500 text-blue-700",
+                    "border-amber-500 text-amber-700",
+                    "border-green-500 text-green-700",
+                    "border-purple-500 text-purple-700",
+                  ];
+
+                  return (
+                    <div>
+                      {/* 탭 바 */}
+                      <div className="flex gap-1 mb-4 border-b border-gray-200">
+                        {tabNames.map((name, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setActiveTab(i)}
+                            className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${
+                              safeTab === i
+                                ? tabColors[i % tabColors.length]
+                                : "border-transparent text-gray-400 hover:text-gray-600"
+                            }`}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                      {/* 탭 콘텐츠 */}
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap rounded-lg border border-gray-100 bg-white p-6 text-gray-800">
+                        {sections[safeTab]?.trim() || "(이 탭은 아직 비어있습니다)"}
+                      </div>
+                    </div>
+                  );
+                })() : (
                   <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
                     <p className="text-sm text-gray-400">아직 작성된 내용이 없습니다</p>
                     <button
