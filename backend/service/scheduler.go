@@ -16,15 +16,17 @@ type Scheduler struct {
 	cleaningSvc  *CleaningService
 	allocSvc     *CostAllocationService
 	marketSvc    *MarketDataService
+	archivingSvc *ArchivingService
 }
 
 func NewScheduler() *Scheduler {
 	return &Scheduler{
-		reportSvc:   NewMonthlyReportService(),
-		diagSvc:     NewDiagnosisSeedService(),
-		cleaningSvc: NewCleaningService(),
-		allocSvc:    NewCostAllocationService(),
-		marketSvc:   NewMarketDataService(),
+		reportSvc:    NewMonthlyReportService(),
+		diagSvc:      NewDiagnosisSeedService(),
+		cleaningSvc:  NewCleaningService(),
+		allocSvc:     NewCostAllocationService(),
+		marketSvc:    NewMarketDataService(),
+		archivingSvc: NewArchivingService(),
 	}
 }
 
@@ -33,10 +35,14 @@ func (s *Scheduler) Start() {
 	go s.runDaily()
 	go s.runWeekly()
 	go s.runMonthly()
+	go s.runWeeklyArchiving()
+	go s.runMonthlyArchiving()
 	log.Println("[Scheduler] 데이터 파이프라인 스케줄러 시작")
 	log.Println("[Scheduler]   매일 08:00 — 진단 갱신")
 	log.Println("[Scheduler]   매주 월 09:00 — 시장 데이터")
+	log.Println("[Scheduler]   매주 금 18:00 — 아카이빙 TAB 5~7")
 	log.Println("[Scheduler]   매월 1일 06:00 — 월간 리포트 + 비용 재분배")
+	log.Println("[Scheduler]   매월 1일 10:00 — 아카이빙 검토 알림")
 }
 
 // RunAll 모든 파이프라인 즉시 실행 (수동 트리거용)
@@ -98,6 +104,16 @@ func (s *Scheduler) RunTarget(target string, month string) map[string]interface{
 		if job != nil {
 			result["processed"] = job.ProcessedRecords
 		}
+		result["error"] = errStr(err)
+	case "archiving_weekly":
+		res, err := s.archivingSvc.GenerateWeeklyTabs(GenerateWeeklyReq{}, "Scheduler")
+		if res != nil {
+			result["articles_updated"] = len(res.ArticlesUpdated)
+		}
+		result["error"] = errStr(err)
+	case "archiving_monthly":
+		count, err := s.archivingSvc.MonthlyNotify()
+		result["review_count"] = count
 		result["error"] = errStr(err)
 	default:
 		result["error"] = "unknown target: " + target
@@ -191,6 +207,48 @@ func (s *Scheduler) runMonthly() {
 		}
 
 		log.Printf("[Scheduler] 월간 작업 완료 (%.1f초)", time.Since(start).Seconds())
+	}
+}
+
+// ── 내부: 주간 아카이빙 ────────────────────────────────────────
+
+func (s *Scheduler) runWeeklyArchiving() {
+	for {
+		next := nextWeekday(time.Friday, 18, 0) // 매주 금요일 18:00
+		sleepDuration := time.Until(next)
+		log.Printf("[Scheduler] 다음 아카이빙(주간): %s (%.0f시간 후)", next.Format("01/02 15:04"), sleepDuration.Hours())
+		time.Sleep(sleepDuration)
+
+		log.Println("[Scheduler] 주간 아카이빙 시작 (TAB 5~7)...")
+		start := time.Now()
+
+		res, err := s.archivingSvc.GenerateWeeklyTabs(GenerateWeeklyReq{}, "Scheduler")
+		if err != nil {
+			log.Printf("[Scheduler] 주간 아카이빙 오류: %v", err)
+		} else if res != nil {
+			log.Printf("[Scheduler] 주간 아카이빙: %d개 아티클 업데이트", len(res.ArticlesUpdated))
+		}
+
+		log.Printf("[Scheduler] 주간 아카이빙 완료 (%.1f초)", time.Since(start).Seconds())
+	}
+}
+
+// ── 내부: 월간 아카이빙 알림 ──────────────────────────────────
+
+func (s *Scheduler) runMonthlyArchiving() {
+	for {
+		next := nextMonthFirst(10, 0) // 매월 1일 10:00
+		sleepDuration := time.Until(next)
+		log.Printf("[Scheduler] 다음 아카이빙(월간): %s (%.0f시간 후)", next.Format("01/02 15:04"), sleepDuration.Hours())
+		time.Sleep(sleepDuration)
+
+		log.Println("[Scheduler] 월간 아카이빙 알림...")
+		count, err := s.archivingSvc.MonthlyNotify()
+		if err != nil {
+			log.Printf("[Scheduler] 월간 아카이빙 알림 오류: %v", err)
+		} else {
+			log.Printf("[Scheduler] 월간 아카이빙 알림: review 대기 %d건", count)
+		}
 	}
 }
 

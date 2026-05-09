@@ -79,6 +79,9 @@ func main() {
 		&models.MarketPrice{},
 		&models.MarketContract{},
 		&models.CrawlJob{},
+		&models.ArchivingJob{},
+		&models.ArticleReview{},
+		&models.ETFDirective{},
 	)
 	seedAdminUser()
 	service.SeedCSKnowledge()

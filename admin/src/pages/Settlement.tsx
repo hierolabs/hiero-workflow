@@ -362,9 +362,9 @@ export default function Settlement() {
       <div className="mb-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">정산 관리</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Data 2 · 비용 관리</h1>
             <p className="mt-0.5 text-sm text-gray-500">
-              {result ? `${result.start_date} ~ ${result.end_date}` : "기간별 숙소 수입/비용/이익"}
+              {result ? `${result.start_date} ~ ${result.end_date}` : "기간별 숙소 비용 · CSV 업로드 · 카테고리별 분석"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -391,54 +391,15 @@ export default function Settlement() {
           </div>
         )}
 
-        {/* 입금 예정 */}
-        <div className="mt-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-gray-800">입금 예정 (deposit_date 기준)</h2>
-            <div className="flex items-center gap-1">
-              {([
-                { key: 'today', label: '오늘' },
-                { key: 'tomorrow', label: '내일' },
-                { key: 'd3', label: '3일' },
-                { key: 'w1', label: '1주일' },
-                { key: 'd10', label: '10일' },
-                { key: 'month', label: '이번달' },
-              ] as { key: ForecastPeriod; label: string }[]).map(p => (
-                <button
-                  key={p.key}
-                  onClick={() => setForecastPeriod(p.key)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
-                    forecastPeriod === p.key
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
+        {/* Data 2 안내 */}
+        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white text-sm font-bold">↑</span>
+            <div>
+              <div className="text-sm font-bold text-red-800">Data 2 · 비용</div>
+              <div className="text-xs text-red-600">Hostex CSV 비용 데이터 · 카테고리별 숙소 비용 분석</div>
             </div>
           </div>
-          {forecastLoading ? (
-            <div className="text-center text-gray-400 text-sm py-4">로딩 중...</div>
-          ) : forecastData ? (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                <div className="text-xs text-blue-600 mb-1">입금 예정</div>
-                <div className="text-lg font-bold text-blue-800">{fmtMan(forecastData.deposit)}만원</div>
-                <div className="text-xs text-blue-500">{forecastData.startLabel} ~ {forecastData.endLabel}</div>
-              </div>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                <div className="text-xs text-red-600 mb-1">예상 비용</div>
-                <div className="text-lg font-bold text-red-800">{fmtMan(forecastData.cost)}만원</div>
-                <div className="text-xs text-red-500">cost_allocations 기준</div>
-              </div>
-              <div className={`border rounded-lg p-3 text-center ${forecastData.net >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                <div className={`text-xs mb-1 ${forecastData.net >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>예상 순이익</div>
-                <div className={`text-lg font-bold ${forecastData.net >= 0 ? 'text-emerald-800' : 'text-amber-800'}`}>{fmtMan(forecastData.net)}만원</div>
-                <div className={`text-xs ${forecastData.net >= 0 ? 'text-emerald-500' : 'text-amber-500'}`}>입금 - 비용</div>
-              </div>
-            </div>
-          ) : null}
         </div>
 
         {/* 기간 프리셋 + 월 퀵 선택 */}
@@ -539,15 +500,11 @@ export default function Settlement() {
                 const totals = yearMonths.reduce((acc, m) => {
                   if (!m.data?.total) return acc;
                   const t = m.data.total;
-                  return { revenue: acc.revenue + t.revenue, cost: acc.cost + t.total_cost, profit: acc.profit + t.profit };
-                }, { revenue: 0, cost: 0, profit: 0 });
-                const rate = totals.revenue ? (totals.profit / totals.revenue * 100) : 0;
+                  return { cost: acc.cost + t.total_cost };
+                }, { cost: 0 });
                 return (
                   <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <SummaryCard label={`${selectedYear}년 총매출`} value={`${fmtMan(totals.revenue)}만`} />
-                    <SummaryCard label="총비용" value={`${fmtMan(totals.cost)}만`} color="red" />
-                    <SummaryCard label="순이익" value={`${fmtMan(totals.profit)}만`} color={totals.profit >= 0 ? "green" : "red"} />
-                    <SummaryCard label="이익률" value={`${rate.toFixed(1)}%`} color={rate >= 0 ? "green" : "red"} />
+                    <SummaryCard label={`${selectedYear}년 총비용`} value={`${fmtMan(totals.cost)}만`} color="red" />
                   </div>
                 );
               })()}
@@ -580,11 +537,7 @@ export default function Settlement() {
                         <p className="mt-1 text-xs text-gray-400">...</p>
                       ) : hasData && t ? (
                         <div className="mt-1.5 space-y-0.5">
-                          <p className="text-xs text-gray-500">매출 <span className="font-medium text-gray-800">{fmtMan(t.revenue)}만</span></p>
-                          <p className="text-xs text-gray-500">비용 <span className="font-medium text-red-600">{fmtMan(t.total_cost)}만</span></p>
-                          <p className={`text-xs font-bold ${t.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
-                            이익 {fmtMan(t.profit)}만 ({t.profit_rate.toFixed(0)}%)
-                          </p>
+                          <p className="text-xs text-red-600 font-medium">비용 {fmtMan(t.total_cost)}만</p>
                         </div>
                       ) : (
                         <p className="mt-1 text-xs text-gray-300">데이터 없음</p>
@@ -601,10 +554,10 @@ export default function Settlement() {
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
                         <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500">월</th>
-                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">매출</th>
-                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">비용</th>
-                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">순이익</th>
-                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">이익률</th>
+                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">총비용</th>
+                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">청소비</th>
+                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">관리비</th>
+                        <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">월세</th>
                         <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500">숙소수</th>
                       </tr>
                     </thead>
@@ -619,14 +572,10 @@ export default function Settlement() {
                             className="border-b border-gray-100 hover:bg-blue-50 cursor-pointer"
                           >
                             <td className="px-3 py-2 font-medium text-gray-900">{m.label}</td>
-                            <td className="px-3 py-2 text-right text-gray-700">{fmtMan(t.revenue)}만</td>
-                            <td className="px-3 py-2 text-right text-red-600">{fmtMan(t.total_cost)}만</td>
-                            <td className={`px-3 py-2 text-right font-bold ${t.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
-                              {fmtMan(t.profit)}만
-                            </td>
-                            <td className={`px-3 py-2 text-right font-medium ${t.profit_rate >= 0 ? "text-green-600" : "text-red-600"}`}>
-                              {t.profit_rate.toFixed(1)}%
-                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-red-600">{fmtMan(t.total_cost)}만</td>
+                            <td className="px-3 py-2 text-right text-gray-600">{fmtMan(t.cleaning_fee)}만</td>
+                            <td className="px-3 py-2 text-right text-gray-600">{fmtMan(t.mgmt_fee)}만</td>
+                            <td className="px-3 py-2 text-right text-gray-600">{fmtMan(t.rent_out)}만</td>
                             <td className="px-3 py-2 text-right text-gray-500">{m.data?.properties.length || 0}</td>
                           </tr>
                         );
@@ -648,12 +597,11 @@ export default function Settlement() {
                 </button>
                 <span className="text-sm font-bold text-gray-900">{selectedYear}년 {parseInt(selectedYearMonth)}월 상세</span>
               </div>
-              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <SummaryCard label="총매출" value={`${fmt(result.total.revenue)}`} />
-                <SummaryCard label="순매출" value={`${fmt(result.total.net_revenue)}`} />
+              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <SummaryCard label="총비용" value={`${fmt(result.total.total_cost)}`} color="red" />
-                <SummaryCard label="순이익" value={`${fmt(result.total.profit)}`} color={result.total.profit >= 0 ? "green" : "red"} />
-                <SummaryCard label="이익률" value={`${result.total.profit_rate.toFixed(1)}%`} color={result.total.profit_rate >= 0 ? "green" : "red"} />
+                <SummaryCard label="청소비" value={`${fmt(result.total.cleaning_fee)}`} />
+                <SummaryCard label="관리비+월세" value={`${fmt((result.total.mgmt_fee || 0) + (result.total.rent_out || 0))}`} />
+                <SummaryCard label="운영+인건" value={`${fmt((result.total.operation_fee || 0) + (result.total.labor_fee || 0))}`} />
               </div>
               <PropertyTable result={result} />
             </div>
@@ -664,18 +612,16 @@ export default function Settlement() {
       {/* 기존: 이번달/지난달/직접선택 */}
       {!isYearPreset && (
         <>
-          {/* 정산 합계 카드 */}
+          {/* 비용 합계 카드 */}
           {result && (
             <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
-              <SummaryCard label="과세 숙박" value={`${fmt(result.total.taxable_revenue)}`} />
-              <SummaryCard label="면세 전대" value={`${fmt(result.total.exempt_revenue)}`} />
-              <SummaryCard label="총매출" value={`${fmt(result.total.revenue)}`} />
-              <SummaryCard label="순매출" value={`${fmt(result.total.net_revenue)}`} />
               <SummaryCard label="총비용" value={`${fmt(result.total.total_cost)}`} color="red" />
-              <SummaryCard label="순이익" value={`${fmt(result.total.profit)}`}
-                color={result.total.profit >= 0 ? "green" : "red"} />
-              <SummaryCard label="이익률" value={`${result.total.profit_rate.toFixed(1)}%`}
-                color={result.total.profit_rate >= 0 ? "green" : "red"} />
+              <SummaryCard label="청소비" value={`${fmt(result.total.cleaning_fee)}`} />
+              <SummaryCard label="관리비" value={`${fmt(result.total.mgmt_fee)}`} />
+              <SummaryCard label="월세" value={`${fmt(result.total.rent_out)}`} />
+              <SummaryCard label="운영비" value={`${fmt(result.total.operation_fee)}`} />
+              <SummaryCard label="인건비" value={`${fmt(result.total.labor_fee)}`} />
+              <SummaryCard label="기타" value={`${fmt((result.total.supplies_fee || 0) + (result.total.maintenance || 0) + (result.total.interior_fee || 0) + (result.total.other_cost || 0))}`} />
             </div>
           )}
 
@@ -827,16 +773,6 @@ const COLUMN_INFO: Record<string, { title: string; desc: string; details: string
 
 const COLUMNS: { key: SortKey; label: string; align: "left" | "right"; expand?: boolean }[] = [
   { key: "property_name", label: "숙소", align: "left" },
-  { key: "short_term_revenue", label: "단기", align: "right", expand: true },
-  { key: "mid_term_taxable", label: "<1M", align: "right", expand: true },
-  { key: "mid_term_exempt", label: "≥1M", align: "right", expand: true },
-  { key: "service_revenue", label: "서비스", align: "right", expand: true },
-  { key: "revenue", label: "총매출", align: "right" },
-  { key: "other_revenue", label: "기타수입", align: "right" },
-  { key: "refund", label: "환불", align: "right" },
-  { key: "commission", label: "플랫폼수수료", align: "right" },
-  { key: "airbnb_vat", label: "에어비앤비VAT", align: "right" },
-  { key: "net_revenue", label: "순매출", align: "right" },
   { key: "cleaning_fee", label: "청소비", align: "right" },
   { key: "mgmt_fee", label: "관리비", align: "right" },
   { key: "rent_out", label: "월세", align: "right" },
@@ -851,8 +787,6 @@ const COLUMNS: { key: SortKey; label: string; align: "left" | "right"; expand?: 
   { key: "property_fee", label: "숙소경비", align: "right" },
   { key: "other_cost", label: "기타비용", align: "right" },
   { key: "total_cost", label: "총비용", align: "right" },
-  { key: "profit", label: "순이익", align: "right" },
-  { key: "profit_rate", label: "이익률", align: "right" },
 ];
 
 function getSortValue(p: MonthlySummary, key: SortKey): number | string {
@@ -902,11 +836,11 @@ function getInfoKey(colKey: string): string | null {
 }
 
 function PropertyTable({ result }: { result: SettlementResult }) {
-  const [sortKey, setSortKey] = useState<SortKey>("profit");
+  const [sortKey, setSortKey] = useState<SortKey>("total_cost");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [drilldown, setDrilldown] = useState<DrilldownInfo | null>(null);
   const [infoKey, setInfoKey] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const expanded = false; // 비용 전용이므로 확장 불필요
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");

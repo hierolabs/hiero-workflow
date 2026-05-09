@@ -31,6 +31,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	aiAgentHandler := handler.NewAiAgentHandler()
 	founderHandler := handler.NewFounderHandler()
 	etfBoardHandler := handler.NewETFBoardHandler()
+	directiveHandler := handler.NewDirectiveHandler()
 	executionHandler := handler.NewExecutionHandler()
 	teamChatHandler := handler.NewTeamChatHandler()
 	issueDetectionHandler := handler.NewIssueDetectionHandler()
@@ -49,6 +50,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	cleaningDispatchHandler := handler.NewCleaningDispatchHandler()
 	cleaningRecordsHandler := handler.NewCleaningRecordsHandler()
 	csKnowledgeHandler := handler.NewCSKnowledgeHandler()
+	archivingHandler := handler.NewArchivingHandler()
 	pricingHandler := handler.NewPricingHandler()
 	priceLabsHandler := handler.NewPriceLabsHandler()
 	marketDataHandler := handler.NewMarketDataHandler()
@@ -325,12 +327,27 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/founder/daily-brief", founderHandler.DailyBrief)
 			protected.GET("/founder/top-decisions", founderHandler.TopDecisions)
 			protected.GET("/founder/etf-summary", founderHandler.ETFSummary)
+			protected.GET("/founder/cycle", founderHandler.CycleAnalysis)
 
 			// ETF Board
 			protected.GET("/etf-board", etfBoardHandler.Overview)
 			protected.GET("/etf-board/ceo", etfBoardHandler.CEOBoard)
 			protected.GET("/etf-board/cto", etfBoardHandler.CTOBoard)
 			protected.GET("/etf-board/cfo", etfBoardHandler.CFOBoard)
+			protected.GET("/etf-board/cfo/financial", etfBoardHandler.CFOFinancial)
+			protected.GET("/etf-board/cross-activity", etfBoardHandler.CrossActivity)
+			protected.GET("/etf-board/got", etfBoardHandler.GOTSummary)
+
+			// ETF 업무지시/보고 시스템
+			protected.POST("/directives", directiveHandler.Create)
+			protected.GET("/directives", directiveHandler.ListAll)
+			protected.GET("/directives/sent", directiveHandler.ListSent)
+			protected.GET("/directives/received", directiveHandler.ListReceived)
+			protected.GET("/directives/relationship", directiveHandler.Relationship)
+			protected.PATCH("/directives/:id/acknowledge", directiveHandler.Acknowledge)
+			protected.PATCH("/directives/:id/start", directiveHandler.Start)
+			protected.PATCH("/directives/:id/complete", directiveHandler.Complete)
+			protected.PATCH("/directives/:id/reject", directiveHandler.Reject)
 
 			// 알림 + 업무 로그
 			protected.GET("/notifications", notifHandler.List)
@@ -394,6 +411,16 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/cs-knowledge/:id", csKnowledgeHandler.Get)
 			protected.POST("/cs-knowledge", csKnowledgeHandler.Create)
 			protected.PUT("/cs-knowledge/:id", csKnowledgeHandler.Update)
+
+			// 아카이빙 파이프라인
+			protected.POST("/archiving/generate", archivingHandler.Generate)
+			protected.POST("/archiving/weekly", archivingHandler.Weekly)
+			protected.POST("/archiving/monthly-notify", archivingHandler.MonthlyNotify)
+			protected.GET("/archiving/jobs", archivingHandler.ListJobs)
+			protected.GET("/archiving/status", archivingHandler.Status)
+			protected.POST("/archiving/review/:id", archivingHandler.Review)
+			protected.GET("/archiving/review/:id", archivingHandler.GetReviews)
+			protected.GET("/archiving/review-summary", archivingHandler.ReviewSummary)
 
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)

@@ -16,7 +16,7 @@ const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
   DashboardIcon, UsersIcon, DiagnosisIcon, HostexIcon, SettingsIcon,
 };
 
-interface NavItem { to: string; label: string; iconName: string }
+interface NavItem { to: string; label: string; iconName: string; roles?: string[] }
 interface NavGroup { label: string; items: NavItem[] }
 
 const DEFAULT_NAV: NavGroup[] = [
@@ -51,8 +51,10 @@ const DEFAULT_NAV: NavGroup[] = [
   {
     label: '경영',
     items: [
-      { to: "/", label: "경영 대시보드", iconName: "DashboardIcon" },
-      { to: "/etf-board", label: "ETF Board", iconName: "DashboardIcon" },
+      { to: "/", label: "HIERO 오늘", iconName: "DashboardIcon" },
+      { to: "/founder", label: "Founder", iconName: "DashboardIcon", roles: ["founder"] },
+      { to: "/got", label: "ETF S.T", iconName: "UsersIcon", roles: ["founder", "etf"] },
+      { to: "/etf-board", label: "ETF Board", iconName: "DashboardIcon", roles: ["founder", "etf"] },
       { to: "/team", label: "팀 관리", iconName: "UsersIcon" },
     ],
   },
@@ -277,7 +279,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mx-3 my-2 border-t border-slate-700" />
               )}
               <div className="space-y-0.5">
-                {group.items.map((item) => {
+                {group.items.filter((item) => {
+                  if (!item.roles) return true;
+                  try {
+                    const raw = localStorage.getItem("user");
+                    if (raw) {
+                      const u = JSON.parse(raw);
+                      return item.roles.includes(u.role_layer) || item.roles.includes(u.role_title);
+                    }
+                  } catch { /* */ }
+                  return false;
+                }).map((item) => {
                   const IconComp = ICON_MAP[item.iconName] || DashboardIcon;
                   return (
                   <NavLink

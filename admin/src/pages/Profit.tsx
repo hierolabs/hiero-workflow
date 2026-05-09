@@ -60,7 +60,7 @@ export default function Profit() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">숙소별 수익성 분석</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Data 3 · 수익성 분석</h1>
         <p className="text-sm text-slate-500 mt-1">월간 매출·비용·순이익·마진율 (monthly_property_reports 실데이터)</p>
       </div>
 

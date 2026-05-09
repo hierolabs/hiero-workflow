@@ -134,8 +134,8 @@ export default function Revenue() {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">매출 현황</h1>
-          <p className="mt-0.5 text-sm text-gray-500">일별 / 주별 / 월별 매출·수수료·순수익 추이</p>
+          <h1 className="text-2xl font-bold text-gray-900">Data 1 · 매출 현황</h1>
+          <p className="mt-0.5 text-sm text-gray-500">일별 / 주별 / 월별 수입 · 채널별 분석 · 수수료</p>
         </div>
         <button onClick={() => setShowManual(true)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">히로가이드</button>
       </div>

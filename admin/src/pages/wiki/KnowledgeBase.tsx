@@ -60,6 +60,17 @@ interface Progress {
   by_role: { role: string; total: number; filled: number }[];
 }
 
+interface ArchivingJob {
+  id: number;
+  type: string;
+  status: string;
+  article_ids: string;
+  tabs_generated: string;
+  created_by_name: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
 /* ── Helpers ────────────────────────────────────────────────────────── */
 
 const statusLabel: Record<string, string> = {
@@ -124,19 +135,39 @@ export default function KnowledgeBase() {
   const [chatMessages, setChatMessages] = useState<{role: string; content: string}[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [rightTab, setRightTab] = useState<"info"|"refs"|"ai">("info");
+  const [rightTab, setRightTab] = useState<"info"|"refs"|"ai"|"review">("info");
+  // Archiving jobs
+  const [jobs, setJobs] = useState<ArchivingJob[]>([]);
+  // Review
+  const [reviewResult, setReviewResult] = useState<{
+    article_id: number;
+    article_title: string;
+    perspectives: { key: string; name: string; review: string; score: number }[];
+    summary: string;
+  } | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [savedReviews, setSavedReviews] = useState<{
+    id: number; article_id: number; perspective: string; name: string;
+    score: number; review: string; content_snapshot: string;
+    word_count_at: number; requested_by: string; created_at: string;
+  }[]>([]);
 
-  // Fetch TOC + Progress
+  // Fetch TOC + Progress + Jobs
   const loadData = useCallback(async () => {
-    const [tocRes, progRes] = await Promise.all([
+    const [tocRes, progRes, jobsRes] = await Promise.all([
       apiRequest("/wiki/toc"),
       apiRequest("/wiki/progress"),
+      apiRequest("/archiving/jobs?limit=20"),
     ]);
     if (tocRes.ok) {
       const d = await tocRes.json();
       setToc(d.items ?? []);
     }
     if (progRes.ok) setProgress(await progRes.json());
+    if (jobsRes.ok) {
+      const d = await jobsRes.json();
+      setJobs(d.jobs ?? []);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -144,9 +175,11 @@ export default function KnowledgeBase() {
   // Select article
   const selectArticle = async (id: number) => {
     setEditing(false);
-    const [artRes, revRes] = await Promise.all([
+    setReviewResult(null);
+    const [artRes, revRes, reviewRes] = await Promise.all([
       apiRequest(`/wiki/articles/${id}`),
       apiRequest(`/wiki/articles/${id}/revisions`),
+      apiRequest(`/archiving/review/${id}`),
     ]);
     if (artRes.ok) {
       const a = await artRes.json();
@@ -158,6 +191,12 @@ export default function KnowledgeBase() {
     if (revRes.ok) {
       const d = await revRes.json();
       setRevisions(d.revisions ?? []);
+    }
+    if (reviewRes.ok) {
+      const d = await reviewRes.json();
+      setSavedReviews(d.reviews ?? []);
+    } else {
+      setSavedReviews([]);
     }
   };
 
@@ -427,16 +466,57 @@ export default function KnowledgeBase() {
         )}
       </div>
 
-      {/* ── Right: 3-Tab Sidebar (정보/참고자료/AI) ── */}
-      {selected && (
-        <div className="w-72 shrink-0 flex flex-col border-l border-gray-200 bg-gray-50/50">
-          {/* 탭 헤더 */}
+      {/* ── Right Sidebar ── */}
+      <div className="w-72 shrink-0 flex flex-col border-l border-gray-200 bg-gray-50/50">
+        {/* 전체 아카이빙 현황 (항상 표시) */}
+        {progress && (
+          <div className="shrink-0 border-b border-gray-200 p-3 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">아카이빙 현황</p>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+                <div className="h-2.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.round(((progress.total - progress.empty) / progress.total) * 100)}%` }} />
+              </div>
+              <span className="text-xs font-bold text-gray-700">{Math.round(((progress.total - progress.empty) / progress.total) * 100)}%</span>
+            </div>
+            <div className="flex gap-1.5 text-[10px] mb-3">
+              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700">{progress.published}</span>
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">{progress.review}</span>
+              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{progress.draft}</span>
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500">{progress.empty}</span>
+            </div>
+            {/* Part별 프로그레스 — 클릭→해당 Part 첫 아티클 이동 */}
+            <div className="space-y-1">
+              {(progress.by_part ?? []).sort((a, b) => a.part_number - b.part_number).map(p => {
+                const pct = Math.round((p.filled / Math.max(p.total, 1)) * 100);
+                const firstArticle = toc.find(t => t.part_number === p.part_number);
+                return (
+                  <button
+                    key={p.part_number}
+                    onClick={() => firstArticle && selectArticle(firstArticle.id)}
+                    className="flex items-center gap-1.5 w-full hover:bg-gray-100 rounded px-0.5 py-0.5 transition-colors group"
+                    title={`Part ${p.part_number}. ${p.part_title}`}
+                  >
+                    <span className="w-5 text-[9px] text-gray-400 text-right shrink-0 group-hover:text-gray-700">{p.part_number === 99 ? '부' : p.part_number}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+                      <div className={`h-1.5 rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-200'}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="w-8 text-[9px] text-gray-400 text-right shrink-0">{p.filled}/{p.total}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 아티클 선택 시: 3탭 */}
+        {selected ? (
+          <>
           <div className="flex border-b border-gray-200 shrink-0">
-            {([["info","정보"],["refs","참고자료"],["ai","AI 리서치"]] as const).map(([key, label]) => (
+            {([["info","정보"],["review","평가"],["refs","참고"],["ai","AI"]] as const).map(([key, label]) => (
               <button key={key} onClick={() => setRightTab(key)}
                 className={`flex-1 py-2 text-[11px] font-semibold transition-colors ${
                   rightTab === key ? "text-slate-800 border-b-2 border-slate-800 bg-white" : "text-gray-400 hover:text-gray-600"
-                }`}>{label}{key === "refs" && refs.length > 0 ? ` (${refs.length})` : ""}</button>
+                }`}>{label}</button>
             ))}
           </div>
 
@@ -507,6 +587,153 @@ export default function KnowledgeBase() {
                     })}
                   </div>
                 </details>
+              )}
+            </>)}
+
+            {/* ── 평가 탭 ── */}
+            {rightTab === "review" && (<>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">다관점 AI 평가</p>
+
+              {/* 저장된 평가가 있으면 바로 표시 */}
+              {savedReviews.length > 0 && !reviewLoading ? (
+                <div className="space-y-3">
+                  {/* 평가 시점 정보 */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-slate-600">평가 시점</span>
+                      <span className="text-[9px] text-slate-400">
+                        {new Date(savedReviews[0].created_at).toLocaleDateString("ko-KR")}
+                      </span>
+                    </div>
+                    <div className="text-[9px] text-slate-500">
+                      {savedReviews[0].word_count_at.toLocaleString()}자 기준 · {savedReviews[0].requested_by}
+                    </div>
+                    {/* 원문 스냅샷 (접기/펼치기) */}
+                    <details className="mt-2">
+                      <summary className="text-[9px] text-blue-600 cursor-pointer hover:underline">
+                        평가받은 원문 보기
+                      </summary>
+                      <div className="mt-1.5 text-[9px] text-gray-500 bg-white rounded p-2 border border-gray-100 max-h-32 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                        {savedReviews[0].content_snapshot}
+                      </div>
+                    </details>
+                  </div>
+
+                  {/* 종합 점수 바 */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {savedReviews.map(r => {
+                        const c = r.score >= 8 ? "bg-emerald-500" : r.score >= 6 ? "bg-blue-500" : r.score >= 4 ? "bg-amber-500" : "bg-red-500";
+                        return (
+                          <div key={r.perspective} className="flex items-center gap-1">
+                            <span className="text-[9px] text-gray-500">{r.name}</span>
+                            <span className={`text-[10px] text-white font-bold px-1.5 py-0.5 rounded ${c}`}>{r.score}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 각 관점 상세 (접기/펼치기) */}
+                  {savedReviews.map(r => {
+                    const scoreColor = r.score >= 8 ? "text-emerald-600 bg-emerald-50" :
+                                       r.score >= 6 ? "text-blue-600 bg-blue-50" :
+                                       r.score >= 4 ? "text-amber-600 bg-amber-50" : "text-red-600 bg-red-50";
+                    return (
+                      <details key={r.perspective} className="group bg-white border border-gray-100 rounded-lg">
+                        <summary className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                          <span className="text-[11px] font-medium text-gray-700">{r.name}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${scoreColor}`}>{r.score}/10</span>
+                        </summary>
+                        <div className="px-3 pb-3 pt-1 text-[10px] text-gray-600 leading-relaxed whitespace-pre-line border-t border-gray-50">
+                          {r.review}
+                        </div>
+                      </details>
+                    );
+                  })}
+
+                  {/* 보완하기 (편집 모드로 진입) */}
+                  <button
+                    onClick={() => { setEditing(true); setRightTab("review"); }}
+                    className="w-full py-2 rounded-lg text-xs font-medium bg-slate-800 text-white hover:bg-slate-700 transition"
+                  >
+                    평가 기반으로 보완하기
+                  </button>
+
+                  {/* 재평가 */}
+                  <button
+                    onClick={async () => {
+                      if (!confirm("기존 평가를 삭제하고 새로 평가합니다. 진행할까요?")) return;
+                      setReviewLoading(true);
+                      setSavedReviews([]);
+                      try {
+                        const res = await apiRequest(`/archiving/review/${selected.id}`, {
+                          method: "POST",
+                          body: JSON.stringify({ perspectives: ["investor", "academic", "operator", "reader", "tech"] }),
+                        });
+                        if (res.ok) {
+                          const d = await res.json();
+                          setReviewResult(d);
+                          // 저장된 리뷰 다시 불러오기
+                          const r2 = await apiRequest(`/archiving/review/${selected.id}`);
+                          if (r2.ok) { const d2 = await r2.json(); setSavedReviews(d2.reviews ?? []); }
+                        }
+                      } catch { alert("평가 실패"); }
+                      setReviewLoading(false);
+                    }}
+                    className="w-full py-1.5 rounded text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    재평가 (현재 내용 기준)
+                  </button>
+                </div>
+              ) : (
+                /* 평가 없을 때: 새 평가 시작 */
+                <div className="space-y-2">
+                  <p className="text-[10px] text-gray-400 mb-2">이 글을 5가지 관점에서 평가합니다</p>
+                  <button
+                    onClick={async () => {
+                      setReviewLoading(true);
+                      setReviewResult(null);
+                      try {
+                        const res = await apiRequest(`/archiving/review/${selected.id}`, {
+                          method: "POST",
+                          body: JSON.stringify({ perspectives: ["investor", "academic", "operator", "reader", "tech"] }),
+                        });
+                        if (res.ok) {
+                          const d = await res.json();
+                          setReviewResult(d);
+                          // 저장된 리뷰 불러오기
+                          const r2 = await apiRequest(`/archiving/review/${selected.id}`);
+                          if (r2.ok) { const d2 = await r2.json(); setSavedReviews(d2.reviews ?? []); }
+                        } else {
+                          alert("평가 실패");
+                        }
+                      } catch { alert("네트워크 오류"); }
+                      setReviewLoading(false);
+                    }}
+                    disabled={reviewLoading || !selected.content}
+                    className="w-full py-2.5 rounded-lg text-xs font-medium bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {reviewLoading ? "평가 중... (약 30초)" : "5관점 평가 시작"}
+                  </button>
+                  <div className="grid grid-cols-1 gap-1.5 text-[10px]">
+                    {[
+                      { icon: "💰", name: "투자자", desc: "시장·차별화·확장성" },
+                      { icon: "🎓", name: "도시계획 학자", desc: "이론·논리·실증" },
+                      { icon: "🏠", name: "숙소 운영자", desc: "현실성·실용성·비용" },
+                      { icon: "📖", name: "일반 독자", desc: "이해도·흥미·공감" },
+                      { icon: "💻", name: "시니어 개발자", desc: "아키텍처·확장·자동화" },
+                    ].map(p => (
+                      <div key={p.name} className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
+                        <span>{p.icon}</span>
+                        <div>
+                          <span className="font-medium text-gray-700">{p.name}</span>
+                          <span className="text-gray-400 ml-1">{p.desc}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </>)}
 
@@ -672,8 +899,105 @@ export default function KnowledgeBase() {
               </div>
             </div>
           )}
-        </div>
-      )}
+          </>
+        ) : (
+          /* 아티클 미선택 시: 최근 작업 로그 + 변경 아티클 */
+          <div className="flex-1 overflow-y-auto p-3">
+            {/* 최근 변경된 아티클 (클릭→이동) */}
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">최근 변경</p>
+            <div className="space-y-1 mb-4">
+              {toc
+                .filter(t => t.status !== "empty")
+                .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                .slice(0, 10)
+                .map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => selectArticle(item.id)}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white transition-colors group"
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      item.status === "published" ? "bg-green-500" :
+                      item.status === "review" ? "bg-blue-500" :
+                      item.status === "draft" ? "bg-amber-500" : "bg-gray-300"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] text-gray-700 truncate group-hover:text-gray-900">{item.section} {item.title}</div>
+                      <div className="text-[9px] text-gray-400">{item.word_count.toLocaleString()}자 · {item.author_name || "—"}</div>
+                    </div>
+                  </button>
+                ))
+              }
+              {toc.filter(t => t.status !== "empty").length === 0 && (
+                <p className="text-[10px] text-gray-300 italic px-2">아직 작성된 아티클이 없습니다</p>
+              )}
+            </div>
+
+            {/* 아카이빙 작업 로그 (누가/언제/무엇을) */}
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">작업 로그</p>
+            <div className="space-y-2">
+              {jobs.slice(0, 10).map(job => {
+                let articleIds: number[] = [];
+                try { articleIds = JSON.parse(job.article_ids || "[]"); } catch {}
+                const matchedArticles = toc.filter(t => articleIds.includes(t.id));
+                const typeLabel = job.type === "session" ? "TAB 1~4" : job.type === "weekly" ? "TAB 5~7" : "알림";
+                const statusIcon = job.status === "completed" ? "✓" : job.status === "failed" ? "✗" : "…";
+                const statusColor = job.status === "completed" ? "text-emerald-600" : job.status === "failed" ? "text-red-500" : "text-amber-500";
+                const date = new Date(job.created_at);
+                const timeStr = `${(date.getMonth()+1)}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
+
+                return (
+                  <div key={job.id} className="bg-white border border-gray-100 rounded-lg p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs font-bold ${statusColor}`}>{statusIcon}</span>
+                        <span className="text-[10px] font-medium text-gray-700">{typeLabel}</span>
+                      </div>
+                      <span className="text-[9px] text-gray-400">{timeStr}</span>
+                    </div>
+                    <div className="text-[9px] text-gray-500 mb-1">
+                      {job.created_by_name} · {matchedArticles.length}개 아티클
+                    </div>
+                    {/* 관련 아티클 목록 (클릭→이동) */}
+                    <div className="space-y-0.5">
+                      {matchedArticles.slice(0, 3).map(a => (
+                        <button
+                          key={a.id}
+                          onClick={() => selectArticle(a.id)}
+                          className="flex items-center gap-1 w-full text-left rounded px-1 py-0.5 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="text-[9px] text-gray-400 w-6 shrink-0">{a.section}</span>
+                          <span className="text-[9px] text-blue-600 hover:underline truncate">{a.title}</span>
+                        </button>
+                      ))}
+                      {matchedArticles.length > 3 && (
+                        <span className="text-[9px] text-gray-400 pl-1">+{matchedArticles.length - 3}개 더</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {jobs.length === 0 && (
+                <p className="text-[10px] text-gray-300 italic">아카이빙 작업이 없습니다</p>
+              )}
+            </div>
+
+            {/* 8탭 파이프라인 안내 */}
+            <div className="mt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">8탭 파이프라인</p>
+              <div className="flex items-center gap-1 text-[9px] flex-wrap">
+                <span className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">empty</span>
+                <span className="text-gray-300">→</span>
+                <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">draft (1~4)</span>
+                <span className="text-gray-300">→</span>
+                <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">review (5~7)</span>
+                <span className="text-gray-300">→</span>
+                <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">published (8)</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -24,7 +24,9 @@ import Layout from "./components/Layout";
 import HieroDashboard from "./pages/HieroDashboard";
 import Profit from "./pages/Profit";
 import Team from "./pages/Team";
+import HieroToday from "./pages/founder/HieroToday";
 import FounderDashboard from "./pages/founder/FounderDashboard";
+import OrgChart from "./pages/founder/OrgChart";
 import ETFBoard from "./pages/etf/ETFBoard";
 import CEOBoard from "./pages/etf/CEOBoard";
 import CTOBoard from "./pages/etf/CTOBoard";
@@ -42,6 +44,22 @@ function PrivateRoute() {
   return token ? <Outlet /> : <Navigate to="/login" />;
 }
 
+// 역할별 접근 제한 — 허용 안 되면 / 로 리다이렉트
+function RoleGuard({ allowed, children }: { allowed: string[]; children: React.ReactNode }) {
+  try {
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      const user = JSON.parse(raw);
+      const layer = user.role_layer || "";
+      const role = user.role_title || "";
+      if (allowed.includes(layer) || allowed.includes(role)) {
+        return <>{children}</>;
+      }
+    }
+  } catch { /* ignore */ }
+  return <Navigate to="/" replace />;
+}
+
 function PrivateLayout() {
   return (
     <Layout>
@@ -57,13 +75,23 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<PrivateRoute />}>
           <Route element={<PrivateLayout />}>
-            <Route path="/" element={<FounderDashboard />} />
+            {/* 전체 공개 */}
+            <Route path="/" element={<HieroToday />} />
             <Route path="/today" element={<TodayDashboard />} />
+
+            {/* GOT — founder만 */}
+            <Route path="/founder" element={<RoleGuard allowed={['founder']}><FounderDashboard /></RoleGuard>} />
+            <Route path="/got" element={<RoleGuard allowed={['founder', 'etf']}><OrgChart /></RoleGuard>} />
+            <Route path="/org" element={<RoleGuard allowed={['founder', 'etf']}><OrgChart /></RoleGuard>} />
+
+            {/* ETF — founder + etf */}
+            <Route path="/etf-board" element={<RoleGuard allowed={['founder', 'etf']}><ETFBoard /></RoleGuard>} />
+            <Route path="/etf-board/ceo" element={<RoleGuard allowed={['founder', 'etf']}><CEOBoard /></RoleGuard>} />
+            <Route path="/etf-board/cto" element={<RoleGuard allowed={['founder', 'etf']}><CTOBoard /></RoleGuard>} />
+            <Route path="/etf-board/cfo" element={<RoleGuard allowed={['founder', 'etf']}><CFOBoard /></RoleGuard>} />
+
+            {/* 기존 */}
             <Route path="/hiero-dashboard" element={<HieroDashboard />} />
-            <Route path="/etf-board" element={<ETFBoard />} />
-            <Route path="/etf-board/ceo" element={<CEOBoard />} />
-            <Route path="/etf-board/cto" element={<CTOBoard />} />
-            <Route path="/etf-board/cfo" element={<CFOBoard />} />
             <Route path="/execution/:role" element={<ExecutionDashboard />} />
             <Route path="/chat" element={<TeamChat />} />
             <Route path="/issue-detections" element={<IssueDetections />} />

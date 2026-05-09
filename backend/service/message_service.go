@@ -206,7 +206,7 @@ func (s *MessageService) SyncConversationMessages(conversationID string) (int, e
 			Where("conversation_id = ?", conversationID).
 			Updates(map[string]interface{}{
 				"last_message_at":      latestMsg.SentAt,
-				"last_message_preview": truncate(latestMsg.Content, 500),
+				"last_message_preview": msgTruncate(latestMsg.Content, 500),
 			})
 	}
 
@@ -345,7 +345,7 @@ func (s *MessageService) SendMessage(conversationID string, content string) (*mo
 		Where("conversation_id = ?", conversationID).
 		Updates(map[string]interface{}{
 			"last_message_at":      now,
-			"last_message_preview": truncate(content, 500),
+			"last_message_preview": msgTruncate(content, 500),
 		})
 
 	return &msg, nil
@@ -409,7 +409,7 @@ func (s *MessageService) GetConversation(conversationID string) (*models.Convers
 	return &conv, nil
 }
 
-func truncate(s string, maxLen int) string {
+func msgTruncate(s string, maxLen int) string {
 	runes := []rune(s)
 	if len(runes) <= maxLen {
 		return s

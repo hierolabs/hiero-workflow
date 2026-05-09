@@ -33,3 +33,9 @@ func (h *FounderHandler) ETFSummary(c *gin.Context) {
 	data := h.svc.GetETFSummary()
 	c.JSON(http.StatusOK, data)
 }
+
+// GET /admin/founder/cycle — 3카테고리 순환 분석
+func (h *FounderHandler) CycleAnalysis(c *gin.Context) {
+	data := h.svc.GetCycleAnalysis()
+	c.JSON(http.StatusOK, data)
+}

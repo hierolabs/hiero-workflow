@@ -296,9 +296,21 @@ export default function Team() {
               </div>
               <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">소유 도메인</h3>
               <div className="flex flex-wrap gap-1 mb-3">
-                {selectedOntology.domains.map(d => (
-                  <span key={d} className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">{d}</span>
-                ))}
+                {selectedOntology.domains.map(d => {
+                  const domainRoutes: Record<string, string> = {
+                    '전체 OS': '/', 'People OS': '/team', 'Operations OS': '/issues',
+                    'Growth OS': '/leads', 'Knowledge OS': '/wiki', 'Research': '/wiki',
+                    'MORO': '/wiki', 'Money OS': '/settlement', 'Settlement': '/settlement',
+                    'Tax': '/settlement', 'Operations OS (청소)': '/cleaning', 'Property OS': '/properties',
+                  };
+                  const route = domainRoutes[d];
+                  return route ? (
+                    <span key={d} className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100 transition"
+                      onClick={() => navigate(route)}>{d} →</span>
+                  ) : (
+                    <span key={d} className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">{d}</span>
+                  );
+                })}
               </div>
               {selectedOntology.escalationFrom.length > 0 && (
                 <>
@@ -347,19 +359,22 @@ export default function Team() {
                     )}
                   </div>
 
-                  {/* KPI */}
+                  {/* KPI — 클릭 드릴다운 */}
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => navigate(`/issues?assignee=${encodeURIComponent(m.name)}&status=open`)}>
                       <span className="text-gray-500">미처리</span>
                       <span className={`font-bold ${m.stats.open_issues > 3 ? 'text-red-600' : m.stats.open_issues > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                        {m.stats.open_issues}건
+                        {m.stats.open_issues}건 →
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => navigate(`/issues?assignee=${encodeURIComponent(m.name)}&status=resolved&period=today`)}>
                       <span className="text-gray-500">오늘 해결</span>
-                      <span className="font-medium text-emerald-600">{m.stats.resolved_today}건</span>
+                      <span className="font-medium text-emerald-600">{m.stats.resolved_today}건 →</span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => navigate(`/issues?assignee=${encodeURIComponent(m.name)}&status=resolved&period=week`)}>
                       <span className="text-gray-500">주간 해결</span>
                       <div className="flex items-center gap-2">
                         <KpiBar value={m.stats.resolved_week} max={maxResolved} color="bg-blue-500" />
@@ -372,17 +387,20 @@ export default function Team() {
                         {m.stats.avg_resolve_hours > 0 ? `${m.stats.avg_resolve_hours}h` : '-'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => navigate(`/issues?assignee=${encodeURIComponent(m.name)}&action=escalated`)}>
                       <span className="text-gray-500">↑ 에스컬레이트</span>
-                      <span className="font-medium text-gray-600">{m.stats.escalated_up}건</span>
+                      <span className="font-medium text-gray-600">{m.stats.escalated_up}건 →</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => navigate(`/issues?assignee=${encodeURIComponent(m.name)}&action=delegated`)}>
                       <span className="text-gray-500">↓ 업무지시</span>
-                      <span className="font-medium text-gray-600">{m.stats.delegated_down}건</span>
+                      <span className="font-medium text-gray-600">{m.stats.delegated_down}건 →</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-gray-100/60 rounded px-1 -mx-1 py-0.5"
+                      onClick={() => openLogModal(m.name)}>
                       <span className="text-gray-500">주간 활동</span>
-                      <span className="font-medium text-gray-700">{m.stats.activity_week}건</span>
+                      <span className="font-medium text-gray-700">{m.stats.activity_week}건 →</span>
                     </div>
                   </div>
 
@@ -439,19 +457,22 @@ export default function Team() {
               </div>
 
               <div className="overflow-y-auto max-h-[70vh]">
-                {/* KPI 요약 */}
+                {/* KPI 요약 — 클릭 드릴다운 */}
                 {member && (
                   <div className="px-5 py-4 border-b bg-gray-50">
                     <div className="grid grid-cols-4 gap-3 text-center">
-                      <div>
+                      <div className="cursor-pointer hover:bg-white rounded-lg p-1 transition"
+                        onClick={() => { setLogModal(null); navigate(`/issues?assignee=${encodeURIComponent(member.name)}&status=open`); }}>
                         <div className="text-lg font-bold text-gray-800">{member.stats.open_issues}</div>
-                        <div className="text-[10px] text-gray-500">미처리</div>
+                        <div className="text-[10px] text-gray-500">미처리 →</div>
                       </div>
-                      <div>
+                      <div className="cursor-pointer hover:bg-white rounded-lg p-1 transition"
+                        onClick={() => { setLogModal(null); navigate(`/issues?assignee=${encodeURIComponent(member.name)}&status=resolved&period=week`); }}>
                         <div className="text-lg font-bold text-emerald-700">{member.stats.resolved_week}</div>
-                        <div className="text-[10px] text-gray-500">주간 해결</div>
+                        <div className="text-[10px] text-gray-500">주간 해결 →</div>
                       </div>
-                      <div>
+                      <div className="cursor-pointer hover:bg-white rounded-lg p-1 transition"
+                        onClick={() => { /* 이미 로그 모달 내 — 스크롤 다운 */ }}>
                         <div className="text-lg font-bold text-blue-700">{member.stats.activity_week}</div>
                         <div className="text-[10px] text-gray-500">주간 활동</div>
                       </div>
