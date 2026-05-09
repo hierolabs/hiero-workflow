@@ -130,7 +130,11 @@ func main() {
 		}
 	}()
 
-	r := router.Setup()
+	// 데이터 파이프라인 스케줄러
+	scheduler := service.NewScheduler()
+	scheduler.Start()
+
+	r := router.Setup(scheduler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

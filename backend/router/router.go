@@ -3,11 +3,17 @@ package router
 import (
 	"time"
 
+	"hiero-workflow/backend/service"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func Setup() *gin.Engine {
+var schedulerInstance *service.Scheduler
+
+func Setup(sched *service.Scheduler) *gin.Engine {
+	schedulerInstance = sched
+
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{

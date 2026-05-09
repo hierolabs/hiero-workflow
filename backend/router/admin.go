@@ -53,6 +53,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	priceLabsHandler := handler.NewPriceLabsHandler()
 	marketDataHandler := handler.NewMarketDataHandler()
 	monthlyReportHandler := handler.NewMonthlyReportHandler()
+	schedulerHandler := handler.NewSchedulerHandler(schedulerInstance)
 
 	admin := r.Group("/admin")
 	{
@@ -248,6 +249,11 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/reports/monthly", monthlyReportHandler.List)
 			protected.GET("/reports/months", monthlyReportHandler.Months)
 			protected.GET("/reports/property/:id", monthlyReportHandler.PropertyDetail)
+
+			// 데이터 파이프라인 스케줄러
+			protected.GET("/pipeline/status", schedulerHandler.Status)
+			protected.POST("/pipeline/run", schedulerHandler.RunTarget)
+			protected.POST("/pipeline/run-all", schedulerHandler.RunAll)
 
 			// 운영 체크리스트
 			protected.GET("/checklist/today", checklistHandler.GetToday)
