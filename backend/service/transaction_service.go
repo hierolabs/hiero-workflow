@@ -141,7 +141,7 @@ func (s *TransactionService) GetMonthlySummary(yearMonth string) ([]MonthlySumma
 		Group("property_id, property_name, category, type, channel, revenue_class")
 
 	if yearMonth != "" {
-		query = query.Where("year_month = ?", yearMonth)
+		query = query.Where("`year_month` = ?", yearMonth)
 	}
 	query.Scan(&rows)
 

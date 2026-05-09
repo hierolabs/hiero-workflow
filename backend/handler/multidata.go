@@ -103,10 +103,10 @@ func (h *MultidataHandler) Overview(c *gin.Context) {
 	// 5. 거래 (Transactions)
 	var txTotal, txMonth int64
 	config.DB.Model(&models.HostexTransaction{}).Count(&txTotal)
-	config.DB.Model(&models.HostexTransaction{}).Where("year_month = ?", yearMonth).Count(&txMonth)
+	config.DB.Model(&models.HostexTransaction{}).Where("`year_month` = ?", yearMonth).Count(&txMonth)
 	var txRevenue, txCost float64
-	config.DB.Model(&models.HostexTransaction{}).Where("year_month = ? AND type = ?", yearMonth, "수입").Select("COALESCE(SUM(amount),0)").Scan(&txRevenue)
-	config.DB.Model(&models.HostexTransaction{}).Where("year_month = ? AND type = ?", yearMonth, "비용").Select("COALESCE(SUM(amount),0)").Scan(&txCost)
+	config.DB.Model(&models.HostexTransaction{}).Where("`year_month` = ? AND type = ?", yearMonth, "수입").Select("COALESCE(SUM(amount),0)").Scan(&txRevenue)
+	config.DB.Model(&models.HostexTransaction{}).Where("`year_month` = ? AND type = ?", yearMonth, "비용").Select("COALESCE(SUM(amount),0)").Scan(&txCost)
 	folders = append(folders, DataFolder{
 		Key: "transactions", Label: "거래", Desc: "Hostex CSV 거래 내역",
 		Total: txTotal, ThisMonth: txMonth,

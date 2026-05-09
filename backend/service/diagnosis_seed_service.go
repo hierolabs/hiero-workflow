@@ -96,7 +96,10 @@ func (s *DiagnosisSeedService) GenerateAll() (int, error) {
 	// ─── 4. Hostex 거래 데이터 집계 (CSV 업로드분) ────────────
 	s.queryTransactionStats(statsMap)
 
-	// ─── 4. 진단 레코드 생성/업데이트 ────────────────────────
+	// ─── 5. property_costs 데이터 보강 (월세/관리비) ──────────
+	s.queryPropertyCosts(statsMap)
+
+	// ─── 6. 진단 레코드 생성/업데이트 ────────────────────────
 	created := 0
 	for _, p := range properties {
 		st := statsMap[p.ID]
@@ -119,7 +122,7 @@ func (s *DiagnosisSeedService) GenerateAll() (int, error) {
 				// 운영전달
 				"cleaning_score": diag.CleaningScore,
 				"checkin_score":  diag.CheckinScore,
-				"cs_score":       diag.CSScore,
+				"csscore":        diag.CSScore,
 				"amenity_score":  diag.AmenityScore,
 				"claim_rate":     diag.ClaimRate,
 				// 재무
@@ -299,8 +302,7 @@ func (s *DiagnosisSeedService) queryTransactionStats(statsMap map[uint]*propStat
 	}
 	var rows []txRow
 	config.DB.Model(&models.HostexTransaction{}).
-		Select(`property_id, category, type, SUM(amount) as total_amount,
-			COUNT(DISTINCT year_month) as month_count`).
+		Select("property_id, category, type, SUM(amount) as total_amount, COUNT(DISTINCT `year_month`) as month_count").
 		Where("property_id IS NOT NULL").
 		Group("property_id, category, type").
 		Scan(&rows)
@@ -345,6 +347,39 @@ func (s *DiagnosisSeedService) queryTransactionStats(statsMap map[uint]*propStat
 			}
 		}
 	}
+}
+
+// ─── 쿼리: property_costs 월세/관리비 보강 ──────────────────
+
+func (s *DiagnosisSeedService) queryPropertyCosts(statsMap map[uint]*propStats) {
+	var costs []models.PropertyCost
+	config.DB.Find(&costs)
+
+	for _, c := range costs {
+		st, ok := statsMap[c.PropertyID]
+		if !ok {
+			continue
+		}
+		if c.Rent > 0 {
+			st.Rent = c.Rent
+		}
+		if c.Utilities != nil {
+			var totalUtil int64
+			for _, item := range c.Utilities {
+				totalUtil += item.Amount
+			}
+			if totalUtil > 0 {
+				st.MgmtFee = totalUtil
+			}
+		}
+	}
+	loaded := 0
+	for _, st := range statsMap {
+		if st.Rent > 0 {
+			loaded++
+		}
+	}
+	log.Printf("[diagnosis] property_costs %d건 로드, statsMap에 rent 반영: %d건", len(costs), loaded)
 }
 
 // ─── 점수 계산 ───────────────────────────────────────────────
@@ -466,6 +501,14 @@ func buildDiagnosisFromStats(p models.Property, st *propStats) models.PropertyBu
 		mgmt = int(p.ManagementFee)
 		cleanFee = st.ReservationCount * 25000
 		platformFee = st.MonthlyComm
+	}
+
+	// property_costs가 있으면 월세/관리비를 항상 우선 사용
+	if st.Rent > 0 {
+		rent = int(st.Rent)
+	}
+	if st.MgmtFee > 0 {
+		mgmt = int(st.MgmtFee)
 	}
 
 	return models.PropertyBusinessDiagnosis{

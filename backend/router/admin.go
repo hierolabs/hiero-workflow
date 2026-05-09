@@ -52,6 +52,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	pricingHandler := handler.NewPricingHandler()
 	priceLabsHandler := handler.NewPriceLabsHandler()
 	marketDataHandler := handler.NewMarketDataHandler()
+	monthlyReportHandler := handler.NewMonthlyReportHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -242,6 +243,11 @@ func registerAdminRoutes(r *gin.Engine) {
 			// Data 3 통합 분석 (reservation + transaction JOIN)
 			protected.GET("/data3/records", data3Handler.GetRecords)
 			protected.GET("/data3/summary", data3Handler.GetSummary)
+
+			// 월간 리포트 (monthly_property_reports)
+			protected.GET("/reports/monthly", monthlyReportHandler.List)
+			protected.GET("/reports/months", monthlyReportHandler.Months)
+			protected.GET("/reports/property/:id", monthlyReportHandler.PropertyDetail)
 
 			// 운영 체크리스트
 			protected.GET("/checklist/today", checklistHandler.GetToday)
