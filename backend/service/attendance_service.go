@@ -222,7 +222,7 @@ func (s *AttendanceService) GetProductivity(startDate, endDate string) ([]Produc
 		config.LocalDB.Model(&models.UserActivity{}).Where("user_id = ? AND action = ?", ua.UserID, "page_view").Count(&stat.PageViews)
 
 		// Count from ActivityLog (existing issue actions)
-		aq := config.LocalDB.Model(&models.ActivityLog{}).Where("user_id = ?", ua.UserID)
+		aq := config.DB.Model(&models.ActivityLog{}).Where("user_id = ?", ua.UserID)
 		if startDate != "" {
 			aq = aq.Where("DATE(created_at) >= ?", startDate)
 		}
@@ -231,11 +231,11 @@ func (s *AttendanceService) GetProductivity(startDate, endDate string) ([]Produc
 		}
 		aq.Where("action = ?", "issue_created").Count(&stat.IssuesCreated)
 
-		config.LocalDB.Model(&models.ActivityLog{}).
+		config.DB.Model(&models.ActivityLog{}).
 			Where("user_id = ? AND action = ?", ua.UserID, "issue_resolved").
 			Count(&stat.IssuesResolved)
 
-		config.LocalDB.Model(&models.ActivityLog{}).
+		config.DB.Model(&models.ActivityLog{}).
 			Where("user_id = ? AND action = ?", ua.UserID, "issue_escalated").
 			Count(&stat.Escalations)
 

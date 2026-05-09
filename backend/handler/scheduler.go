@@ -19,6 +19,9 @@ func NewSchedulerHandler(sched *service.Scheduler) *SchedulerHandler {
 // RunAll POST /admin/pipeline/run-all — 전체 파이프라인 즉시 실행
 func (h *SchedulerHandler) RunAll(c *gin.Context) {
 	results := h.sched.RunAll()
+
+	service.LogActivity(getUserID(c), getUserName(c), "pipeline_run_all", "pipeline", nil, "전체 파이프라인 수동 실행")
+
 	c.JSON(http.StatusOK, gin.H{"message": "파이프라인 전체 실행 완료", "results": results})
 }
 

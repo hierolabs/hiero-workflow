@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"hiero-workflow/backend/models"
@@ -85,6 +86,10 @@ func (h *IssueHandler) Create(c *gin.Context) {
 	h.commSvc.LogSystemEvent(issue.PropertyID, issue.ReservationID, issue.ReservationCode,
 		"이슈 생성: ["+issue.IssueType+"] "+issue.Title)
 
+	uid := getUserID(c)
+	service.LogActivity(uid, getUserName(c), models.ActionIssueCreated, "issue", &created.ID,
+		fmt.Sprintf("[%s] %s (P%s)", issue.IssueType, issue.Title, issue.Priority))
+
 	c.JSON(http.StatusCreated, created)
 }
 
@@ -114,6 +119,13 @@ func (h *IssueHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	action := models.ActionStatusChanged
+	if req.Status == "resolved" {
+		action = models.ActionIssueResolved
+	}
+	service.LogActivity(getUserID(c), getUserName(c), action, "issue", &id,
+		fmt.Sprintf("상태변경 → %s", req.Status))
+
 	c.JSON(http.StatusOK, issue)
 }
 
@@ -137,6 +149,9 @@ func (h *IssueHandler) UpdateAssignee(c *gin.Context) {
 		handleServiceError(c, err)
 		return
 	}
+
+	service.LogActivity(getUserID(c), getUserName(c), models.ActionIssueAssigned, "issue", &id,
+		fmt.Sprintf("담당자 → %s", req.AssigneeName))
 
 	c.JSON(http.StatusOK, issue)
 }
@@ -173,6 +188,9 @@ func (h *IssueHandler) Escalate(c *gin.Context) {
 		handleServiceError(c, err)
 		return
 	}
+
+	service.LogActivity(getUserID(c), getUserName(c), models.ActionIssueEscalated, "issue", &id,
+		fmt.Sprintf("에스컬레이트 → %s", issue.EscalationLevel))
 
 	c.JSON(http.StatusOK, issue)
 }

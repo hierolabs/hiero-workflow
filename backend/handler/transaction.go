@@ -36,6 +36,9 @@ func (h *TransactionHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	service.LogActivity(getUserID(c), getUserName(c), "transaction_uploaded", "hostex_transaction", nil,
+		fmt.Sprintf("CSV 업로드: %d건 임포트, %d건 스킵", imported, skipped))
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "업로드 완료",
 		"imported": imported,

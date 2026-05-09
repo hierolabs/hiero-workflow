@@ -104,6 +104,9 @@ func (h *CleaningHandler) Assign(c *gin.Context) {
 		return
 	}
 
+	service.LogActivity(getUserID(c), getUserName(c), "cleaning_assigned", "cleaning_task", &id,
+		fmt.Sprintf("%s → %s", task.PropertyCode, task.CleanerName))
+
 	c.JSON(http.StatusOK, task)
 }
 
@@ -141,6 +144,9 @@ func (h *CleaningHandler) Complete(c *gin.Context) {
 	// 시스템 로그
 	h.commSvc.LogSystemEvent(task.PropertyID, task.ReservationID, task.ReservationCode,
 		"청소 완료: "+task.PropertyCode+" "+task.PropertyName)
+
+	service.LogActivity(getUserID(c), getUserName(c), "cleaning_completed", "cleaning_task", &id,
+		fmt.Sprintf("%s 완료", task.PropertyCode))
 
 	c.JSON(http.StatusOK, task)
 }

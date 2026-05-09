@@ -230,7 +230,7 @@ func (h *MultidataHandler) Overview(c *gin.Context) {
 	config.LocalDB.Model(&models.UserSession{}).Where("DATE(login_at) = ?", today).Count(&sessionToday)
 	config.LocalDB.Model(&models.UserActivity{}).Count(&activityTotal)
 	var actLogTotal int64
-	config.LocalDB.Model(&models.ActivityLog{}).Count(&actLogTotal)
+	config.DB.Model(&models.ActivityLog{}).Count(&actLogTotal)
 	folders = append(folders, DataFolder{
 		Key: "attendance", Label: "근태/활동", Desc: "로컬 SQLite 저장",
 		Total: sessionTotal,
