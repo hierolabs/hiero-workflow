@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"hiero-workflow/backend/config"
 	"hiero-workflow/backend/models"
 )
@@ -69,6 +71,23 @@ func (s *TeamChatService) SendMessage(channelID, senderID uint, senderName, send
 
 	// 멤버 last_read 업데이트
 	s.UpdateLastRead(channelID, senderID)
+
+	// ActivityLog
+	LogActivity(&senderID, senderName, models.ActionTeamChatSent, "chat_channel", &channelID,
+		fmt.Sprintf("팀 채팅: [%s] %s", senderRole, truncateStr(content, 100)))
+
+	// Notification — 같은 채널 멤버에게 (발신자 제외)
+	var members []models.ChatChannelMember
+	config.DB.Where("channel_id = ? AND user_id != ?", channelID, senderID).Find(&members)
+	if len(members) > 0 {
+		notifSvc := NewNotificationService()
+		for _, m := range members {
+			notifSvc.NotifyUser(m.UserID, models.NotifTypeMessage,
+				"팀 채팅 메시지",
+				fmt.Sprintf("[%s] %s", senderName, truncateStr(content, 100)),
+				nil, &senderID, senderName)
+		}
+	}
 
 	return msg
 }

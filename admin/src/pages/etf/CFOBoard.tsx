@@ -211,7 +211,9 @@ export default function CFOBoard() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
-  const [anomalies, setAnomalies] = useState<{ type: string; severity: string; title: string; evidence: string; impact: string; action: string }[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<{ id: number; type: string; severity: string; title: string; evidence: string; impact: string; action: string; status: string }[]>([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState<{ id: number; title: string; status: string; action_by: string }[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
   const navigate = useNavigate();
 
   // 지시 생성 폼
@@ -232,7 +234,8 @@ export default function CFOBoard() {
       api.get(`/etf-board/cfo/financial?start_date=${range.start}&end_date=${range.end}`).catch(() => null),
       api.get('/founder/anomalies').catch(() => null),
     ]).then(([cfoRes, finRes, anomalyRes]) => {
-      setAnomalies(anomalyRes?.data?.alerts ?? []);
+      setActiveAlerts(anomalyRes?.data?.active ?? []);
+      setDismissedAlerts(anomalyRes?.data?.dismissed ?? []);
       const d = cfoRes.data;
       if (finRes?.data) {
         d.financial = finRes.data;
@@ -325,12 +328,12 @@ export default function CFOBoard() {
       {data && (
         <>
           {/* 이상 감지 */}
-          {anomalies.length > 0 && (
+          {activeAlerts.length > 0 && (
             <div className="space-y-2">
-              {anomalies.map((a, i) => {
+              {activeAlerts.map(a => {
                 const isCrit = a.severity === 'critical';
                 return (
-                  <div key={i} className={`border rounded-xl p-4 ${isCrit ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
+                  <div key={a.id} className={`border rounded-xl p-4 ${isCrit ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
                     <div className="flex items-start gap-3">
                       <span className="text-lg mt-0.5">{isCrit ? '🔴' : '🟡'}</span>
                       <div className="flex-1 min-w-0">
@@ -338,16 +341,44 @@ export default function CFOBoard() {
                         <div className="text-xs text-gray-600 mt-1"><span className="font-medium">근거:</span> {a.evidence}</div>
                         <div className="text-xs text-gray-600 mt-0.5"><span className="font-medium">영향:</span> {a.impact}</div>
                         <div className="text-xs text-gray-500 mt-1"><span className="font-medium">조치:</span> {a.action}</div>
+                        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-200/60">
+                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/acknowledge`).then(fetchData)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">확인</button>
+                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/forward`, { to_role: 'cfo', memo: '' }).then(fetchData)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-blue-200 text-blue-600 hover:bg-blue-50">GOT 전송</button>
+                        </div>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-lg font-medium ${isCrit ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {isCrit ? '긴급' : '주의'}
-                      </span>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+          {/* 처리된 알림 (접힌 흔적) */}
+          {dismissedAlerts.length > 0 && (
+            <button onClick={() => setShowDismissed(!showDismissed)}
+              className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600">
+              <span className={`transition-transform ${showDismissed ? 'rotate-90' : ''}`}>▶</span>
+              처리 완료 {dismissedAlerts.length}건
+              <div className="flex gap-0.5">
+                {dismissedAlerts.slice(0, 5).map(d => (
+                  <span key={d.id} className={`w-2 h-2 rounded-full ${
+                    d.status === 'approved' ? 'bg-emerald-400' : d.status === 'rejected' ? 'bg-red-400' : 'bg-gray-400'
+                  }`} />
+                ))}
+              </div>
+            </button>
+          )}
+          {showDismissed && dismissedAlerts.map(d => (
+            <div key={d.id} className="flex items-center gap-2 text-xs text-gray-500 ml-4 py-0.5">
+              <span className={`w-2 h-2 rounded-full ${d.status === 'approved' ? 'bg-emerald-400' : d.status === 'rejected' ? 'bg-red-400' : 'bg-gray-400'}`} />
+              <span className="truncate">{d.title}</span>
+              <span className="text-gray-300">·</span>
+              <span className={d.status === 'approved' ? 'text-emerald-600' : d.status === 'rejected' ? 'text-red-600' : 'text-gray-500'}>
+                {d.status === 'approved' ? '승인' : d.status === 'rejected' ? '반려' : '확인'}
+              </span>
+            </div>
+          ))}
 
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

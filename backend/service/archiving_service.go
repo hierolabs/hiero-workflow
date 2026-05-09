@@ -104,51 +104,9 @@ func (s *ArchivingService) GenerateSessionTabs(req GenerateSessionReq, authorNam
 		filesText = "\n\n### 변경 파일\n" + strings.Join(lines, "\n")
 	}
 
-	userInput := req.SessionSummary + filesText
+	baseInput := req.SessionSummary + filesText
 
-	// 첫 번째 대상 아티클의 앞뒤 맥락 수집
-	neighborCtx := ""
-	if len(articleIDs) > 0 {
-		neighborCtx = s.getNeighborContext(articleIDs[0])
-	}
-	if neighborCtx != "" {
-		userInput = userInput + "\n\n### 목차 맥락 (앞뒤 3개)\n" + neighborCtx + "\n\n" + contextGuidePrompt
-	}
-
-	// TAB 1 생성
-	tab1, err := s.generateTab("작업 기록", promptTab1, userInput)
-	if err != nil {
-		s.failJob(&job, "TAB 1 생성 실패: "+err.Error())
-		return nil, err
-	}
-
-	// TAB 2~4 생성 (TAB 1 기반)
-	tab2, err := s.generateTab("시스템 흐름도", promptTab2, tab1)
-	if err != nil {
-		s.failJob(&job, "TAB 2 생성 실패: "+err.Error())
-		return nil, err
-	}
-
-	tab3, err := s.generateTab("개념 설명", promptTab3, tab1)
-	if err != nil {
-		s.failJob(&job, "TAB 3 생성 실패: "+err.Error())
-		return nil, err
-	}
-
-	tab4, err := s.generateTab("업무 지침", promptTab4, tab1)
-	if err != nil {
-		s.failJob(&job, "TAB 4 생성 실패: "+err.Error())
-		return nil, err
-	}
-
-	newTabs := map[string]string{
-		"작업 기록":   tab1,
-		"시스템 흐름도": tab2,
-		"개념 설명":   tab3,
-		"업무 지침":   tab4,
-	}
-
-	// 각 아티클에 머지
+	// 각 아티클별로 독립적으로 TAB 생성 (아티클마다 맥락이 다르므로)
 	var results []ArticleResult
 	for _, aid := range articleIDs {
 		article, err := s.wikiSvc.GetArticle(aid)
@@ -157,11 +115,56 @@ func (s *ArchivingService) GenerateSessionTabs(req GenerateSessionReq, authorNam
 			continue
 		}
 
+		// 이 아티클의 앞뒤 맥락 수집
+		neighborCtx := s.getNeighborContext(aid)
+		contextBlock := ""
+		if neighborCtx != "" {
+			contextBlock = "\n\n### 현재 아티클: " + article.Section + " " + article.Title +
+				"\n\n### 목차 맥락 (앞뒤 3개)\n" + neighborCtx + "\n\n" + contextGuidePrompt
+		}
+
+		userInput := baseInput + contextBlock
+
+		// TAB 1 생성
+		tab1, err := s.generateTab("작업 기록", promptTab1, userInput)
+		if err != nil {
+			log.Printf("[Archiving] 아티클 %d TAB 1 실패: %v", aid, err)
+			continue
+		}
+
+		// TAB 2~4: TAB 1 + 맥락을 함께 전달
+		tab1WithCtx := tab1 + contextBlock
+
+		tab2, err := s.generateTab("시스템 흐름도", promptTab2, tab1WithCtx)
+		if err != nil {
+			log.Printf("[Archiving] 아티클 %d TAB 2 실패: %v", aid, err)
+			continue
+		}
+
+		tab3, err := s.generateTab("개념 설명", promptTab3, tab1WithCtx)
+		if err != nil {
+			log.Printf("[Archiving] 아티클 %d TAB 3 실패: %v", aid, err)
+			continue
+		}
+
+		tab4, err := s.generateTab("업무 지침", promptTab4, tab1WithCtx)
+		if err != nil {
+			log.Printf("[Archiving] 아티클 %d TAB 4 실패: %v", aid, err)
+			continue
+		}
+
+		newTabs := map[string]string{
+			"작업 기록":   tab1,
+			"시스템 흐름도": tab2,
+			"개념 설명":   tab3,
+			"업무 지침":   tab4,
+		}
+
 		merged := mergeTabs(article.Content, newTabs)
 		_, err = s.wikiSvc.UpdateArticle(aid, UpdateArticleReq{
 			Content:      merged,
 			Status:       "draft",
-			RevisionNote: "아카이빙 파이프라인 — TAB 1~4 자동 생성",
+			RevisionNote: "아카이빙 파이프라인 — TAB 1~4 자동 생성 (맥락 반영)",
 		}, 1, "ArchivingBot")
 		if err != nil {
 			log.Printf("[Archiving] 아티클 %d 업데이트 실패: %v", aid, err)
@@ -394,19 +397,13 @@ func parseTabs(content string) map[string]string {
 	return tabs
 }
 
-// mergeTabs: 기존 content + 새 tabs → 합친 content
+// mergeTabs: 기존 content + 새 tabs → 합친 content (새 탭은 기존 탭을 교체)
 func mergeTabs(existing string, newTabs map[string]string) string {
 	existingTabs := parseTabs(existing)
 
-	// 기존 탭에 새 탭 머지
+	// 새 탭으로 교체 (append가 아닌 replace)
 	for name, newContent := range newTabs {
-		if old, exists := existingTabs[name]; exists && old != "" {
-			// 기존 탭이 있으면 날짜 구분으로 append
-			date := time.Now().Format("2006-01-02")
-			existingTabs[name] = old + "\n\n---\n\n### " + date + "\n\n" + newContent
-		} else {
-			existingTabs[name] = newContent
-		}
+		existingTabs[name] = newContent
 	}
 
 	// 탭 순서대로 조합

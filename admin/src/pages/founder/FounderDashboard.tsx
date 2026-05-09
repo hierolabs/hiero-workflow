@@ -109,7 +109,10 @@ export default function FounderDashboard() {
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [sentDirectives, setSentDirectives] = useState<Directive[]>([]);
   const [latestReports, setLatestReports] = useState<Record<string, GOTReport>>({});
-  const [anomalies, setAnomalies] = useState<{ type: string; severity: string; title: string; evidence: string; impact: string; action: string; value: number; change_rate: number; category: string }[]>([]);
+  interface AlertItem { id: number; type: string; severity: string; title: string; evidence: string; impact: string; action: string; status: string; action_by: string; action_memo: string; forwarded_to: string }
+  const [activeAlerts, setActiveAlerts] = useState<AlertItem[]>([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState<AlertItem[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDirectiveForm, setShowDirectiveForm] = useState(false);
@@ -131,7 +134,8 @@ export default function FounderDashboard() {
       setETFSummary(etfRes.data);
       setPipeline(pipeRes.data);
       setLatestReports(reportsRes.data ?? {});
-      setAnomalies(anomalyRes.data?.alerts ?? []);
+      setActiveAlerts(anomalyRes.data?.active ?? []);
+      setDismissedAlerts(anomalyRes.data?.dismissed ?? []);
       const uid = meRes.data?.id ?? 0;
       setCurrentUser({ id: uid });
       if (uid > 0) return api.get(`/directives/sent?user_id=${uid}`).catch(() => ({ data: { directives: [] } }));
@@ -203,40 +207,96 @@ export default function FounderDashboard() {
       </div>
 
       {/* ===== 이상 감지 (최상단) ===== */}
-      {anomalies.length > 0 && (
+      {(activeAlerts.length > 0 || dismissedAlerts.length > 0) && (
         <section>
-          <div className="space-y-2">
-            {anomalies.map((a, i) => {
-              const sevStyles: Record<string, { bg: string; border: string; icon: string; text: string }> = {
-                critical: { bg: 'bg-red-50', border: 'border-red-300', icon: '🔴', text: 'text-red-800' },
-                warning: { bg: 'bg-amber-50', border: 'border-amber-300', icon: '🟡', text: 'text-amber-800' },
-                info: { bg: 'bg-blue-50', border: 'border-blue-300', icon: '🔵', text: 'text-blue-800' },
-              };
-              const sty = sevStyles[a.severity] || sevStyles.info;
-              return (
-                <div key={i} className={`${sty.bg} border ${sty.border} rounded-xl p-4`}>
-                  <div className="flex items-start gap-3">
-                    <span className="text-lg mt-0.5">{sty.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-bold ${sty.text}`}>{a.title}</div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        <span className="font-medium">근거:</span> {a.evidence}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-0.5">
-                        <span className="font-medium">영향:</span> {a.impact}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        <span className="font-medium">조치:</span> {a.action}
+          {/* 활성 알림 (팝업) */}
+          {activeAlerts.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {activeAlerts.map(a => {
+                const isCrit = a.severity === 'critical';
+                return (
+                  <div key={a.id} className={`border rounded-xl p-4 ${isCrit ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg mt-0.5">{isCrit ? '🔴' : '🟡'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-bold ${isCrit ? 'text-red-800' : 'text-amber-800'}`}>{a.title}</div>
+                        <div className="text-xs text-gray-600 mt-1"><span className="font-medium">근거:</span> {a.evidence}</div>
+                        <div className="text-xs text-gray-600 mt-0.5"><span className="font-medium">영향:</span> {a.impact}</div>
+                        <div className="text-xs text-gray-500 mt-1"><span className="font-medium">조치:</span> {a.action}</div>
+                        {/* 액션 버튼 */}
+                        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-200/60">
+                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/acknowledge`).then(fetchData)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">
+                            확인
+                          </button>
+                          <button onClick={() => {
+                            const role = prompt('전송 대상 (ceo/cto/cfo):');
+                            if (role) api.patch(`/founder/alerts/${a.id}/forward`, { to_role: role, memo: '' }).then(fetchData);
+                          }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-blue-200 text-blue-600 hover:bg-blue-50">
+                            전송
+                          </button>
+                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/approve`, { memo: '' }).then(fetchData)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100">
+                            승인
+                          </button>
+                          <button onClick={() => {
+                            const memo = prompt('반려 사유:');
+                            if (memo) api.patch(`/founder/alerts/${a.id}/reject`, { memo }).then(fetchData);
+                          }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-red-200 text-red-600 hover:bg-red-50">
+                            반려
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${a.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {a.severity === 'critical' ? '긴급' : '주의'}
-                    </span>
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 처리된 알림 (접힌 흔적) */}
+          {dismissedAlerts.length > 0 && (
+            <div>
+              <button onClick={() => setShowDismissed(!showDismissed)}
+                className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 mb-1">
+                <span className={`transition-transform ${showDismissed ? 'rotate-90' : ''}`}>▶</span>
+                처리 완료 {dismissedAlerts.length}건
+                <div className="flex gap-0.5">
+                  {dismissedAlerts.slice(0, 5).map(d => (
+                    <span key={d.id} className={`w-2 h-2 rounded-full ${
+                      d.status === 'approved' ? 'bg-emerald-400' :
+                      d.status === 'rejected' ? 'bg-red-400' :
+                      d.status === 'acknowledged' ? 'bg-gray-400' : 'bg-blue-400'
+                    }`} title={`${d.title} (${d.status})`} />
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </button>
+              {showDismissed && (
+                <div className="space-y-1 ml-4">
+                  {dismissedAlerts.map(d => (
+                    <div key={d.id} className="flex items-center gap-2 text-xs text-gray-500 py-1">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        d.status === 'approved' ? 'bg-emerald-400' :
+                        d.status === 'rejected' ? 'bg-red-400' :
+                        d.status === 'acknowledged' ? 'bg-gray-400' : 'bg-blue-400'
+                      }`} />
+                      <span className="truncate">{d.title}</span>
+                      <span className="text-gray-300">·</span>
+                      <span className={`font-medium ${
+                        d.status === 'approved' ? 'text-emerald-600' :
+                        d.status === 'rejected' ? 'text-red-600' : 'text-gray-500'
+                      }`}>
+                        {d.status === 'approved' ? '승인' : d.status === 'rejected' ? '반려' : d.status === 'acknowledged' ? '확인' : '전송'}
+                      </span>
+                      {d.action_by && <span className="text-gray-300">· {d.action_by}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 

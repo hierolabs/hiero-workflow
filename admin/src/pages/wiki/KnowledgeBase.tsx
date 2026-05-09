@@ -512,7 +512,9 @@ ${focusDraft}`,
                   <p className="mb-0.5 text-xs font-semibold text-gray-700">
                     {chNum < 90 ? `${chNum}장` : ""} {ch.title}
                   </p>
-                  {ch.items.map((item) => (
+                  {ch.items.map((item) => {
+                    const seqNum = toc.findIndex(t => t.id === item.id) + 1;
+                    return (
                     <button
                       key={item.id}
                       onClick={() => selectArticle(item.id)}
@@ -522,6 +524,7 @@ ${focusDraft}`,
                           : "text-gray-600 hover:bg-gray-100"
                       }`}
                     >
+                      <span className="text-[9px] text-gray-300 w-4 shrink-0 text-right">{seqNum}</span>
                       <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
                         item.status === "published" ? "bg-green-500" :
                         item.status === "review" ? "bg-blue-500" :
@@ -529,7 +532,8 @@ ${focusDraft}`,
                       }`} />
                       <span className="truncate">{item.section} {item.title}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -548,6 +552,46 @@ ${focusDraft}`,
           </div>
         ) : (
           <div className="mx-auto max-w-3xl">
+            {/* 순서 네비게이션 */}
+            {(() => {
+              const currentIdx = toc.findIndex(t => t.id === selected.id);
+              const total = toc.length;
+              const prev = currentIdx > 0 ? toc[currentIdx - 1] : null;
+              const next = currentIdx < total - 1 ? toc[currentIdx + 1] : null;
+              return (
+                <div className="mb-4">
+                  {/* 순서 바 */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] text-gray-400">{currentIdx + 1} / {total}</span>
+                    <div className="flex-1 h-1 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-1 rounded-full bg-slate-400 transition-all" style={{ width: `${((currentIdx + 1) / total) * 100}%` }} />
+                    </div>
+                  </div>
+                  {/* 이전/다음 */}
+                  <div className="flex items-center justify-between gap-2">
+                    {prev ? (
+                      <button onClick={() => selectArticle(prev.id)} className="flex items-center gap-1.5 text-left hover:bg-gray-50 rounded-lg px-2 py-1.5 transition max-w-[45%]">
+                        <span className="text-gray-400 shrink-0">←</span>
+                        <div className="min-w-0">
+                          <div className="text-[9px] text-gray-400">이전</div>
+                          <div className="text-[11px] text-gray-600 truncate">{prev.section} {prev.title}</div>
+                        </div>
+                      </button>
+                    ) : <div />}
+                    {next ? (
+                      <button onClick={() => selectArticle(next.id)} className="flex items-center gap-1.5 text-right hover:bg-gray-50 rounded-lg px-2 py-1.5 transition max-w-[45%]">
+                        <div className="min-w-0">
+                          <div className="text-[9px] text-gray-400">다음</div>
+                          <div className="text-[11px] text-gray-600 truncate">{next.section} {next.title}</div>
+                        </div>
+                        <span className="text-gray-400 shrink-0">→</span>
+                      </button>
+                    ) : <div />}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Header */}
             <div className="mb-6">
               <p className="text-xs text-gray-400">

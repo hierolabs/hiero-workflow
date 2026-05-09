@@ -8,8 +8,11 @@ const (
 	ActionIssueAssigned  = "issue_assigned"
 	ActionIssueEscalated = "issue_escalated"
 	ActionIssueResolved  = "issue_resolved"
-	ActionIssueDelegated = "issue_delegated"
-	ActionStatusChanged  = "status_changed"
+	ActionIssueDelegated       = "issue_delegated"
+	ActionStatusChanged        = "status_changed"
+	ActionMessageSent          = "message_sent"
+	ActionGuestMessageReceived = "guest_message_received"
+	ActionTeamChatSent         = "team_chat_sent"
 )
 
 type ActivityLog struct {

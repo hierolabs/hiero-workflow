@@ -83,6 +83,7 @@ func main() {
 		&models.ArticleReview{},
 		&models.ETFDirective{},
 		&models.GOTReport{},
+		&models.GOTAlert{},
 	)
 	seedAdminUser()
 	service.SeedCSKnowledge()

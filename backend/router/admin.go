@@ -333,6 +333,10 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.PATCH("/founder/reports/:id/read", founderHandler.ReportRead)
 			protected.POST("/founder/reports/generate", founderHandler.ReportGenerate)
 			protected.GET("/founder/anomalies", founderHandler.Anomalies)
+			protected.PATCH("/founder/alerts/:id/acknowledge", founderHandler.AlertAcknowledge)
+			protected.PATCH("/founder/alerts/:id/forward", founderHandler.AlertForward)
+			protected.PATCH("/founder/alerts/:id/approve", founderHandler.AlertApprove)
+			protected.PATCH("/founder/alerts/:id/reject", founderHandler.AlertReject)
 
 			// ETF Board
 			protected.GET("/etf-board", etfBoardHandler.Overview)

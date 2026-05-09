@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -320,6 +321,22 @@ func (s *MessageService) HandleIncomingMessage(reservationCode string) {
 		}
 	}
 
+	// ActivityLog + Notification (게스트 메시지 수신)
+	if newCount > 0 {
+		LogActivity(nil, "시스템", models.ActionGuestMessageReceived, "conversation", nil,
+			fmt.Sprintf("게스트 메시지 수신 %d건: %s (예약: %s)", newCount, conv.GuestName, reservationCode))
+
+		notifSvc := NewNotificationService()
+		preview := conv.LastMessagePreview
+		if len(preview) > 100 {
+			preview = preview[:100]
+		}
+		notifSvc.NotifyByRoleTitle("execution", models.NotifTypeMessage,
+			"새 게스트 메시지",
+			fmt.Sprintf("%s님 메시지 %d건: %s", conv.GuestName, newCount, preview),
+			nil, conv.GuestName)
+	}
+
 	log.Printf("[Message] 새 메시지 %d건 동기화: %s (reservation: %s)", newCount, conversationID, reservationCode)
 }
 
@@ -347,6 +364,19 @@ func (s *MessageService) SendMessage(conversationID string, content string) (*mo
 			"last_message_at":      now,
 			"last_message_preview": msgTruncate(content, 500),
 		})
+
+	// ActivityLog + Notification
+	var conv models.Conversation
+	if err := config.DB.Where("conversation_id = ?", conversationID).First(&conv).Error; err == nil {
+		LogActivity(nil, "호스트", models.ActionMessageSent, "conversation", nil,
+			fmt.Sprintf("메시지 발송 → %s: %s", conv.GuestName, msgTruncate(content, 100)))
+
+		notifSvc := NewNotificationService()
+		notifSvc.NotifyByRoleTitle("execution", models.NotifTypeMessage,
+			"호스트 메시지 발송",
+			fmt.Sprintf("%s에게 메시지 발송: %s", conv.GuestName, msgTruncate(content, 100)),
+			nil, "호스트")
+	}
 
 	return &msg, nil
 }

@@ -372,7 +372,103 @@ func (s *GOTReportService) DetectAlerts() []AnomalyAlert {
 		}
 	}
 
+	// DB에 저장 (upsert by alert_key)
+	period := now.Format("2006-01-02")
+	for _, a := range alerts {
+		key := fmt.Sprintf("%s_%s_%s", a.Type, a.Category, period)
+		var existing models.GOTAlert
+		if err := config.DB.Where("alert_key = ?", key).First(&existing).Error; err != nil {
+			// 새 알림
+			config.DB.Create(&models.GOTAlert{
+				AlertKey: key,
+				Type:     a.Type,
+				Severity: a.Severity,
+				Title:    a.Title,
+				Evidence: a.Evidence,
+				Impact:   a.Impact,
+				Action:   a.Action,
+				Value:    a.Value,
+				Category: a.Category,
+				Status:   models.AlertStatusNew,
+				Period:   period,
+			})
+		}
+	}
+
 	return alerts
+}
+
+// --- 알림 상태 조회 (DB 기반, new만 팝업 / 나머지 접힘) ---
+
+func (s *GOTReportService) GetActiveAlerts() []models.GOTAlert {
+	var alerts []models.GOTAlert
+	config.DB.Where("status IN (?, ?)", models.AlertStatusNew, models.AlertStatusForwarded).
+		Order("FIELD(severity, 'critical', 'warning', 'info'), created_at DESC").
+		Find(&alerts)
+	return alerts
+}
+
+func (s *GOTReportService) GetDismissedAlerts(limit int) []models.GOTAlert {
+	if limit <= 0 {
+		limit = 20
+	}
+	var alerts []models.GOTAlert
+	config.DB.Where("status NOT IN (?, ?)", models.AlertStatusNew, models.AlertStatusForwarded).
+		Order("action_at DESC").Limit(limit).Find(&alerts)
+	return alerts
+}
+
+// --- 알림 액션 ---
+
+func (s *GOTReportService) AcknowledgeAlert(id uint, userName string) error {
+	now := time.Now()
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status": models.AlertStatusAcknowledged, "action_by": userName, "action_at": now,
+		}).Error
+}
+
+func (s *GOTReportService) ForwardAlert(id uint, userName, toRole, memo string) error {
+	now := time.Now()
+	err := config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status": models.AlertStatusForwarded, "action_by": userName,
+			"action_at": now, "forwarded_to": toRole, "action_memo": memo,
+		}).Error
+	if err != nil {
+		return err
+	}
+
+	// ETF에 알림 전송
+	var alert models.GOTAlert
+	config.DB.First(&alert, id)
+	notifSvc := NewNotificationService()
+	notifSvc.NotifyByRoleTitle(toRole, "delegated",
+		fmt.Sprintf("[GOT 전달] %s", alert.Title),
+		fmt.Sprintf("근거: %s\n메모: %s", alert.Evidence, memo),
+		nil, userName)
+
+	LogActivity(nil, userName, "got_alert_forwarded", "got_alert", &id,
+		fmt.Sprintf("→ %s: %s", toRole, alert.Title))
+	return nil
+}
+
+func (s *GOTReportService) ApproveAlert(id uint, userName, memo string) error {
+	now := time.Now()
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status": models.AlertStatusApproved, "action_by": userName,
+			"action_at": now, "action_memo": memo,
+		}).Error
+}
+
+func (s *GOTReportService) RejectAlert(id uint, userName, memo string) error {
+	now := time.Now()
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status": models.AlertStatusRejected, "action_by": userName,
+			"action_at": now, "action_memo": memo,
+		}).Error
 }
 
 // --- 결정 사항 생성 ---
