@@ -616,8 +616,8 @@ export default function Team() {
         const active = directives.filter(d => !['verified', 'agreed', 'rejected'].includes(d.status));
         if (active.length === 0) return null;
         const needMyAction = active.filter(d =>
-          (d.to_user_id === currentUser.id && ['pending', 'reopened'].includes(d.status)) ||
-          (d.from_user_id === currentUser.id && ['completed', 'countered'].includes(d.status))
+          ((d.to_user_id === currentUser.id || d.to_role === currentUser.role_title) && ['pending', 'reopened'].includes(d.status)) ||
+          ((d.from_user_id === currentUser.id || d.from_role === currentUser.role_title) && ['completed', 'countered'].includes(d.status))
         );
         return (
           <div className="mb-6">
@@ -677,8 +677,8 @@ export default function Team() {
           normal: { label: '이번주', color: 'bg-blue-100 text-blue-700' },
           low: { label: '여유', color: 'bg-gray-100 text-gray-600' },
         };
-        const isMySent = d.from_user_id === currentUser.id;
-        const isMyReceived = d.to_user_id === currentUser.id;
+        const isMySent = d.from_user_id === currentUser.id || d.from_role === currentUser.role_title;
+        const isMyReceived = d.to_user_id === currentUser.id || d.to_role === currentUser.role_title;
         const fromOnto = ROLE_ONTOLOGY[d.from_role];
         const toOnto = ROLE_ONTOLOGY[d.to_role];
         const isOverdue = d.deadline && new Date(d.deadline) < new Date() && !['completed', 'verified', 'agreed'].includes(d.status);

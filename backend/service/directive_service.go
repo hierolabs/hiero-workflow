@@ -41,10 +41,13 @@ func (s *DirectiveService) Create(input CreateDirectiveInput) (*models.ETFDirect
 		return nil, fmt.Errorf("발신자를 찾을 수 없습니다")
 	}
 
-	// 수신자 조회 (role 기반)
+	// 수신자 조회 (role 기반 — login_id가 'admin'이 아닌 실제 사용자 우선)
 	var toUser models.AdminUser
-	if err := config.DB.Where("role_title = ?", input.ToRole).First(&toUser).Error; err != nil {
-		return nil, fmt.Errorf("수신자 역할(%s)을 찾을 수 없습니다", input.ToRole)
+	if err := config.DB.Where("role_title = ? AND login_id != 'admin'", input.ToRole).First(&toUser).Error; err != nil {
+		// fallback: admin 포함 검색
+		if err2 := config.DB.Where("role_title = ?", input.ToRole).First(&toUser).Error; err2 != nil {
+			return nil, fmt.Errorf("수신자 역할(%s)을 찾을 수 없습니다", input.ToRole)
+		}
 	}
 
 	// 보고(report) 범위 검증
