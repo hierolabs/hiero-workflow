@@ -82,6 +82,7 @@ func main() {
 		&models.ArchivingJob{},
 		&models.ArticleReview{},
 		&models.ETFDirective{},
+		&models.GOTReport{},
 	)
 	seedAdminUser()
 	service.SeedCSKnowledge()

@@ -211,6 +211,7 @@ export default function CFOBoard() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
+  const [anomalies, setAnomalies] = useState<{ type: string; severity: string; title: string; evidence: string; impact: string; action: string }[]>([]);
   const navigate = useNavigate();
 
   // 지시 생성 폼
@@ -229,7 +230,9 @@ export default function CFOBoard() {
     Promise.all([
       api.get('/etf-board/cfo'),
       api.get(`/etf-board/cfo/financial?start_date=${range.start}&end_date=${range.end}`).catch(() => null),
-    ]).then(([cfoRes, finRes]) => {
+      api.get('/founder/anomalies').catch(() => null),
+    ]).then(([cfoRes, finRes, anomalyRes]) => {
+      setAnomalies(anomalyRes?.data?.alerts ?? []);
       const d = cfoRes.data;
       if (finRes?.data) {
         d.financial = finRes.data;
@@ -321,6 +324,31 @@ export default function CFOBoard() {
 
       {data && (
         <>
+          {/* 이상 감지 */}
+          {anomalies.length > 0 && (
+            <div className="space-y-2">
+              {anomalies.map((a, i) => {
+                const isCrit = a.severity === 'critical';
+                return (
+                  <div key={i} className={`border rounded-xl p-4 ${isCrit ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg mt-0.5">{isCrit ? '🔴' : '🟡'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-bold ${isCrit ? 'text-red-800' : 'text-amber-800'}`}>{a.title}</div>
+                        <div className="text-xs text-gray-600 mt-1"><span className="font-medium">근거:</span> {a.evidence}</div>
+                        <div className="text-xs text-gray-600 mt-0.5"><span className="font-medium">영향:</span> {a.impact}</div>
+                        <div className="text-xs text-gray-500 mt-1"><span className="font-medium">조치:</span> {a.action}</div>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-lg font-medium ${isCrit ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {isCrit ? '긴급' : '주의'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-sm transition"

@@ -328,6 +328,11 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/founder/top-decisions", founderHandler.TopDecisions)
 			protected.GET("/founder/etf-summary", founderHandler.ETFSummary)
 			protected.GET("/founder/cycle", founderHandler.CycleAnalysis)
+			protected.GET("/founder/reports", founderHandler.Reports)
+			protected.GET("/founder/reports/latest", founderHandler.ReportsLatest)
+			protected.PATCH("/founder/reports/:id/read", founderHandler.ReportRead)
+			protected.POST("/founder/reports/generate", founderHandler.ReportGenerate)
+			protected.GET("/founder/anomalies", founderHandler.Anomalies)
 
 			// ETF Board
 			protected.GET("/etf-board", etfBoardHandler.Overview)
@@ -421,6 +426,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/archiving/review/:id", archivingHandler.Review)
 			protected.GET("/archiving/review/:id", archivingHandler.GetReviews)
 			protected.GET("/archiving/review-summary", archivingHandler.ReviewSummary)
+			protected.POST("/archiving/rewrite/:id", archivingHandler.Rewrite)
 
 			// 관리자 목록 (일반 admin도 조회 가능)
 			protected.GET("/users", userHandler.GetUsers)

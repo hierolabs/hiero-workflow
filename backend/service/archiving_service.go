@@ -106,6 +106,15 @@ func (s *ArchivingService) GenerateSessionTabs(req GenerateSessionReq, authorNam
 
 	userInput := req.SessionSummary + filesText
 
+	// 첫 번째 대상 아티클의 앞뒤 맥락 수집
+	neighborCtx := ""
+	if len(articleIDs) > 0 {
+		neighborCtx = s.getNeighborContext(articleIDs[0])
+	}
+	if neighborCtx != "" {
+		userInput = userInput + "\n\n### 목차 맥락 (앞뒤 3개)\n" + neighborCtx + "\n\n" + contextGuidePrompt
+	}
+
 	// TAB 1 생성
 	tab1, err := s.generateTab("작업 기록", promptTab1, userInput)
 	if err != nil {
@@ -221,6 +230,12 @@ func (s *ArchivingService) GenerateWeeklyTabs(req GenerateWeeklyReq, authorName 
 		if tabs14 == "" {
 			log.Printf("[Archiving] 아티클 %d에 TAB 1~4 없음, 스킵", aid)
 			continue
+		}
+
+		// 앞뒤 맥락 수집
+		neighborCtx := s.getNeighborContext(aid)
+		if neighborCtx != "" {
+			tabs14 = tabs14 + "\n\n### 목차 맥락 (앞뒤 3개)\n" + neighborCtx + "\n\n" + contextGuidePrompt
 		}
 
 		// TAB 5~7 생성
@@ -485,6 +500,87 @@ func (s *ArchivingService) matchArticlesByKeywords(keywords []string) []uint {
 	}
 	return ids
 }
+
+// ── 맥락 수집 (앞뒤 3개 아티클) ───────────────────────────────
+
+// getNeighborContext 목차에서 대상 아티클 앞뒤 3개의 제목+요약을 수집
+// 반복 방지, 용어 흐름, 논리적 연결을 위해 사용
+func (s *ArchivingService) getNeighborContext(articleID uint) string {
+	// 전체 목차를 sort_order 순으로 가져오기
+	var allArticles []models.WikiArticle
+	config.DB.Select("id, sort_order, part_number, part_title, section, title, content, word_count").
+		Order("sort_order ASC, part_number ASC, chapter ASC, section ASC").
+		Find(&allArticles)
+
+	// 대상 아티클의 인덱스 찾기
+	targetIdx := -1
+	for i, a := range allArticles {
+		if a.ID == articleID {
+			targetIdx = i
+			break
+		}
+	}
+	if targetIdx < 0 {
+		return ""
+	}
+
+	var parts []string
+
+	// 앞 3개
+	start := targetIdx - 3
+	if start < 0 {
+		start = 0
+	}
+	for i := start; i < targetIdx; i++ {
+		a := allArticles[i]
+		snippet := summarizeContent(a.Content, 200)
+		parts = append(parts, fmt.Sprintf("[앞 %d] %s %s (Part %d) — %s",
+			targetIdx-i, a.Section, a.Title, a.PartNumber, snippet))
+	}
+
+	// 현재
+	parts = append(parts, fmt.Sprintf("[현재] %s %s (Part %d)",
+		allArticles[targetIdx].Section, allArticles[targetIdx].Title, allArticles[targetIdx].PartNumber))
+
+	// 뒤 3개
+	end := targetIdx + 4
+	if end > len(allArticles) {
+		end = len(allArticles)
+	}
+	for i := targetIdx + 1; i < end; i++ {
+		a := allArticles[i]
+		snippet := summarizeContent(a.Content, 200)
+		parts = append(parts, fmt.Sprintf("[뒤 %d] %s %s (Part %d) — %s",
+			i-targetIdx, a.Section, a.Title, a.PartNumber, snippet))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func summarizeContent(content string, maxRunes int) string {
+	if content == "" {
+		return "(아직 비어있음)"
+	}
+	// TAB 마커 제거하고 순수 텍스트만
+	clean := tabMarkerRe.ReplaceAllString(content, "")
+	clean = strings.TrimSpace(clean)
+	runes := []rune(clean)
+	if len(runes) > maxRunes {
+		return string(runes[:maxRunes]) + "..."
+	}
+	return clean
+}
+
+// 맥락 안내 프롬프트 (모든 글쓰기 AI에 공통 적용)
+const contextGuidePrompt = `
+## 맥락 규칙 (필수)
+아래는 이 글의 앞뒤 아티클 요약입니다. 반드시 참고하세요:
+1. 앞 아티클에서 이미 설명한 개념/용어를 반복하지 마세요 — "앞서 살펴본 ~"으로 연결
+2. 뒤 아티클에서 다룰 내용을 미리 깊게 설명하지 마세요 — "이후 ~에서 다룬다"로 예고만
+3. 전문 용어가 처음 등장하면 반드시 한 줄 설명을 붙이세요
+4. 앞 글의 결론이 이 글의 전제가 되어야 합니다 — 논리적 흐름
+5. 같은 비유/예시를 반복하지 마세요 — 앞에서 쓴 비유는 피하고 새로운 비유를 쓰세요
+`
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────────
 
@@ -974,6 +1070,83 @@ func (s *ArchivingService) ReviewArticle(articleID uint, perspectives []string) 
 	}
 
 	return result, nil
+}
+
+// RewriteWithFeedback 특정 평가자의 피드백을 반영하여 글 재작성
+func (s *ArchivingService) RewriteWithFeedback(articleID uint, perspectiveKeys []string) (string, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		return "", fmt.Errorf("OPENAI_API_KEY 미설정")
+	}
+
+	article, err := s.wikiSvc.GetArticle(articleID)
+	if err != nil {
+		return "", fmt.Errorf("아티클 조회 실패: %w", err)
+	}
+
+	// 선택된 평가자의 리뷰 가져오기
+	var reviews []models.ArticleReview
+	if len(perspectiveKeys) > 0 {
+		config.DB.Where("article_id = ? AND perspective IN ?", articleID, perspectiveKeys).Find(&reviews)
+	} else {
+		config.DB.Where("article_id = ?", articleID).Find(&reviews)
+	}
+
+	if len(reviews) == 0 {
+		return "", fmt.Errorf("선택된 평가가 없습니다. 먼저 평가를 실행하세요.")
+	}
+
+	// 피드백 텍스트 조합
+	var feedbackParts []string
+	for _, r := range reviews {
+		feedbackParts = append(feedbackParts, fmt.Sprintf("[%s — %d/10]\n%s", r.Name, r.Score, r.Review))
+	}
+	feedback := strings.Join(feedbackParts, "\n\n---\n\n")
+
+	// 원문 (너무 길면 잘라냄)
+	content := article.Content
+	if len([]rune(content)) > 4000 {
+		content = string([]rune(content)[:4000]) + "\n... (이하 생략)"
+	}
+
+	// 앞뒤 3개 아티클 맥락 수집
+	neighborCtx := s.getNeighborContext(articleID)
+
+	systemPrompt := `당신은 HIERO 백서의 전문 편집자입니다.
+원문을 평가 피드백에 따라 개선합니다.
+
+규칙:
+1. 기존 TAB 구조(<!-- TAB: 이름 --> 마커)를 반드시 유지하세요
+2. 평가자가 지적한 약점을 구체적으로 보완하세요
+3. 원문의 핵심 메시지와 사실 정보는 보존하세요
+4. 평가자의 관점과 사상을 이해하고, 그 관점에서 납득할 수 있도록 개선하세요
+5. 삭제하지 말고, 부족한 부분을 추가/보강하세요
+6. 한국어로 작성
+7. 개선한 부분 앞에 주석으로 표시하지 마세요 — 자연스럽게 녹여주세요
+` + contextGuidePrompt
+
+	userMsg := fmt.Sprintf(`## 목차 맥락 (앞뒤 3개)
+
+%s
+
+## 반영할 평가 피드백
+
+%s
+
+## 원문
+
+%s
+
+위 맥락과 평가 피드백을 반영하여 원문을 개선해주세요.
+앞 아티클과 내용이 겹치지 않게, 뒤 아티클로 자연스럽게 이어지게 작성하세요.`, neighborCtx, feedback, content)
+
+	log.Printf("[Rewrite] 아티클 #%d — %d개 평가 반영하여 재작성 중...", articleID, len(reviews))
+	result, err := archivingCallOpenAI(apiKey, systemPrompt, userMsg)
+	if err != nil {
+		return "", fmt.Errorf("AI 재작성 실패: %w", err)
+	}
+
+	return strings.TrimSpace(result), nil
 }
 
 // GetArticleReviews 저장된 평가 결과 조회

@@ -349,7 +349,7 @@ export default function ETFBoard() {
               {[
                 { title: '마케팅', role: '마케팅·디자인·외부영업', path: '/execution/marketing', icon: 'M', key: 'marketing' },
                 { title: '운영', role: '예약·운영·고객 CS', path: '/execution/operations', icon: 'O', key: 'operations' },
-                { title: '청소배정', role: '예약보조·청소배정', path: '/execution/cleaning_dispatch', icon: 'C', key: 'cleaning_dispatch' },
+                { title: '청소배정', role: '예약보조·청소배정', path: '/execution/cleaning', icon: 'C', key: 'cleaning_dispatch' },
                 { title: '현장', role: '현장민원·세팅·데이터', path: '/execution/field', icon: 'F', key: 'field' },
               ].map(member => {
                 const wl = relationship?.workload?.[member.key];

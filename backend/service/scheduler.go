@@ -17,6 +17,7 @@ type Scheduler struct {
 	allocSvc     *CostAllocationService
 	marketSvc    *MarketDataService
 	archivingSvc *ArchivingService
+	gotSvc       *GOTReportService
 }
 
 func NewScheduler() *Scheduler {
@@ -27,6 +28,7 @@ func NewScheduler() *Scheduler {
 		allocSvc:     NewCostAllocationService(),
 		marketSvc:    NewMarketDataService(),
 		archivingSvc: NewArchivingService(),
+		gotSvc:       NewGOTReportService(),
 	}
 }
 
@@ -142,6 +144,13 @@ func (s *Scheduler) runDaily() {
 			log.Printf("[Scheduler] 진단 갱신: %d개", n)
 		}
 
+		// GOT 일간 보고서
+		if _, err := s.gotSvc.BuildDailyReport(); err != nil {
+			log.Printf("[Scheduler] GOT 일간 보고 오류: %v", err)
+		} else {
+			log.Println("[Scheduler] GOT 일간 보고 생성 완료")
+		}
+
 		log.Printf("[Scheduler] 일간 작업 완료 (%.1f초)", time.Since(start).Seconds())
 	}
 }
@@ -164,6 +173,13 @@ func (s *Scheduler) runWeekly() {
 			log.Printf("[Scheduler] 시장 데이터 오류: %v", err)
 		} else if job != nil {
 			log.Printf("[Scheduler] 시장 데이터: %d건 임포트", job.ProcessedRecords)
+		}
+
+		// GOT 주간 보고서
+		if _, err := s.gotSvc.BuildWeeklyReport(); err != nil {
+			log.Printf("[Scheduler] GOT 주간 보고 오류: %v", err)
+		} else {
+			log.Println("[Scheduler] GOT 주간 보고 생성 완료")
 		}
 
 		log.Printf("[Scheduler] 주간 작업 완료 (%.1f초)", time.Since(start).Seconds())
@@ -204,6 +220,13 @@ func (s *Scheduler) runMonthly() {
 			log.Printf("[Scheduler] 진단 오류: %v", err)
 		} else {
 			log.Printf("[Scheduler] 진단 갱신: %d개", n)
+		}
+
+		// GOT 월간 보고서
+		if _, err := s.gotSvc.BuildMonthlyReport(); err != nil {
+			log.Printf("[Scheduler] GOT 월간 보고 오류: %v", err)
+		} else {
+			log.Println("[Scheduler] GOT 월간 보고 생성 완료")
 		}
 
 		log.Printf("[Scheduler] 월간 작업 완료 (%.1f초)", time.Since(start).Seconds())

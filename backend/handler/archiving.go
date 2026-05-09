@@ -99,6 +99,28 @@ func (h *ArchivingHandler) Review(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// Rewrite — 평가 피드백 기반 AI 재작성
+func (h *ArchivingHandler) Rewrite(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Perspectives []string `json:"perspectives"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := h.svc.RewriteWithFeedback(uint(id), req.Perspectives)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"content": result})
+}
+
 // GetReviews — 아티클 저장된 평가 결과 조회
 func (h *ArchivingHandler) GetReviews(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

@@ -52,6 +52,26 @@ interface Pipeline {
   bottleneck_count: number;
 }
 
+interface GOTReport {
+  id: number;
+  report_type: string;
+  period: string;
+  revenue: number;
+  cost: number;
+  net: number;
+  revenue_prev: number;
+  cost_prev: number;
+  net_prev: number;
+  cash_gap: number;
+  expected_deposit_7d: number;
+  top_cost_category: string;
+  alerts: string;
+  decisions: string;
+  summary: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 // --- Constants ---
 
 const ROLE_LABELS: Record<string, string> = {
@@ -88,6 +108,8 @@ export default function FounderDashboard() {
   const [etfSummary, setETFSummary] = useState<ETFSummary | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [sentDirectives, setSentDirectives] = useState<Directive[]>([]);
+  const [latestReports, setLatestReports] = useState<Record<string, GOTReport>>({});
+  const [anomalies, setAnomalies] = useState<{ type: string; severity: string; title: string; evidence: string; impact: string; action: string; value: number; change_rate: number; category: string }[]>([]);
   const [currentUser, setCurrentUser] = useState<{ id: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDirectiveForm, setShowDirectiveForm] = useState(false);
@@ -102,10 +124,14 @@ export default function FounderDashboard() {
       api.get('/founder/etf-summary').catch(() => ({ data: null })),
       api.get('/lifecycle/pipeline').catch(() => ({ data: null })),
       api.get('/me').catch(() => ({ data: { id: 0 } })),
-    ]).then(([briefRes, etfRes, pipeRes, meRes]) => {
+      api.get('/founder/reports/latest').catch(() => ({ data: {} })),
+      api.get('/founder/anomalies').catch(() => ({ data: { alerts: [] } })),
+    ]).then(([briefRes, etfRes, pipeRes, meRes, reportsRes, anomalyRes]) => {
       setBrief(briefRes.data);
       setETFSummary(etfRes.data);
       setPipeline(pipeRes.data);
+      setLatestReports(reportsRes.data ?? {});
+      setAnomalies(anomalyRes.data?.alerts ?? []);
       const uid = meRes.data?.id ?? 0;
       setCurrentUser({ id: uid });
       if (uid > 0) return api.get(`/directives/sent?user_id=${uid}`).catch(() => ({ data: { directives: [] } }));
@@ -176,6 +202,44 @@ export default function FounderDashboard() {
         </div>
       </div>
 
+      {/* ===== 이상 감지 (최상단) ===== */}
+      {anomalies.length > 0 && (
+        <section>
+          <div className="space-y-2">
+            {anomalies.map((a, i) => {
+              const sevStyles: Record<string, { bg: string; border: string; icon: string; text: string }> = {
+                critical: { bg: 'bg-red-50', border: 'border-red-300', icon: '🔴', text: 'text-red-800' },
+                warning: { bg: 'bg-amber-50', border: 'border-amber-300', icon: '🟡', text: 'text-amber-800' },
+                info: { bg: 'bg-blue-50', border: 'border-blue-300', icon: '🔵', text: 'text-blue-800' },
+              };
+              const sty = sevStyles[a.severity] || sevStyles.info;
+              return (
+                <div key={i} className={`${sty.bg} border ${sty.border} rounded-xl p-4`}>
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg mt-0.5">{sty.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-bold ${sty.text}`}>{a.title}</div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        <span className="font-medium">근거:</span> {a.evidence}
+                      </div>
+                      <div className="text-xs text-gray-600 mt-0.5">
+                        <span className="font-medium">영향:</span> {a.impact}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        <span className="font-medium">조치:</span> {a.action}
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${a.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {a.severity === 'critical' ? '긴급' : '주의'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ===== 핵심 숫자 4개 ===== */}
       <div className="grid grid-cols-4 gap-3">
         <SummaryCard label="고위험" value={brief?.risk_alerts ?? 0} alert={(brief?.risk_alerts ?? 0) > 0} />
@@ -228,6 +292,116 @@ export default function FounderDashboard() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      {/* ===== 재무 보고 (GOT Report) ===== */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-900">재무 보고</h2>
+          <button
+            onClick={() => api.post('/founder/reports/generate?type=daily').then(() => fetchData()).catch(() => alert('생성 실패'))}
+            className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+          >
+            수동 생성
+          </button>
+        </div>
+
+        {Object.keys(latestReports).length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400 text-sm">
+            아직 보고서가 없습니다. 매일 08:00에 자동 생성됩니다.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* 재무 흐름 카드 */}
+            {latestReports.daily && (() => {
+              const r = latestReports.daily;
+              const fmt = (n: number) => {
+                const abs = Math.abs(n);
+                if (abs >= 100000000) return `${Math.floor(abs / 100000000)}억${Math.floor((abs % 100000000) / 10000)}만`;
+                if (abs >= 10000) return `${Math.floor(abs / 10000)}만`;
+                return String(abs);
+              };
+              return (
+                <div className={`bg-white border rounded-xl p-5 ${r.is_read ? 'border-gray-200' : 'border-blue-300 bg-blue-50/30'}`}
+                  onClick={() => { if (!r.is_read) api.patch(`/founder/reports/${r.id}/read`); }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-400 uppercase">일간</span>
+                      <span className="text-sm font-medium text-gray-900">{r.period}</span>
+                      {!r.is_read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+                    </div>
+                  </div>
+
+                  {/* Data 1/2/3 */}
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="bg-emerald-50 rounded-lg p-3 text-center cursor-pointer hover:shadow-sm" onClick={() => navigate('/revenue')}>
+                      <div className="text-[10px] text-emerald-500 uppercase">Data 1 · 매출</div>
+                      <div className="text-lg font-bold text-emerald-700">₩{fmt(r.revenue)}</div>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3 text-center cursor-pointer hover:shadow-sm" onClick={() => navigate('/settlement')}>
+                      <div className="text-[10px] text-red-500 uppercase">Data 2 · 비용</div>
+                      <div className="text-lg font-bold text-red-700">₩{fmt(r.cost)}</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center cursor-pointer hover:shadow-sm ${r.net >= 0 ? 'bg-blue-50' : 'bg-red-50'}`} onClick={() => navigate('/profit')}>
+                      <div className="text-[10px] opacity-70 uppercase">Data 3 · 순이익</div>
+                      <div className={`text-lg font-bold ${r.net >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                        {r.net >= 0 ? '' : '-'}₩{fmt(Math.abs(r.net))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 현금 갭 + 입금 예정 */}
+                  <div className="flex items-center gap-4 text-xs mb-3">
+                    {r.cash_gap > 0 && (
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded">현금 갭 ₩{fmt(r.cash_gap)}</span>
+                    )}
+                    {r.expected_deposit_7d > 0 && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">7일 입금예정 ₩{fmt(r.expected_deposit_7d)}</span>
+                    )}
+                    {r.top_cost_category && (
+                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded">최대비용: {r.top_cost_category}</span>
+                    )}
+                  </div>
+
+                  {/* 요약 */}
+                  <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">{r.summary}</div>
+
+                  {/* 알림 */}
+                  {r.alerts && r.alerts !== '[]' && r.alerts !== 'null' && (() => {
+                    try {
+                      const alerts: { category: string; change_rate: number }[] = JSON.parse(r.alerts);
+                      if (alerts.length === 0) return null;
+                      return (
+                        <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                          <div className="text-xs font-bold text-red-700 mb-1">비용 이상 감지</div>
+                          {alerts.map((a, i) => (
+                            <div key={i} className="text-xs text-red-600">{a.category} +{a.change_rate.toFixed(0)}%</div>
+                          ))}
+                        </div>
+                      );
+                    } catch { return null; }
+                  })()}
+                </div>
+              );
+            })()}
+
+            {/* 주간/월간 요약 */}
+            <div className="grid grid-cols-2 gap-3">
+              {latestReports.weekly && (
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">주간 ({latestReports.weekly.period})</div>
+                  <div className="text-xs text-gray-600">{latestReports.weekly.summary}</div>
+                </div>
+              )}
+              {latestReports.monthly && (
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">월간 ({latestReports.monthly.period})</div>
+                  <div className="text-xs text-gray-600">{latestReports.monthly.summary}</div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>

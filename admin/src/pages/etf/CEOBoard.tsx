@@ -224,12 +224,20 @@ export default function CEOBoard() {
               <p className="text-sm text-gray-500">경영 전반 · 전체 리드 · 조직 운영 총괄</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowNewDirective(!showNewDirective)}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
-          >
-            + 업무지시
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/etf-board/attendance')}
+              className="px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+            >
+              근태 현황
+            </button>
+            <button
+              onClick={() => setShowNewDirective(!showNewDirective)}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+            >
+              + 업무지시
+            </button>
+          </div>
         </div>
       </div>
 

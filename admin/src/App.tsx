@@ -31,6 +31,7 @@ import ETFBoard from "./pages/etf/ETFBoard";
 import CEOBoard from "./pages/etf/CEOBoard";
 import CTOBoard from "./pages/etf/CTOBoard";
 import CFOBoard from "./pages/etf/CFOBoard";
+import AttendancePage from "./pages/etf/AttendancePage";
 import ExecutionDashboard from "./pages/execution/ExecutionDashboard";
 import TeamChat from "./pages/TeamChat";
 import IssueDetections from "./pages/IssueDetections";
@@ -89,6 +90,7 @@ function App() {
             <Route path="/etf-board/ceo" element={<RoleGuard allowed={['founder', 'etf']}><CEOBoard /></RoleGuard>} />
             <Route path="/etf-board/cto" element={<RoleGuard allowed={['founder', 'etf']}><CTOBoard /></RoleGuard>} />
             <Route path="/etf-board/cfo" element={<RoleGuard allowed={['founder', 'etf']}><CFOBoard /></RoleGuard>} />
+            <Route path="/etf-board/attendance" element={<RoleGuard allowed={['founder', 'etf']}><AttendancePage /></RoleGuard>} />
 
             {/* 기존 */}
             <Route path="/hiero-dashboard" element={<HieroDashboard />} />

@@ -22,7 +22,7 @@ func (h *ExecutionHandler) Dashboard(c *gin.Context) {
 
 	validRoles := map[string]bool{
 		"marketing": true, "operations": true,
-		"cleaning": true, "field": true,
+		"cleaning": true, "cleaning_dispatch": true, "field": true,
 	}
 	if !validRoles[role] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "유효하지 않은 역할: " + role})

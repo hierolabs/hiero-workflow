@@ -264,7 +264,7 @@ export default function OrgChart() {
                 meta={meta}
                 online={isOnline(role)}
                 user={getUser(role)}
-                onClick={() => navigate(`/execution/${role}`)}
+                onClick={() => navigate(`/execution/${role === 'cleaning_dispatch' ? 'cleaning' : role}`)}
                 size="sm"
                 badge={pending > 0 ? `${pending}` : undefined}
               />

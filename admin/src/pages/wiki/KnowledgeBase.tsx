@@ -151,6 +151,15 @@ export default function KnowledgeBase() {
     score: number; review: string; content_snapshot: string;
     word_count_at: number; requested_by: string; created_at: string;
   }[]>([]);
+  // Focus Write Mode (리셋 모드)
+  const [focusMode, setFocusMode] = useState(false);
+  const [focusDraft, setFocusDraft] = useState("");
+  const [focusStep, setFocusStep] = useState<"write"|"refine"|"review"|"done">("write");
+  const [focusRefined, setFocusRefined] = useState("");
+  const [focusRefining, setFocusRefining] = useState(false);
+  const [focusTargetArticle, setFocusTargetArticle] = useState<number | null>(null);
+  // AI Rewrite
+  const [rewriting, setRewriting] = useState(false);
 
   // Fetch TOC + Progress + Jobs
   const loadData = useCallback(async () => {
@@ -241,11 +250,221 @@ export default function KnowledgeBase() {
 
   const grouped = groupByPart(filtered);
 
+  // Focus Mode: AI 구조화 요청
+  const handleFocusRefine = async () => {
+    if (!focusDraft.trim()) return;
+    setFocusRefining(true);
+    try {
+      const res = await apiRequest("/ai/agent", {
+        method: "POST",
+        body: JSON.stringify({
+          page: "wiki",
+          message: `아래 자유 작성 글을 HIERO 백서 스타일로 구조화해주세요.
+
+규칙:
+1. 원문의 핵심 메시지와 톤을 유지하면서 구조를 잡아주세요
+2. <!-- TAB: 작업 기록 --> 부터 시작하여 해당하는 탭들을 자동 배치
+3. 도시계획적 관점의 비유나 연결이 가능하면 추가
+4. 코드/데이터 관련 내용은 "작업 기록"이나 "시스템 흐름도"에
+5. 생각/느낌/관점은 "개념 설명"이나 "에세이"에
+6. 실무 관련 내용은 "업무 지침"에
+7. 모든 내용을 빠짐없이 포함 — 삭제하지 말고 재배치만
+8. 한국어로 작성
+
+원문:
+${focusDraft}`,
+          data: selected ? `현재 아티클: ${selected.title} (Part ${selected.part_number})` : "새 글",
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setFocusRefined(d.response || d.message || "");
+        setFocusStep("review");
+      }
+    } catch { alert("구조화 실패"); }
+    setFocusRefining(false);
+  };
+
+  // Focus Mode: 최종 저장
+  const handleFocusSave = async (articleId: number) => {
+    const res = await apiRequest(`/wiki/articles/${articleId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        content: focusRefined,
+        status: "draft",
+        revision_note: "포커스 모드에서 자유 작성 → 구조화",
+      }),
+    });
+    if (res.ok) {
+      setFocusMode(false);
+      setFocusStep("write");
+      setFocusDraft("");
+      setFocusRefined("");
+      setFocusTargetArticle(null);
+      selectArticle(articleId);
+      loadData();
+    }
+  };
+
+  // ── Focus Write Mode (전체화면) ──
+  if (focusMode) {
+    return (
+      <div className="h-[calc(100vh-3.5rem)] flex flex-col bg-white">
+        {/* 상단 바 */}
+        <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setFocusMode(false); setFocusStep("write"); }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              ← 돌아가기
+            </button>
+            <div className="h-4 w-px bg-gray-300" />
+            <span className="text-sm font-bold text-gray-800">
+              {focusStep === "write" ? "자유 글쓰기" :
+               focusStep === "refine" ? "구조화 중..." :
+               focusStep === "review" ? "구조화 결과 검토" :
+               "저장 대상 선택"}
+            </span>
+          </div>
+          {/* 단계 표시 */}
+          <div className="flex items-center gap-2 text-[10px]">
+            {["write", "review", "done"].map((s, i) => (
+              <div key={s} className="flex items-center gap-1">
+                {i > 0 && <span className="text-gray-300">→</span>}
+                <span className={`px-2 py-0.5 rounded ${
+                  focusStep === s ? "bg-slate-800 text-white" :
+                  ["write","review","done"].indexOf(focusStep) > i ? "bg-emerald-100 text-emerald-700" :
+                  "bg-gray-100 text-gray-400"
+                }`}>
+                  {s === "write" ? "1. 자유 작성" : s === "review" ? "2. 검토·수정" : "3. 저장"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 1: 자유 글쓰기 */}
+        {focusStep === "write" && (
+          <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full">
+            <p className="text-gray-400 text-sm mb-4">
+              자유롭게 쓰세요. 구조, 형식, 순서 상관없이. 생각나는 대로.
+            </p>
+            <textarea
+              value={focusDraft}
+              onChange={e => setFocusDraft(e.target.value)}
+              className="flex-1 w-full resize-none rounded-xl border border-gray-200 p-6 text-base text-gray-800 leading-relaxed focus:border-slate-400 focus:ring-1 focus:ring-slate-400 placeholder:text-gray-300"
+              placeholder="여기에 자유롭게 쓰세요...&#10;&#10;생각, 메모, 아이디어, 작업 기록, 느낀 점...&#10;구조는 AI가 잡아줍니다."
+              autoFocus
+            />
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                {focusDraft.length > 0 ? `${[...focusDraft].length}자` : ""}
+              </span>
+              <button
+                onClick={handleFocusRefine}
+                disabled={!focusDraft.trim() || focusRefining}
+                className="px-6 py-3 rounded-xl text-sm font-medium bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {focusRefining ? "구조화 중..." : "AI 구조화 →"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: 구조화 결과 검토 + 수정 */}
+        {focusStep === "review" && (
+          <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-gray-500 text-sm">AI가 구조화한 결과입니다. 자유롭게 수정하세요.</p>
+              <button
+                onClick={() => setFocusStep("write")}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                ← 다시 쓰기
+              </button>
+            </div>
+            <textarea
+              value={focusRefined}
+              onChange={e => setFocusRefined(e.target.value)}
+              className="flex-1 w-full resize-none rounded-xl border border-gray-200 p-6 font-mono text-sm text-gray-800 leading-relaxed focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+            />
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                {focusRefined.length > 0 ? `${[...focusRefined].length}자` : ""}
+              </span>
+              <button
+                onClick={() => setFocusStep("done")}
+                disabled={!focusRefined.trim()}
+                className="px-6 py-3 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 transition"
+              >
+                저장 대상 선택 →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: 저장 대상 아티클 선택 */}
+        {focusStep === "done" && (
+          <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
+            <p className="text-gray-500 text-sm mb-4">어떤 아티클에 저장할까요?</p>
+
+            {/* 현재 선택된 아티클이 있으면 우선 표시 */}
+            {selected && (
+              <button
+                onClick={() => handleFocusSave(selected.id)}
+                className="w-full mb-4 p-4 rounded-xl border-2 border-emerald-400 bg-emerald-50 text-left hover:bg-emerald-100 transition"
+              >
+                <div className="text-xs text-emerald-600 mb-1">현재 아티클에 저장</div>
+                <div className="text-sm font-bold text-gray-900">{selected.section} {selected.title}</div>
+                <div className="text-xs text-gray-500 mt-1">Part {selected.part_number}. {selected.part_title}</div>
+              </button>
+            )}
+
+            {/* 전체 아티클 목록 */}
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">또는 다른 아티클 선택</p>
+            <div className="space-y-1 max-h-[50vh] overflow-y-auto">
+              {toc.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (confirm(`"${item.section} ${item.title}"에 저장하시겠습니까?`)) {
+                      handleFocusSave(item.id);
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-gray-50 transition"
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${
+                    item.status === "published" ? "bg-green-500" :
+                    item.status === "review" ? "bg-blue-500" :
+                    item.status === "draft" ? "bg-amber-500" : "bg-gray-300"
+                  }`} />
+                  <span className="text-xs text-gray-400 w-8 shrink-0">{item.section}</span>
+                  <span className="text-xs text-gray-700 flex-1 truncate">{item.title}</span>
+                  <span className="text-[10px] text-gray-400">Part {item.part_number}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* ── Left: TOC ── */}
       <div className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4">
-        <h2 className="text-lg font-bold text-gray-900">Hestory</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">Hestory</h2>
+          <button
+            onClick={() => { setFocusMode(true); setFocusStep("write"); setFocusDraft(""); setFocusRefined(""); }}
+            className="px-2.5 py-1 rounded-lg text-[10px] font-medium bg-slate-800 text-white hover:bg-slate-700 transition"
+            title="전체화면 자유 글쓰기"
+          >
+            자유 글쓰기
+          </button>
+        </div>
         <p className="mb-3 text-xs text-gray-500">heiro.labs의 이야기 — 운영 기록이 자동으로 쌓이는 아카이브</p>
 
         {/* Quick Access 제거 — 오른쪽 사이드로 이동 */}
@@ -364,7 +583,7 @@ export default function KnowledgeBase() {
                   className="min-h-[400px] w-full rounded-lg border border-gray-300 p-4 font-mono text-sm text-gray-800 focus:border-slate-500 focus:ring-1 focus:ring-slate-500"
                   placeholder="마크다운으로 작성하세요..."
                 />
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 flex-wrap">
                   <button
                     onClick={handleSave}
                     disabled={saving}
@@ -378,6 +597,71 @@ export default function KnowledgeBase() {
                   >
                     발행
                   </button>
+                  {/* AI 재작성 — 평가자 선택 드롭다운 */}
+                  {savedReviews.length > 0 ? (
+                    <div className="relative group">
+                      <button
+                        disabled={rewriting}
+                        className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50 peer"
+                      >
+                        {rewriting ? "다시 쓰는 중..." : "AI로 다시 쓰기 ▾"}
+                      </button>
+                      {!rewriting && (
+                        <div className="absolute left-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <div className="p-2 border-b border-gray-100">
+                            <p className="text-[10px] text-gray-400 font-medium">누구의 피드백을 반영할까요?</p>
+                          </div>
+                          {savedReviews.map(r => {
+                            const scoreColor = r.score >= 8 ? "text-emerald-600" : r.score >= 6 ? "text-blue-600" : r.score >= 4 ? "text-amber-600" : "text-red-600";
+                            return (
+                              <button
+                                key={r.perspective}
+                                onClick={async () => {
+                                  setRewriting(true);
+                                  try {
+                                    const res = await apiRequest(`/archiving/rewrite/${selected.id}`, {
+                                      method: "POST",
+                                      body: JSON.stringify({ perspectives: [r.perspective] }),
+                                    });
+                                    if (res.ok) {
+                                      const d = await res.json();
+                                      if (d.content) setDraft(d.content);
+                                    } else { alert("재작성 실패"); }
+                                  } catch { alert("네트워크 오류"); }
+                                  setRewriting(false);
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 transition text-xs"
+                              >
+                                <span className="text-gray-700">{r.name} 관점</span>
+                                <span className={`font-bold ${scoreColor}`}>{r.score}/10</span>
+                              </button>
+                            );
+                          })}
+                          <button
+                            onClick={async () => {
+                              setRewriting(true);
+                              try {
+                                const res = await apiRequest(`/archiving/rewrite/${selected.id}`, {
+                                  method: "POST",
+                                  body: JSON.stringify({ perspectives: savedReviews.map(r => r.perspective) }),
+                                });
+                                if (res.ok) {
+                                  const d = await res.json();
+                                  if (d.content) setDraft(d.content);
+                                } else { alert("재작성 실패"); }
+                              } catch { alert("네트워크 오류"); }
+                              setRewriting(false);
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-violet-50 transition text-xs font-medium text-violet-700 border-t border-gray-100"
+                          >
+                            전체 피드백 반영
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400 py-2">평가 후 AI 재작성 가능</span>
+                  )}
                   <button
                     onClick={() => { setEditing(false); setDraft(selected.content ?? ""); }}
                     className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
