@@ -26,12 +26,12 @@ func main() {
 	config.LocalDB.AutoMigrate(
 		&models.UserSession{},
 		&models.UserActivity{},
-		&models.ActivityLog{},
 	)
 
 	config.DB.AutoMigrate(
 		&models.Task{},
 		&models.AdminUser{},
+		&models.ActivityLog{},
 		&models.Property{},
 		&models.Reservation{},
 		&models.WebhookLog{},
