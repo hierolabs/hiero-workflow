@@ -224,15 +224,18 @@ export default function Team() {
 
   const fetchAll = () => {
     const token = localStorage.getItem('token');
+    if (!token) { setLoading(false); return; }
     setLoading(true);
+    const headers = { Authorization: `Bearer ${token}` };
+    const safeFetch = (url: string) => fetch(url, { headers }).then(r => r.json()).catch(() => null);
     Promise.all([
-      fetch(`${API_URL}/users/team-stats`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch(`${API_URL}/attendance/today`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch(`${API_URL}/directives`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      safeFetch(`${API_URL}/users/team-stats`),
+      safeFetch(`${API_URL}/attendance/today`),
+      safeFetch(`${API_URL}/directives`),
     ]).then(([statsData, attendData, dirData]) => {
       setMembers(Array.isArray(statsData) ? statsData : []);
-      setAttendance(attendData.users || []);
-      setDirectives(dirData.directives || []);
+      setAttendance(attendData?.users || []);
+      setDirectives(dirData?.directives || []);
     }).finally(() => setLoading(false));
   };
 
