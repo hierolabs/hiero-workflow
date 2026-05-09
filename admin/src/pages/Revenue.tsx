@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { apiRequest } from "../utils/api";
 import OperationManual from "../components/OperationManual";
+import PeriodFilter, { calcRange, type PeriodKey } from "../components/PeriodFilter";
 
 // --- Types ---
 interface PeriodRevenue {
@@ -52,64 +53,32 @@ interface Data3Summary {
 }
 
 type GroupBy = "day" | "week" | "month";
-type Preset = "7d" | "30d" | "90d" | "this_month" | "last_month" | "custom";
 
-const PRESETS: { key: Preset; label: string }[] = [
-  { key: "7d", label: "최근 7일" },
-  { key: "30d", label: "최근 30일" },
-  { key: "90d", label: "최근 90일" },
-  { key: "this_month", label: "이번 달" },
-  { key: "last_month", label: "지난 달" },
-  { key: "custom", label: "직접 선택" },
-];
-
-function getPresetDates(preset: Preset): { start: string; end: string; group: GroupBy } {
-  const now = new Date();
-  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  switch (preset) {
-    case "7d":
-      return { start: fmt(new Date(now.getTime() - 6 * 86400000)), end: fmt(now), group: "day" };
-    case "30d":
-      return { start: fmt(new Date(now.getTime() - 29 * 86400000)), end: fmt(now), group: "day" };
-    case "90d":
-      return { start: fmt(new Date(now.getTime() - 89 * 86400000)), end: fmt(now), group: "week" };
-    case "this_month": {
-      const s = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { start: fmt(s), end: fmt(now), group: "day" };
-    }
-    case "last_month": {
-      const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const e = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { start: fmt(s), end: fmt(e), group: "day" };
-    }
-    default:
-      return { start: fmt(new Date(now.getTime() - 29 * 86400000)), end: fmt(now), group: "day" };
-  }
+function autoGroupBy(period: PeriodKey): GroupBy {
+  if (period === "this_quarter" || period === "last_quarter") return "week";
+  if (period === "this_year" || period === "last_year") return "month";
+  return "day";
 }
 
 const krw = (n: number) => new Intl.NumberFormat("ko-KR").format(n);
 
 // --- Component ---
 export default function Revenue() {
-  const [preset, setPreset] = useState<Preset>("30d");
+  const [period, setPeriod] = useState<PeriodKey>("this_month");
   const [groupBy, setGroupBy] = useState<GroupBy>("day");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(() => calcRange("this_month")[0]);
+  const [endDate, setEndDate] = useState(() => calcRange("this_month")[1]);
   const [data, setData] = useState<RevenueData | null>(null);
   const [data3, setData3] = useState<Data3Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showManual, setShowManual] = useState(false);
 
-  // 프리셋 변경 시 날짜 자동 설정
-  useEffect(() => {
-    if (preset !== "custom") {
-      const { start, end, group } = getPresetDates(preset);
-      setStartDate(start);
-      setEndDate(end);
-      setGroupBy(group);
-    }
-  }, [preset]);
+  const handlePeriodChange = (key: PeriodKey, start: string, end: string) => {
+    setPeriod(key);
+    setStartDate(start);
+    setEndDate(end);
+    setGroupBy(autoGroupBy(key));
+  };
 
   // 데이터 fetch
   useEffect(() => {
@@ -142,42 +111,7 @@ export default function Revenue() {
 
       {/* Controls */}
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        {/* Preset buttons */}
-        <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPreset(p.key)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                preset === p.key
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Custom date range */}
-        {preset === "custom" && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            />
-            <span className="text-gray-400">~</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            />
-          </div>
-        )}
-
+        <PeriodFilter value={period} onChange={handlePeriodChange} />
         {/* Group by */}
         <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
           {(["day", "week", "month"] as GroupBy[]).map((g) => (

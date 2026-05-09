@@ -59,6 +59,33 @@ interface WikiTOCItem {
   updated_at: string;
 }
 
+interface DevMilestone {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  category: string;
+  status: string;
+  phase: string;
+  due_week: number;
+  sort_order: number;
+  notes: string;
+}
+
+interface DevProject {
+  id: number;
+  name: string;
+  code: string;
+  description: string;
+  status: string;
+  owner_role: string;
+  phase: string;
+  start_date: string;
+  target_date: string;
+  week_count: number;
+  milestones: DevMilestone[];
+}
+
 const DOMAIN_LABELS: Record<string, string> = {
   knowledge: '지식 관리', research: '연구', documentation: '문서화',
   message: '메시지', business_plan: '사업계획서', technology: '기술 전략',
@@ -68,6 +95,22 @@ const DOMAIN_ICONS: Record<string, string> = {
   knowledge: 'bg-blue-100 text-blue-700', research: 'bg-purple-100 text-purple-700',
   documentation: 'bg-amber-100 text-amber-700', message: 'bg-cyan-100 text-cyan-700',
   business_plan: 'bg-pink-100 text-pink-700', technology: 'bg-indigo-100 text-indigo-700',
+};
+
+const CAT_LABELS: Record<string, string> = {
+  score: 'Score Stack', layer: '4 Layer', data: '데이터 연동',
+  ui: 'UI/UX', infra: '인프라', decision: '의사결정',
+};
+const CAT_COLORS: Record<string, string> = {
+  score: 'bg-emerald-100 text-emerald-700', layer: 'bg-violet-100 text-violet-700',
+  data: 'bg-cyan-100 text-cyan-700', ui: 'bg-pink-100 text-pink-700',
+  infra: 'bg-orange-100 text-orange-700', decision: 'bg-amber-100 text-amber-700',
+};
+const MS_STATUS_COLORS: Record<string, string> = {
+  not_started: 'bg-gray-200', in_progress: 'bg-blue-500', done: 'bg-emerald-500', blocked: 'bg-red-500',
+};
+const MS_STATUS_LABELS: Record<string, string> = {
+  not_started: '대기', in_progress: '진행', done: '완료', blocked: '차단',
 };
 
 const CTO_MISSION = [
@@ -108,7 +151,10 @@ export default function CTOBoard() {
   const [wikiToc, setWikiToc] = useState<WikiTOCItem[]>([]);
   const [expandedMission, setExpandedMission] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'work' | 'received' | 'sent'>('work');
+  const [tab, setTab] = useState<'work' | 'dev' | 'received' | 'sent'>('work');
+  const [devProjects, setDevProjects] = useState<DevProject[]>([]);
+  const [expandedProject, setExpandedProject] = useState<number | null>(null);
+  const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // 지시 작성 폼
@@ -124,11 +170,13 @@ export default function CTOBoard() {
       api.get('/wiki/progress'),
       api.get('/wiki/toc'),
       api.get('/archiving/review-summary'),
-    ]).then(([ctoRes, wikiRes, tocRes, revRes]) => {
+      api.get('/dev-projects'),
+    ]).then(([ctoRes, wikiRes, tocRes, revRes, devRes]) => {
       setData(ctoRes.data);
       setWiki(wikiRes.data);
       setWikiToc(tocRes.data?.items ?? []);
       setReviewSummary(revRes.data?.items ?? []);
+      setDevProjects(devRes.data?.items ?? []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -147,6 +195,13 @@ export default function CTOBoard() {
       await api.patch(`/issues/${issueId}/status`, { status: 'resolved', resolution });
       fetchData();
     } catch { alert('해결 처리 실패'); }
+  };
+
+  const handleMilestoneStatus = async (msId: number, status: string) => {
+    try {
+      await api.patch(`/dev-milestones/${msId}/status`, { status });
+      fetchData();
+    } catch { alert('상태 변경 실패'); }
   };
 
   const handleDirectiveAction = async (id: number, action: string, memo?: string) => {
@@ -202,6 +257,7 @@ export default function CTOBoard() {
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
         {([
           { key: 'work' as const, label: '업무 현황', badge: data?.total_tasks },
+          { key: 'dev' as const, label: '기술 개발', badge: devProjects.length || undefined },
           { key: 'received' as const, label: '받은 지시', badge: receivedCount },
           { key: 'sent' as const, label: '보낸 지시', badge: sentCount },
         ]).map(t => (
@@ -217,6 +273,162 @@ export default function CTOBoard() {
           </button>
         ))}
       </div>
+
+      {/* === TAB: 기술 개발 === */}
+      {tab === 'dev' && (
+        <>
+          {devProjects.length > 0 ? (
+            <section>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">기술 개발 프로젝트</h2>
+              <div className="space-y-3">
+                {devProjects.map(proj => {
+                  const milestones = proj.milestones ?? [];
+                  const total = milestones.length;
+                  const done = milestones.filter(m => m.status === 'done').length;
+                  const inProg = milestones.filter(m => m.status === 'in_progress').length;
+                  const blocked = milestones.filter(m => m.status === 'blocked').length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const isExpanded = expandedProject === proj.id;
+
+                  // 카테고리별 집계
+                  const cats: Record<string, { total: number; done: number; inProg: number; items: DevMilestone[] }> = {};
+                  milestones.forEach(m => {
+                    if (!cats[m.category]) cats[m.category] = { total: 0, done: 0, inProg: 0, items: [] };
+                    cats[m.category].total++;
+                    if (m.status === 'done') cats[m.category].done++;
+                    if (m.status === 'in_progress') cats[m.category].inProg++;
+                    cats[m.category].items.push(m);
+                  });
+
+                  return (
+                    <div key={proj.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      {/* 프로젝트 헤더 */}
+                      <button
+                        onClick={() => setExpandedProject(isExpanded ? null : proj.id)}
+                        className="w-full p-5 text-left hover:bg-gray-50 transition"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">{proj.code.toUpperCase().slice(0, 4)}</span>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-gray-900">{proj.name}</h3>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] font-medium bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">Phase {proj.phase.toUpperCase()}</span>
+                                <span className="text-[10px] text-gray-400">{proj.start_date} → {proj.target_date}</span>
+                                <span className="text-[10px] text-gray-400">{proj.week_count}주</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-black text-indigo-600">{pct}%</div>
+                            <div className="text-[10px] text-gray-400">{done}/{total} 완료</div>
+                          </div>
+                        </div>
+                        {/* 진행 바 */}
+                        <div className="h-2 rounded-full bg-gray-100 overflow-hidden flex">
+                          {done > 0 && <div className="h-2 bg-emerald-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />}
+                          {inProg > 0 && <div className="h-2 bg-blue-500 transition-all" style={{ width: `${(inProg / total) * 100}%` }} />}
+                          {blocked > 0 && <div className="h-2 bg-red-400 transition-all" style={{ width: `${(blocked / total) * 100}%` }} />}
+                        </div>
+                        <div className="flex gap-3 mt-2 text-[10px]">
+                          <span className="text-emerald-600">완료 {done}</span>
+                          <span className="text-blue-600">진행 {inProg}</span>
+                          <span className="text-red-500">차단 {blocked}</span>
+                          <span className="text-gray-400">대기 {total - done - inProg - blocked}</span>
+                        </div>
+                      </button>
+
+                      {/* 확장: 카테고리별 마일스톤 */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
+                          {/* 카테고리 카드 그리드 */}
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {Object.entries(cats).sort((a, b) => a[1].items[0]?.sort_order - b[1].items[0]?.sort_order).map(([cat, info]) => {
+                              const catPct = info.total > 0 ? Math.round((info.done / info.total) * 100) : 0;
+                              const isCatExpanded = expandedCat === `${proj.id}-${cat}`;
+                              return (
+                                <div key={cat}>
+                                  <button
+                                    onClick={() => setExpandedCat(isCatExpanded ? null : `${proj.id}-${cat}`)}
+                                    className={`w-full text-left rounded-lg p-3 border transition ${isCatExpanded ? 'border-indigo-300 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                                  >
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${CAT_COLORS[cat] || 'bg-gray-100 text-gray-600'}`}>
+                                        {CAT_LABELS[cat] || cat}
+                                      </span>
+                                      <span className="text-xs font-bold text-gray-700">{catPct}%</span>
+                                    </div>
+                                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mt-1">
+                                      <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${catPct}%` }} />
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 mt-1">{info.done}/{info.total} · 진행 {info.inProg}</div>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 선택된 카테고리 마일스톤 상세 */}
+                          {expandedCat && expandedCat.startsWith(`${proj.id}-`) && (() => {
+                            const cat = expandedCat.replace(`${proj.id}-`, '');
+                            const items = cats[cat]?.items ?? [];
+                            return (
+                              <div className="bg-white border border-gray-200 rounded-lg">
+                                <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${CAT_COLORS[cat] || 'bg-gray-100'}`}>{CAT_LABELS[cat] || cat}</span>
+                                  <span className="text-[10px] text-gray-400">{items.length}건</span>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                  {items.sort((a, b) => a.sort_order - b.sort_order).map(m => (
+                                    <div key={m.id} className="px-4 py-3 flex items-center gap-3">
+                                      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${MS_STATUS_COLORS[m.status] || 'bg-gray-200'}`} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-gray-900">{m.name}</div>
+                                        <div className="text-[10px] text-gray-400 truncate">{m.description}</div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-[10px] text-indigo-500 font-medium">{m.phase}</span>
+                                          {m.due_week > 0 && <span className="text-[10px] text-gray-400">W{m.due_week}</span>}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {m.status === 'not_started' && (
+                                          <button onClick={() => handleMilestoneStatus(m.id, 'in_progress')}
+                                            className="px-2 py-1 rounded text-[10px] font-medium bg-blue-50 text-blue-600 hover:bg-blue-100">시작</button>
+                                        )}
+                                        {m.status === 'in_progress' && (
+                                          <button onClick={() => handleMilestoneStatus(m.id, 'done')}
+                                            className="px-2 py-1 rounded text-[10px] font-medium bg-emerald-50 text-emerald-600 hover:bg-emerald-100">완료</button>
+                                        )}
+                                        {m.status === 'in_progress' && (
+                                          <button onClick={() => handleMilestoneStatus(m.id, 'blocked')}
+                                            className="px-2 py-1 rounded text-[10px] font-medium bg-red-50 text-red-500 hover:bg-red-100">차단</button>
+                                        )}
+                                        {(m.status === 'done' || m.status === 'blocked') && (
+                                          <span className={`px-2 py-1 rounded text-[10px] font-medium ${m.status === 'done' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                                            {MS_STATUS_LABELS[m.status]}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : (
+            <div className="bg-gray-50 rounded-xl p-12 text-center text-sm text-gray-400">등록된 개발 프로젝트가 없습니다</div>
+          )}
+        </>
+      )}
 
       {/* === TAB 1: 업무 현황 === */}
       {tab === 'work' && (

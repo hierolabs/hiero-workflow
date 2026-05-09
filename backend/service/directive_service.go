@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -26,6 +27,8 @@ type CreateDirectiveInput struct {
 	Title      string `json:"title"`
 	Content    string `json:"content"`
 	Priority   string `json:"priority"`
+	ReportType string `json:"report_type"` // report일 때: daily_ops, cleaning_summary 등
+	Deadline   string `json:"deadline"`    // "2026-05-12" 형식
 	ParentID   *uint  `json:"parent_id"`
 	IssueID    *uint  `json:"issue_id"`
 	PropertyID *uint  `json:"property_id"`
@@ -44,6 +47,21 @@ func (s *DirectiveService) Create(input CreateDirectiveInput) (*models.ETFDirect
 		return nil, fmt.Errorf("수신자 역할(%s)을 찾을 수 없습니다", input.ToRole)
 	}
 
+	// 보고(report) 범위 검증
+	if input.Type == models.DirectiveTypeReport {
+		allowed := models.ReportScope[fromUser.RoleTitle]
+		canReport := false
+		for _, r := range allowed {
+			if r == input.ToRole {
+				canReport = true
+				break
+			}
+		}
+		if !canReport {
+			return nil, fmt.Errorf("%s → %s 보고 권한이 없습니다", fromUser.RoleTitle, input.ToRole)
+		}
+	}
+
 	if input.Priority == "" {
 		input.Priority = models.DirectivePriorityNormal
 	}
@@ -59,10 +77,18 @@ func (s *DirectiveService) Create(input CreateDirectiveInput) (*models.ETFDirect
 		Title:        input.Title,
 		Content:      input.Content,
 		Priority:     input.Priority,
+		ReportType:   input.ReportType,
 		ParentID:     input.ParentID,
 		IssueID:      input.IssueID,
 		PropertyID:   input.PropertyID,
 		Status:       models.DirectiveStatusPending,
+	}
+
+	// 기한 파싱
+	if input.Deadline != "" {
+		if t, err := time.Parse("2006-01-02", input.Deadline); err == nil {
+			directive.Deadline = &t
+		}
 	}
 
 	// 서버 분석: 도메인 충돌 체크 + 중복 체크
@@ -73,6 +99,17 @@ func (s *DirectiveService) Create(input CreateDirectiveInput) (*models.ETFDirect
 	if err := config.DB.Create(&directive).Error; err != nil {
 		return nil, err
 	}
+
+	// 수신자에게 알림
+	notifSvc := NewNotificationService()
+	typeLabel := map[string]string{"directive": "지시", "report": "보고", "lateral": "협의"}[input.Type]
+	notifSvc.NotifyByRoleTitle(toUser.RoleTitle, "delegated",
+		fmt.Sprintf("[%s] %s", typeLabel, input.Title),
+		fmt.Sprintf("%s(%s)로부터 %s", fromUser.Name, fromUser.RoleTitle, typeLabel),
+		nil, fromUser.Name)
+
+	LogActivity(&fromUser.ID, fromUser.Name, "directive_created", "etf_directive", &directive.ID,
+		fmt.Sprintf("%s → %s: %s", fromUser.RoleTitle, toUser.RoleTitle, input.Title))
 
 	// 백그라운드 AI 분석 (저장 후 서버가 "생각"하고 업데이트)
 	go s.aiAnalyze(directive.ID)
@@ -295,38 +332,275 @@ func (s *DirectiveService) GetGOTSummary() GOTSummary {
 	return summary
 }
 
-// --- 상태 업데이트 ---
+// --- 상태 업데이트 (알림 연동) ---
+
+func (s *DirectiveService) getDirective(id uint) (*models.ETFDirective, error) {
+	var d models.ETFDirective
+	if err := config.DB.First(&d, id).Error; err != nil {
+		return nil, fmt.Errorf("지시를 찾을 수 없습니다: %d", id)
+	}
+	return &d, nil
+}
+
+func (s *DirectiveService) notify(toRole, title, content, fromName string) {
+	notifSvc := NewNotificationService()
+	notifSvc.NotifyByRoleTitle(toRole, "delegated", title, content, nil, fromName)
+}
 
 func (s *DirectiveService) Acknowledge(id uint) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":          models.DirectiveStatusAcknowledged,
 			"acknowledged_at": &now,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[확인] %s", d.Title),
+		fmt.Sprintf("%s이(가) 지시를 확인했습니다", d.ToUserName), d.ToUserName)
+	return nil
 }
 
 func (s *DirectiveService) Start(id uint) error {
-	return config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
-		Update("status", models.DirectiveStatusInProgress).Error
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Update("status", models.DirectiveStatusInProgress).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[진행 시작] %s", d.Title),
+		fmt.Sprintf("%s이(가) 작업을 시작했습니다", d.ToUserName), d.ToUserName)
+	return nil
 }
 
 func (s *DirectiveService) Complete(id uint, resultMemo string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
 	now := time.Now()
-	return config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":       models.DirectiveStatusCompleted,
 			"completed_at": &now,
 			"result_memo":  resultMemo,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[완료 보고] %s — 확인 필요", d.Title),
+		fmt.Sprintf("%s: %s", d.ToUserName, resultMemo), d.ToUserName)
+	return nil
 }
 
 func (s *DirectiveService) Reject(id uint, reason string) error {
-	return config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":      models.DirectiveStatusRejected,
 			"result_memo": reason,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[거부] %s", d.Title),
+		fmt.Sprintf("%s 사유: %s", d.ToUserName, reason), d.ToUserName)
+	return nil
+}
+
+// --- 새 액션: 발신자 완료 확인 ---
+
+func (s *DirectiveService) Verify(id uint, userName string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Status != models.DirectiveStatusCompleted {
+		return fmt.Errorf("완료 상태인 지시만 확인할 수 있습니다 (현재: %s)", d.Status)
+	}
+	now := time.Now()
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":      models.DirectiveStatusVerified,
+			"verified_at": &now,
+			"verified_by": userName,
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.ToRole, fmt.Sprintf("[완료 확인] %s", d.Title),
+		fmt.Sprintf("%s이(가) 완료를 확인했습니다", userName), userName)
+	LogActivity(nil, userName, "directive_verified", "etf_directive", &id, d.Title)
+	return nil
+}
+
+// --- 새 액션: 재작업 요청 ---
+
+func (s *DirectiveService) Reopen(id uint, userName, memo string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Status != models.DirectiveStatusCompleted {
+		return fmt.Errorf("완료 상태인 지시만 재요청할 수 있습니다")
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":         models.DirectiveStatusReopened,
+			"revision_count": d.RevisionCount + 1,
+			"result_memo":    memo,
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.ToRole, fmt.Sprintf("[재작업 요청] %s", d.Title),
+		fmt.Sprintf("%s: %s", userName, memo), userName)
+	LogActivity(nil, userName, "directive_reopened", "etf_directive", &id, memo)
+	return nil
+}
+
+// --- 새 액션: 보고 승인 (다단계) ---
+
+func (s *DirectiveService) Approve(id uint, userName, comment string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Type != models.DirectiveTypeReport {
+		return fmt.Errorf("보고(report)만 승인할 수 있습니다")
+	}
+
+	// 승인 체인 확인
+	var chain []string
+	if d.ApprovalChain != "" {
+		_ = json.Unmarshal([]byte(d.ApprovalChain), &chain)
+	}
+
+	updates := map[string]interface{}{
+		"result_memo": comment,
+	}
+
+	if len(chain) > 0 && d.CurrentStep < len(chain)-1 {
+		// 다단계: 다음 단계로 진행
+		nextStep := d.CurrentStep + 1
+		nextRole := chain[nextStep]
+		updates["current_step"] = nextStep
+		updates["status"] = models.DirectiveStatusPending
+		s.notify(nextRole, fmt.Sprintf("[승인 요청] %s (단계 %d/%d)", d.Title, nextStep+1, len(chain)),
+			fmt.Sprintf("%s 승인 완료 → %s 승인 대기. 메모: %s", userName, nextRole, comment), userName)
+	} else {
+		// 최종 승인
+		now := time.Now()
+		updates["status"] = models.DirectiveStatusVerified
+		updates["verified_at"] = &now
+		updates["verified_by"] = userName
+		s.notify(d.FromRole, fmt.Sprintf("[승인 완료] %s", d.Title),
+			fmt.Sprintf("최종 승인: %s. 메모: %s", userName, comment), userName)
+	}
+
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	LogActivity(nil, userName, "directive_approved", "etf_directive", &id,
+		fmt.Sprintf("step %d: %s", d.CurrentStep, comment))
+	return nil
+}
+
+// --- 새 액션: 수정 요청 ---
+
+func (s *DirectiveService) RequestRevision(id uint, userName, memo string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Type != models.DirectiveTypeReport {
+		return fmt.Errorf("보고(report)만 수정 요청할 수 있습니다")
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":         models.DirectiveStatusReopened,
+			"revision_count": d.RevisionCount + 1,
+			"result_memo":    memo,
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[수정 요청] %s", d.Title),
+		fmt.Sprintf("%s: %s", userName, memo), userName)
+	LogActivity(nil, userName, "directive_revision_requested", "etf_directive", &id, memo)
+	return nil
+}
+
+// --- 새 액션: Lateral 합의 ---
+
+func (s *DirectiveService) Agree(id uint, userName string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Type != models.DirectiveTypeLateral {
+		return fmt.Errorf("협의(lateral)만 합의할 수 있습니다")
+	}
+	now := time.Now()
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":       models.DirectiveStatusAgreed,
+			"completed_at": &now,
+			"result_memo":  fmt.Sprintf("%s 합의", userName),
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[합의 완료] %s", d.Title),
+		fmt.Sprintf("%s이(가) 합의했습니다", userName), userName)
+	LogActivity(nil, userName, "directive_agreed", "etf_directive", &id, d.Title)
+	return nil
+}
+
+// --- 새 액션: Lateral 대안 제시 ---
+
+func (s *DirectiveService) Counter(id uint, userName, proposal string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if d.Type != models.DirectiveTypeLateral {
+		return fmt.Errorf("협의(lateral)만 대안을 제시할 수 있습니다")
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":      models.DirectiveStatusCountered,
+			"result_memo": proposal,
+		}).Error; err != nil {
+		return err
+	}
+	s.notify(d.FromRole, fmt.Sprintf("[대안 제시] %s", d.Title),
+		fmt.Sprintf("%s 대안: %s", userName, proposal), userName)
+	LogActivity(nil, userName, "directive_countered", "etf_directive", &id, proposal)
+	return nil
+}
+
+// --- 새 액션: Founder 중재 요청 ---
+
+func (s *DirectiveService) EscalateToGOT(id uint, userName, reason string) error {
+	d, err := s.getDirective(id)
+	if err != nil {
+		return err
+	}
+	if err := config.DB.Model(&models.ETFDirective{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":      models.DirectiveStatusEscalated,
+			"result_memo": reason,
+		}).Error; err != nil {
+		return err
+	}
+	s.notify("founder", fmt.Sprintf("[중재 요청] %s↔%s: %s", d.FromRole, d.ToRole, d.Title),
+		fmt.Sprintf("%s: %s", userName, reason), userName)
+	LogActivity(nil, userName, "directive_escalated", "etf_directive", &id, reason)
+	return nil
 }
 
 // --- 조회 ---
@@ -342,7 +616,8 @@ func (s *DirectiveService) ListSent(userID uint) []models.ETFDirective {
 // 내가 받은 지시/보고 목록
 func (s *DirectiveService) ListReceived(role string) []models.ETFDirective {
 	var list []models.ETFDirective
-	config.DB.Where("to_role = ? AND status != ?", role, models.DirectiveStatusCompleted).
+	config.DB.Where("to_role = ? AND status NOT IN (?, ?)", role,
+		models.DirectiveStatusVerified, models.DirectiveStatusAgreed).
 		Order("FIELD(priority, 'urgent', 'high', 'normal', 'low'), created_at DESC").
 		Limit(50).Find(&list)
 	return list
@@ -352,6 +627,56 @@ func (s *DirectiveService) ListReceived(role string) []models.ETFDirective {
 func (s *DirectiveService) ListAll() []models.ETFDirective {
 	var list []models.ETFDirective
 	config.DB.Order("created_at DESC").Limit(100).Find(&list)
+	return list
+}
+
+// 역할 기반 열람 — ViewScope에 따라 필터링
+func (s *DirectiveService) ListVisible(userID uint, roleTitle, roleLayer string) []models.ETFDirective {
+	var list []models.ETFDirective
+
+	// Founder는 전체 열람
+	if roleLayer == "founder" {
+		config.DB.Order("created_at DESC").Limit(100).Find(&list)
+		return list
+	}
+
+	// 자기 것 (sent + received)
+	db := config.DB.Where("from_user_id = ? OR to_user_id = ?", userID, userID)
+
+	// 자기 하위 열람 가능 범위
+	viewable := models.ViewScope[roleTitle]
+	if len(viewable) > 0 {
+		db = db.Or("from_role IN ? OR to_role IN ?", viewable, viewable)
+	}
+
+	db.Order("created_at DESC").Limit(100).Find(&list)
+
+	// ETF 간 lateral은 당사자만 (Founder 제외하고 이미 위에서 처리됨 — 추가 필터)
+	var filtered []models.ETFDirective
+	for _, d := range list {
+		if d.Type == models.DirectiveTypeLateral {
+			// lateral은 당사자만
+			if d.FromUserID == userID || d.ToUserID == userID || roleLayer == "founder" {
+				filtered = append(filtered, d)
+			}
+		} else {
+			filtered = append(filtered, d)
+		}
+	}
+	return filtered
+}
+
+// 기한 초과 목록
+func (s *DirectiveService) ListOverdue() []models.ETFDirective {
+	var list []models.ETFDirective
+	now := time.Now()
+	config.DB.Where("deadline IS NOT NULL AND deadline < ? AND status NOT IN (?, ?, ?)",
+		now,
+		models.DirectiveStatusCompleted,
+		models.DirectiveStatusVerified,
+		models.DirectiveStatusAgreed).
+		Order("deadline ASC").
+		Find(&list)
 	return list
 }
 

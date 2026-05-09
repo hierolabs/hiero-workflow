@@ -32,6 +32,40 @@ interface ActivityLog {
   created_at: string;
 }
 
+interface Directive {
+  id: number;
+  type: string;
+  from_role: string;
+  from_user_name: string;
+  from_user_id: number;
+  to_role: string;
+  to_user_name: string;
+  to_user_id: number;
+  title: string;
+  content: string;
+  priority: string;
+  status: string;
+  deadline: string | null;
+  result_memo: string;
+  has_conflict: boolean;
+  created_at: string;
+}
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: '대기', color: 'bg-yellow-100 text-yellow-700' },
+  acknowledged: { label: '확인', color: 'bg-blue-100 text-blue-700' },
+  in_progress: { label: '진행', color: 'bg-purple-100 text-purple-700' },
+  completed: { label: '완료', color: 'bg-green-100 text-green-700' },
+  verified: { label: '확인완료', color: 'bg-emerald-100 text-emerald-700' },
+  reopened: { label: '재작업', color: 'bg-orange-100 text-orange-700' },
+  rejected: { label: '반려', color: 'bg-red-100 text-red-700' },
+  agreed: { label: '합의', color: 'bg-teal-100 text-teal-700' },
+  countered: { label: '대안', color: 'bg-amber-100 text-amber-700' },
+  escalated: { label: '중재', color: 'bg-gray-800 text-white' },
+};
+
+const TYPE_ARROWS: Record<string, string> = { directive: '↓', report: '↑', lateral: '↔' };
+
 // 온톨로지 기준 역할 정의
 const ROLE_ONTOLOGY: Record<string, {
   label: string;
@@ -177,22 +211,98 @@ interface AttendanceUser {
 export default function Team() {
   const [members, setMembers] = useState<TeamMemberStat[]>([]);
   const [attendance, setAttendance] = useState<AttendanceUser[]>([]);
+  const [directives, setDirectives] = useState<Directive[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [logModal, setLogModal] = useState<{ name: string } | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [sendTo, setSendTo] = useState<{ role: string; name: string } | null>(null);
+  const [newDir, setNewDir] = useState({ type: 'directive', title: '', content: '', priority: 'normal' });
+  const [detailModal, setDetailModal] = useState<Directive | null>(null);
+  const [actionMemo, setActionMemo] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const fetchAll = () => {
     const token = localStorage.getItem('token');
+    setLoading(true);
     Promise.all([
       fetch(`${API_URL}/users/team-stats`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       fetch(`${API_URL}/attendance/today`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-    ]).then(([statsData, attendData]) => {
+      fetch(`${API_URL}/directives`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+    ]).then(([statsData, attendData, dirData]) => {
       setMembers(Array.isArray(statsData) ? statsData : []);
       setAttendance(attendData.users || []);
+      setDirectives(dirData.directives || []);
     }).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchAll(); }, []);
+
+  // 현재 로그인 사용자
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  })();
+
+  const handleSendDirective = async () => {
+    if (!sendTo || !newDir.title.trim()) return;
+    const token = localStorage.getItem('token');
+    try {
+      await fetch(`${API_URL}/directives`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: newDir.type,
+          from_user_id: currentUser.id,
+          to_role: sendTo.role,
+          title: newDir.title,
+          content: newDir.content,
+          priority: newDir.priority,
+        }),
+      });
+      setSendTo(null);
+      setNewDir({ type: 'directive', title: '', content: '', priority: 'normal' });
+      fetchAll();
+    } catch { alert('전송 실패'); }
+  };
+
+  const handleDirectiveAction = async (id: number, action: string, memo?: string) => {
+    const token = localStorage.getItem('token');
+    const body: Record<string, string> = {};
+    if (action === 'complete') body.result_memo = memo || '';
+    else if (action === 'reject') body.reason = memo || '';
+    else if (action === 'verify' || action === 'agree') body.user_name = currentUser.name || '';
+    else if (action === 'reopen') { body.user_name = currentUser.name || ''; body.memo = memo || ''; }
+    else if (action === 'approve') { body.user_name = currentUser.name || ''; body.comment = memo || ''; }
+
+    await fetch(`${API_URL}/directives/${id}/${action}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    fetchAll();
+  };
+
+  // 지시 전달 (기존 지시를 다른 역할에게 새 지시로 생성)
+  const handleSendDirective_forward = async (original: Directive, toRole: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      await fetch(`${API_URL}/directives`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'directive',
+          from_user_id: currentUser.id,
+          to_role: toRole,
+          title: `[전달] ${original.title}`,
+          content: `원본: ${original.from_user_name}(${original.from_role}) → ${original.to_user_name}(${original.to_role})\n\n${original.content || original.title}`,
+          priority: original.priority,
+          parent_id: original.id,
+        }),
+      });
+      setDetailModal(null);
+      fetchAll();
+    } catch { alert('전달 실패'); }
+  };
 
   const [memberAttendance, setMemberAttendance] = useState<{ login_at: string; logout_at: string | null; duration: number }[]>([]);
 
@@ -404,14 +514,46 @@ export default function Team() {
                     </div>
                   </div>
 
+                  {/* 이 사람 관련 활성 지시/보고 — 클릭하면 상세 모달 */}
+                  {(() => {
+                    const active = directives.filter(d =>
+                      (d.to_role === m.role_title || d.from_role === m.role_title) &&
+                      !['verified', 'agreed', 'rejected'].includes(d.status)
+                    );
+                    return active.length > 0 ? (
+                      <div className="mt-2 pt-2 border-t border-gray-200/60 space-y-1">
+                        {active.slice(0, 3).map(d => (
+                          <div key={d.id}
+                            onClick={() => setDetailModal(d)}
+                            className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-100/80 rounded px-1 py-1 -mx-1 transition">
+                            <span className="text-gray-400">{TYPE_ARROWS[d.type]}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${STATUS_LABELS[d.status]?.color || 'bg-gray-100'}`}>
+                              {STATUS_LABELS[d.status]?.label || d.status}
+                            </span>
+                            <span className="text-gray-700 truncate flex-1 font-medium">{d.title}</span>
+                            <span className="text-gray-400">→</span>
+                          </div>
+                        ))}
+                        {active.length > 3 && (
+                          <div className="text-xs text-indigo-600 text-center cursor-pointer hover:underline"
+                            onClick={() => setDetailModal(active[0])}>
+                            +{active.length - 3}건 더보기
+                          </div>
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
+
                   {/* 액션 버튼 */}
                   <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-200/60">
-                    <button
-                      onClick={() => navigate('/chat')}
-                      className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
-                    >
-                      채팅
-                    </button>
+                    {m.user_id !== currentUser.id && (
+                      <button
+                        onClick={() => setSendTo({ role: m.role_title, name: m.name })}
+                        className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition"
+                      >
+                        지시/보고
+                      </button>
+                    )}
                     <button
                       onClick={() => openLogModal(m.name)}
                       className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
@@ -425,12 +567,297 @@ export default function Team() {
                       권한
                     </button>
                   </div>
+
+                  {/* 인라인 지시/보고 폼 */}
+                  {sendTo?.role === m.role_title && (
+                    <div className="mt-2 p-3 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
+                      <div className="flex gap-2">
+                        <select value={newDir.type} onChange={e => setNewDir(prev => ({ ...prev, type: e.target.value }))}
+                          className="text-[11px] border border-gray-300 rounded px-2 py-1">
+                          <option value="directive">↓ 지시</option>
+                          <option value="report">↑ 보고</option>
+                          <option value="lateral">↔ 협의</option>
+                        </select>
+                        <select value={newDir.priority} onChange={e => setNewDir(prev => ({ ...prev, priority: e.target.value }))}
+                          className="text-[11px] border border-gray-300 rounded px-2 py-1">
+                          <option value="urgent">즉시</option>
+                          <option value="high">오늘</option>
+                          <option value="normal">이번주</option>
+                          <option value="low">여유</option>
+                        </select>
+                      </div>
+                      <input type="text" value={newDir.title} onChange={e => setNewDir(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="제목" className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+                        onKeyDown={e => { if (e.key === 'Enter') handleSendDirective(); }} autoFocus />
+                      <div className="flex gap-1.5">
+                        <button onClick={handleSendDirective} disabled={!newDir.title.trim()}
+                          className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                          전송
+                        </button>
+                        <button onClick={() => setSendTo(null)}
+                          className="px-3 py-1 text-[10px] text-gray-500 hover:text-gray-700">
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       ))}
+
+      {/* === 활성 지시/보고 흐름 === */}
+      {(() => {
+        const active = directives.filter(d => !['verified', 'agreed', 'rejected'].includes(d.status));
+        if (active.length === 0) return null;
+        const needMyAction = active.filter(d =>
+          (d.to_user_id === currentUser.id && ['pending', 'reopened'].includes(d.status)) ||
+          (d.from_user_id === currentUser.id && ['completed', 'countered'].includes(d.status))
+        );
+        return (
+          <div className="mb-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+              활성 지시/보고 흐름 ({active.length}건)
+              {needMyAction.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-orange-500 text-white rounded-full text-[10px] normal-case">
+                  내 처리 {needMyAction.length}건
+                </span>
+              )}
+            </h2>
+            <div className="bg-white border border-gray-200 rounded-xl divide-y">
+              {/* 처리 필요 건 먼저 */}
+              {needMyAction.map(d => (
+                <div key={d.id} onClick={() => setDetailModal(d)}
+                  className="flex items-center gap-3 p-3 bg-orange-50 cursor-pointer hover:bg-orange-100 transition">
+                  <span className="text-xs text-gray-400">{TYPE_ARROWS[d.type]}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_LABELS[d.status]?.color || 'bg-gray-100'}`}>
+                    {STATUS_LABELS[d.status]?.label}
+                  </span>
+                  <span className="text-xs font-medium text-gray-800">{d.from_user_name}</span>
+                  <span className="text-gray-300">→</span>
+                  <span className="text-xs font-medium text-gray-800">{d.to_user_name}</span>
+                  <span className="text-xs text-gray-700 flex-1 truncate font-medium">{d.title}</span>
+                  {d.deadline && <span className="text-[10px] text-gray-400">~{d.deadline.slice(5, 10)}</span>}
+                  <span className="text-xs text-orange-600 font-medium">처리 →</span>
+                </div>
+              ))}
+              {/* 나머지 활성 건 */}
+              {active.filter(d => !needMyAction.find(n => n.id === d.id)).slice(0, 10).map(d => (
+                <div key={d.id} onClick={() => setDetailModal(d)}
+                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition">
+                  <span className="text-xs text-gray-400">{TYPE_ARROWS[d.type]}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_LABELS[d.status]?.color || 'bg-gray-100'}`}>
+                    {STATUS_LABELS[d.status]?.label}
+                  </span>
+                  <span className="text-xs text-gray-600">{d.from_user_name}</span>
+                  <span className="text-gray-300">→</span>
+                  <span className="text-xs text-gray-600">{d.to_user_name}</span>
+                  <span className="text-xs text-gray-600 flex-1 truncate">{d.title}</span>
+                  <span className="text-[10px] text-gray-400">{d.created_at?.slice(5, 16)}</span>
+                  <span className="text-xs text-gray-400">상세 →</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* === 지시/보고 상세 모달 === */}
+      {detailModal && (() => {
+        const d = detailModal;
+        const TYPE_LABELS_M: Record<string, string> = { directive: '업무지시', report: '보고', lateral: '협의 요청' };
+        const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
+          urgent: { label: '즉시', color: 'bg-red-100 text-red-700' },
+          high: { label: '오늘', color: 'bg-orange-100 text-orange-700' },
+          normal: { label: '이번주', color: 'bg-blue-100 text-blue-700' },
+          low: { label: '여유', color: 'bg-gray-100 text-gray-600' },
+        };
+        const isMySent = d.from_user_id === currentUser.id;
+        const isMyReceived = d.to_user_id === currentUser.id;
+        const fromOnto = ROLE_ONTOLOGY[d.from_role];
+        const toOnto = ROLE_ONTOLOGY[d.to_role];
+        const isOverdue = d.deadline && new Date(d.deadline) < new Date() && !['completed', 'verified', 'agreed'].includes(d.status);
+
+        const doAction = async (action: string) => {
+          await handleDirectiveAction(d.id, action, actionMemo);
+          setActionMemo('');
+          setDetailModal(null);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setDetailModal(null); setActionMemo(''); }}>
+            <div className="bg-white rounded-2xl w-[560px] max-h-[85vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <div className="px-6 py-4 border-b bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{TYPE_ARROWS[d.type]}</span>
+                    <span className="text-sm font-bold text-gray-900">{TYPE_LABELS_M[d.type]}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_LABELS[d.priority]?.color || 'bg-gray-100'}`}>
+                      {PRIORITY_LABELS[d.priority]?.label || d.priority}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_LABELS[d.status]?.color || 'bg-gray-100'}`}>
+                      {STATUS_LABELS[d.status]?.label || d.status}
+                    </span>
+                    {isOverdue && <span className="text-xs px-2 py-0.5 rounded bg-red-600 text-white">기한 초과</span>}
+                  </div>
+                  <button onClick={() => { setDetailModal(null); setActionMemo(''); }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">{d.title}</h2>
+              </div>
+
+              <div className="overflow-y-auto max-h-[60vh]">
+                {/* 발신/수신 정보 */}
+                <div className="px-6 py-4 border-b">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <div className="text-[10px] text-gray-400 uppercase mb-1">발신</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${fromOnto?.color || 'bg-gray-100'}`}>
+                          {fromOnto?.label || d.from_role}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">{d.from_user_name}</span>
+                      </div>
+                    </div>
+                    <div className="text-2xl text-gray-300">→</div>
+                    <div className="flex-1">
+                      <div className="text-[10px] text-gray-400 uppercase mb-1">수신</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${toOnto?.color || 'bg-gray-100'}`}>
+                          {toOnto?.label || d.to_role}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">{d.to_user_name}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                    <span>생성: {new Date(d.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {d.deadline && <span>기한: {new Date(d.deadline).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</span>}
+                  </div>
+                </div>
+
+                {/* 내용 */}
+                {d.content && (
+                  <div className="px-6 py-4 border-b">
+                    <div className="text-[10px] text-gray-400 uppercase mb-2">내용</div>
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">{d.content}</div>
+                  </div>
+                )}
+
+                {/* 결과/메모 */}
+                {d.result_memo && (
+                  <div className="px-6 py-4 border-b">
+                    <div className="text-[10px] text-gray-400 uppercase mb-2">
+                      {d.status === 'completed' ? '완료 보고' : d.status === 'reopened' ? '수정 요청' : d.status === 'rejected' ? '반려 사유' : d.status === 'countered' ? '대안' : '결과'}
+                    </div>
+                    <div className={`text-sm whitespace-pre-wrap rounded-lg p-3 ${
+                      d.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                      d.status === 'reopened' ? 'bg-orange-50 text-orange-700' :
+                      d.status === 'countered' ? 'bg-amber-50 text-amber-700' :
+                      'bg-emerald-50 text-emerald-700'
+                    }`}>{d.result_memo}</div>
+                  </div>
+                )}
+
+                {/* === 조치 영역 === */}
+                <div className="px-6 py-4">
+                  <div className="text-[10px] text-gray-400 uppercase mb-3">조치</div>
+
+                  {/* 메모 입력 */}
+                  <textarea
+                    value={actionMemo}
+                    onChange={e => setActionMemo(e.target.value)}
+                    placeholder="메모를 입력하세요 (조치 내용, 완료 보고, 반려 사유 등)"
+                    rows={2}
+                    className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+
+                  {/* 조치 버튼 — 상태와 역할에 따라 다르게 표시 */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* 내가 받은 지시 (수신자 액션) */}
+                    {isMyReceived && d.type === 'directive' && (
+                      <>
+                        {d.status === 'pending' && (
+                          <button onClick={() => doAction('acknowledge')}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">확인</button>
+                        )}
+                        {['pending', 'acknowledged', 'reopened'].includes(d.status) && (
+                          <button onClick={() => doAction('start')}
+                            className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700">진행 시작</button>
+                        )}
+                        {['in_progress', 'acknowledged', 'reopened'].includes(d.status) && (
+                          <button onClick={() => doAction('complete')}
+                            className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">완료 보고</button>
+                        )}
+                        <button onClick={() => doAction('reject')}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300">반려</button>
+                      </>
+                    )}
+
+                    {/* 내가 받은 보고 (상위자 액션) */}
+                    {isMyReceived && d.type === 'report' && ['pending', 'completed'].includes(d.status) && (
+                      <>
+                        <button onClick={() => doAction('approve')}
+                          className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">승인</button>
+                        <button onClick={() => doAction('request-revision')}
+                          className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600">수정 요청</button>
+                        <button onClick={() => doAction('reject')}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300">반려</button>
+                      </>
+                    )}
+
+                    {/* 내가 받은 협의 (lateral 수신자 액션) */}
+                    {isMyReceived && d.type === 'lateral' && ['pending', 'acknowledged'].includes(d.status) && (
+                      <>
+                        <button onClick={() => doAction('agree')}
+                          className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">합의</button>
+                        <button onClick={() => doAction('counter')}
+                          className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600">대안 제시</button>
+                        <button onClick={() => doAction('escalate')}
+                          className="px-4 py-2 bg-gray-800 text-white text-sm font-medium rounded-lg hover:bg-gray-900">Founder 중재</button>
+                      </>
+                    )}
+
+                    {/* 내가 보낸 지시 — 완료 보고 확인/재작업 */}
+                    {isMySent && d.status === 'completed' && (
+                      <>
+                        <button onClick={() => doAction('verify')}
+                          className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">완료 확인</button>
+                        <button onClick={() => doAction('reopen')}
+                          className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600">재작업 요청</button>
+                      </>
+                    )}
+
+                    {/* 내가 보낸 lateral — 대안 수용/중재 */}
+                    {isMySent && d.status === 'countered' && (
+                      <>
+                        <button onClick={() => doAction('agree')}
+                          className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700">대안 수용</button>
+                        <button onClick={() => doAction('escalate')}
+                          className="px-4 py-2 bg-gray-800 text-white text-sm font-medium rounded-lg hover:bg-gray-900">Founder 중재</button>
+                      </>
+                    )}
+
+                    {/* 전달 (다른 역할에게) */}
+                    {(isMySent || isMyReceived) && !['verified', 'agreed', 'rejected'].includes(d.status) && (
+                      <button onClick={() => {
+                        const role = prompt('전달할 역할 (ceo/cto/cfo/operations/cleaning_dispatch/field/marketing)');
+                        if (role) {
+                          handleSendDirective_forward(d, role);
+                        }
+                      }} className="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-200 ml-auto">
+                        → 전달
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 활동 로그 모달 */}
       {logModal && (() => {

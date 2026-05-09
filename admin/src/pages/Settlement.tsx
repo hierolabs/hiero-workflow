@@ -12,6 +12,7 @@ import {
 } from "../utils/cleaning-api";
 import OperationManual from "../components/OperationManual";
 import MultiSelect from "../components/MultiSelect";
+import PeriodFilter, { calcRange, type PeriodKey } from "../components/PeriodFilter";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const fmt = (n: number) => new Intl.NumberFormat("ko-KR").format(n);
@@ -20,39 +21,8 @@ const fmtMan = (n: number) => {
   return new Intl.NumberFormat("ko-KR").format(v);
 };
 
-type PresetKey = "this_month" | "last_month" | "year_2025" | "year_2026" | "custom";
-
 const NOW = new Date();
 const THIS_YEAR = NOW.getFullYear();
-
-const PRESETS: { key: PresetKey; label: string }[] = [
-  { key: "this_month", label: "이번 달" },
-  { key: "last_month", label: "지난 달" },
-  { key: "year_2025", label: "2025년" },
-  { key: "year_2026", label: "2026년" },
-  { key: "custom", label: "직접 선택" },
-];
-
-function getPresetDates(key: PresetKey): { start: string; end: string } {
-  const now = new Date();
-  const fmtD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  switch (key) {
-    case "this_month":
-      return { start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, end: fmtD(now) };
-    case "last_month": {
-      const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const m = now.getMonth() === 0 ? 12 : now.getMonth();
-      const last = new Date(y, m, 0);
-      return { start: `${y}-${String(m).padStart(2, "0")}-01`, end: fmtD(last) };
-    }
-    case "year_2025":
-      return { start: "2025-01-01", end: "2025-12-31" };
-    case "year_2026":
-      return { start: "2026-01-01", end: fmtD(now.getFullYear() >= 2026 ? now : new Date(2026, 11, 31)) };
-    default:
-      return { start: fmtD(now), end: fmtD(now) };
-  }
-}
 
 interface YearMonthData {
   month: string; // "01" ~ "12"
@@ -104,9 +74,9 @@ export default function Settlement() {
   // 정산 데이터
   const [result, setResult] = useState<SettlementResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState<PresetKey>("this_month");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  const [preset, setPreset] = useState<PeriodKey>("this_month");
+  const [customStart, setCustomStart] = useState(() => calcRange("this_month")[0]);
+  const [customEnd, setCustomEnd] = useState(() => calcRange("this_month")[1]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
 
   // 이슈 (하단)
@@ -135,14 +105,17 @@ export default function Settlement() {
   const [forecastData, setForecastData] = useState<{ deposit: number; cost: number; net: number; startLabel: string; endLabel: string } | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
 
-  const isYearPreset = preset === "year_2025" || preset === "year_2026";
-  const selectedYear = preset === "year_2025" ? 2025 : preset === "year_2026" ? 2026 : null;
+  const isYearPreset = preset === "this_year" || preset === "last_year";
+  const selectedYear = preset === "last_year" ? THIS_YEAR - 1 : preset === "this_year" ? THIS_YEAR : null;
 
   const getDateRange = () => {
-    if (preset === "custom" && customStart && customEnd) {
-      return { start: customStart, end: customEnd };
-    }
-    return getPresetDates(preset);
+    return { start: customStart, end: customEnd };
+  };
+
+  const handlePeriodChange = (key: PeriodKey, start: string, end: string) => {
+    setPreset(key);
+    setCustomStart(start);
+    setCustomEnd(end);
   };
 
   const buildFilterParams = () => {
@@ -291,6 +264,7 @@ export default function Settlement() {
   useEffect(() => { loadForecast(forecastPeriod); }, [forecastPeriod]);
   useEffect(() => { Promise.all([loadMonths(), loadIssues(), loadFilters()]); }, []);
   useEffect(() => {
+    if (!customStart || !customEnd) return;
     if (isYearPreset && selectedYear) {
       setResult(null);
       loadYearData(selectedYear);
@@ -298,16 +272,14 @@ export default function Settlement() {
     }
     setYearMonths([]);
     setSelectedYearMonth(null);
-    if (preset === "custom" && (!customStart || !customEnd)) return;
     loadSettlement();
   }, [preset, customStart, customEnd, filterPropIds, filterChannels]);
 
   const handleMonthClick = (month: string) => {
     const [y, m] = month.split("-");
     const last = new Date(parseInt(y), parseInt(m), 0);
-    setPreset("custom");
-    setCustomStart(`${month}-01`);
-    setCustomEnd(`${y}-${m.padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`);
+    const fmtD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    handlePeriodChange("custom", `${month}-01`, fmtD(last));
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -402,30 +374,9 @@ export default function Settlement() {
           </div>
         </div>
 
-        {/* 기간 프리셋 + 월 퀵 선택 */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => { setPreset(p.key); if (p.key !== "custom") { setCustomStart(""); setCustomEnd(""); } }}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                preset === p.key && !(preset === "custom" && !customStart)
-                  ? "bg-gray-900 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-          {preset === "custom" && (
-            <div className="flex items-center gap-1.5 ml-2">
-              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs" />
-              <span className="text-xs text-gray-400">~</span>
-              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs" />
-            </div>
-          )}
+        {/* 기간 프리셋 */}
+        <div className="mt-3">
+          <PeriodFilter value={preset} onChange={handlePeriodChange} />
         </div>
 
         {/* 숙소 / 채널 필터 */}

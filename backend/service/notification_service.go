@@ -32,11 +32,13 @@ func (s *NotificationService) NotifyUser(userID uint, notifType, title, content 
 	})
 }
 
-// NotifyByRoleTitle — 역할 기반으로 알림 (해당 role_title의 사용자에게)
+// NotifyByRoleTitle — 역할 기반으로 알림 (해당 role_title의 모든 사용자에게)
 func (s *NotificationService) NotifyByRoleTitle(roleTitle, notifType, title, content string, issueID *uint, fromName string) {
-	var user models.AdminUser
-	if err := config.DB.Where("role_title = ?", roleTitle).First(&user).Error; err == nil {
-		s.NotifyUser(user.ID, notifType, title, content, issueID, nil, fromName)
+	var users []models.AdminUser
+	if err := config.DB.Where("role_title = ?", roleTitle).Find(&users).Error; err == nil {
+		for _, user := range users {
+			s.NotifyUser(user.ID, notifType, title, content, issueID, nil, fromName)
+		}
 	}
 }
 

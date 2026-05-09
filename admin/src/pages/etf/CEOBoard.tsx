@@ -41,10 +41,17 @@ interface Directive {
   title: string;
   content: string;
   priority: string;
+  report_type: string;
+  deadline: string | null;
   status: string;
   result_memo: string;
   server_analysis: string;
   has_conflict: boolean;
+  revision_count: number;
+  verified_by: string;
+  verified_at: string | null;
+  approval_chain: string;
+  current_step: number;
   created_at: string;
 }
 
@@ -95,7 +102,12 @@ const STATUS_BADGES: Record<string, { bg: string; label: string }> = {
   acknowledged: { bg: 'bg-blue-100 text-blue-700', label: '확인' },
   in_progress: { bg: 'bg-purple-100 text-purple-700', label: '진행' },
   completed: { bg: 'bg-green-100 text-green-700', label: '완료' },
+  verified: { bg: 'bg-emerald-100 text-emerald-700', label: '확인 완료' },
+  reopened: { bg: 'bg-orange-100 text-orange-700', label: '재작업' },
   rejected: { bg: 'bg-red-100 text-red-700', label: '반려' },
+  agreed: { bg: 'bg-teal-100 text-teal-700', label: '합의' },
+  countered: { bg: 'bg-amber-100 text-amber-700', label: '대안' },
+  escalated: { bg: 'bg-gray-800 text-white', label: '중재 요청' },
 };
 
 export default function CEOBoard() {
@@ -115,6 +127,8 @@ export default function CEOBoard() {
     title: '',
     content: '',
     priority: 'normal',
+    deadline: '',
+    report_type: '',
   });
 
   const fetchData = useCallback(() => {
@@ -181,21 +195,50 @@ export default function CEOBoard() {
         title: newDir.title,
         content: newDir.content,
         priority: newDir.priority,
+        deadline: newDir.deadline || undefined,
+        report_type: newDir.report_type || undefined,
       });
-      setNewDir({ type: 'directive', to_role: 'operations', title: '', content: '', priority: 'normal' });
+      setNewDir({ type: 'directive', to_role: 'operations', title: '', content: '', priority: 'normal', deadline: '', report_type: '' });
       setShowNewDirective(false);
       fetchData();
     } catch { alert('생성 실패'); }
   };
 
-  const handleDirectiveAction = async (id: number, action: 'acknowledge' | 'start' | 'complete' | 'reject', memo?: string) => {
+  type DirectiveAction = 'acknowledge' | 'start' | 'complete' | 'reject' | 'verify' | 'reopen' | 'approve' | 'request-revision' | 'agree' | 'counter' | 'escalate';
+
+  const handleDirectiveAction = async (id: number, action: DirectiveAction, memo?: string) => {
     try {
-      if (action === 'complete') {
-        await api.patch(`/directives/${id}/complete`, { result_memo: memo || '' });
-      } else if (action === 'reject') {
-        await api.patch(`/directives/${id}/reject`, { reason: memo || '' });
-      } else {
-        await api.patch(`/directives/${id}/${action}`);
+      const userName = currentUser ? '김진우' : ''; // CEO 이름
+      switch (action) {
+        case 'complete':
+          await api.patch(`/directives/${id}/complete`, { result_memo: memo || '' });
+          break;
+        case 'reject':
+          await api.patch(`/directives/${id}/reject`, { reason: memo || '' });
+          break;
+        case 'verify':
+          await api.patch(`/directives/${id}/verify`, { user_name: userName });
+          break;
+        case 'reopen':
+          await api.patch(`/directives/${id}/reopen`, { user_name: userName, memo: memo || '' });
+          break;
+        case 'approve':
+          await api.patch(`/directives/${id}/approve`, { user_name: userName, comment: memo || '' });
+          break;
+        case 'request-revision':
+          await api.patch(`/directives/${id}/request-revision`, { user_name: userName, memo: memo || '' });
+          break;
+        case 'agree':
+          await api.patch(`/directives/${id}/agree`, { user_name: userName });
+          break;
+        case 'counter':
+          await api.patch(`/directives/${id}/counter`, { user_name: userName, proposal: memo || '' });
+          break;
+        case 'escalate':
+          await api.patch(`/directives/${id}/escalate`, { user_name: userName, reason: memo || '' });
+          break;
+        default:
+          await api.patch(`/directives/${id}/${action}`);
       }
       fetchData();
     } catch { alert('처리 실패'); }
@@ -245,7 +288,7 @@ export default function CEOBoard() {
       {showNewDirective && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 space-y-3">
           <h3 className="text-sm font-semibold text-indigo-900">새 업무지시 / 협의</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-gray-600 mb-1 block">유형</label>
               <select
@@ -254,6 +297,7 @@ export default function CEOBoard() {
                 className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
               >
                 <option value="directive">↓ 업무지시 (하위)</option>
+                <option value="report">↑ 보고 (상위)</option>
                 <option value="lateral">↔ 협의 (같은 레벨)</option>
               </select>
             </div>
@@ -266,6 +310,8 @@ export default function CEOBoard() {
               >
                 {newDir.type === 'lateral' ? (
                   ETF_ROLES.map(r => <option key={r.roleTitle} value={r.roleTitle}>{r.title}</option>)
+                ) : newDir.type === 'report' ? (
+                  <option value="founder">Founder</option>
                 ) : (
                   EXEC_ROLES.map(r => <option key={r.roleTitle} value={r.roleTitle}>{r.title}</option>)
                 )}
@@ -282,6 +328,15 @@ export default function CEOBoard() {
                   <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">기한</label>
+              <input
+                type="date"
+                value={newDir.deadline}
+                onChange={e => setNewDir(prev => ({ ...prev, deadline: e.target.value }))}
+                className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"
+              />
             </div>
           </div>
           <input
@@ -316,27 +371,94 @@ export default function CEOBoard() {
         </div>
       )}
 
-      {data && (
+      {data && (() => {
+        // === 처리 필요 건 계산 ===
+        // 보낸 지시 중 내가 확인해야 하는 건: completed(확인 대기), countered(대안 검토)
+        const sentNeedAction = sentDirectives.filter(d =>
+          d.status === 'completed' || d.status === 'countered'
+        );
+        // 받은 것 중 내가 처리해야 하는 건: pending, reopened (아직 액션 안 한 것)
+        const recvNeedAction = receivedDirectives.filter(d =>
+          ['pending', 'reopened'].includes(d.status)
+        );
+        const totalNeedAction = sentNeedAction.length + recvNeedAction.length;
+
+        // 보낸 지시 중 기한 초과
+        const sentOverdue = sentDirectives.filter(d =>
+          d.deadline && new Date(d.deadline) < new Date() &&
+          !['completed', 'verified', 'agreed', 'rejected'].includes(d.status)
+        );
+
+        return (
         <>
+          {/* === 처리 필요 알림 배너 === */}
+          {totalNeedAction > 0 && (
+            <div className="bg-orange-50 border border-orange-300 rounded-xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg">
+                  {totalNeedAction}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-orange-900">처리 필요한 건이 있습니다</div>
+                  <div className="text-xs text-orange-700 flex gap-3 mt-0.5">
+                    {sentNeedAction.length > 0 && (
+                      <span>보낸 지시 확인 대기 <strong>{sentNeedAction.length}</strong>건</span>
+                    )}
+                    {recvNeedAction.length > 0 && (
+                      <span>받은 보고 처리 대기 <strong>{recvNeedAction.length}</strong>건</span>
+                    )}
+                    {sentOverdue.length > 0 && (
+                      <span className="text-red-600">기한 초과 <strong>{sentOverdue.length}</strong>건</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {sentNeedAction.length > 0 && (
+                  <button onClick={() => setActiveTab('directive')}
+                    className="px-3 py-1.5 text-xs font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition">
+                    보낸 지시 확인 →
+                  </button>
+                )}
+                {recvNeedAction.length > 0 && (
+                  <button onClick={() => setActiveTab('inbox')}
+                    className="px-3 py-1.5 text-xs font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition">
+                    받은 보고 처리 →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+            <div className={`border rounded-xl p-4 text-center cursor-pointer transition hover:shadow-md ${totalNeedAction > 0 ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-200'}`}
+              onClick={() => setActiveTab(sentNeedAction.length > 0 ? 'directive' : 'inbox')}>
+              <div className={`text-2xl font-bold ${totalNeedAction > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{totalNeedAction}</div>
+              <div className="text-xs text-orange-600 font-medium">처리 필요</div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition"
+              onClick={() => setActiveTab('issues')}>
               <div className="text-2xl font-bold text-red-700">{data.total_open}</div>
               <div className="text-xs text-red-600">병목 업무</div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition"
+              onClick={() => setActiveTab('issues')}>
               <div className="text-2xl font-bold text-amber-700">{data.total_delayed}</div>
               <div className="text-xs text-amber-600">지연 업무</div>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition"
+              onClick={() => setActiveTab('issues')}>
               <div className="text-2xl font-bold text-blue-700">{data.total_approval}</div>
               <div className="text-xs text-blue-600">승인 대기</div>
             </div>
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-indigo-700">{sentDirectives.filter(d => d.status !== 'completed').length}</div>
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition"
+              onClick={() => setActiveTab('directive')}>
+              <div className="text-2xl font-bold text-indigo-700">{sentDirectives.length}</div>
               <div className="text-xs text-indigo-600">보낸 지시</div>
             </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition"
+              onClick={() => setActiveTab('inbox')}>
               <div className="text-2xl font-bold text-purple-700">{receivedDirectives.length}</div>
               <div className="text-xs text-purple-600">받은 보고</div>
             </div>
@@ -346,8 +468,8 @@ export default function CEOBoard() {
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
             {([
               { key: 'issues' as const, label: `이슈 관리 (${data.total_open + data.total_delayed + data.total_approval})` },
-              { key: 'directive' as const, label: `보낸 지시 (${sentDirectives.length})` },
-              { key: 'inbox' as const, label: `받은 보고 (${receivedDirectives.length})` },
+              { key: 'directive' as const, label: `보낸 지시 ${sentNeedAction.length > 0 ? `(${sentNeedAction.length} 확인 필요)` : `(${sentDirectives.length})`}` },
+              { key: 'inbox' as const, label: `받은 보고 ${recvNeedAction.length > 0 ? `(${recvNeedAction.length} 처리 필요)` : `(${receivedDirectives.length})`}` },
             ]).map(t => (
               <button
                 key={t.key}
@@ -404,35 +526,123 @@ export default function CEOBoard() {
 
           {/* === 보낸 지시 탭 === */}
           {activeTab === 'directive' && (
-            <div className="space-y-3">
-              {sentDirectives.length === 0 ? (
+            <div className="space-y-4">
+              {/* 확인 필요 그룹 */}
+              {sentNeedAction.length > 0 && (
+                <section>
+                  <h2 className="text-sm font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">{sentNeedAction.length}</span>
+                    내 확인이 필요한 건
+                  </h2>
+                  <div className="space-y-2">
+                    {sentNeedAction.map(d => (
+                      <DirectiveCard key={d.id} directive={d} mode="sent" onAction={handleDirectiveAction} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 기한 초과 그룹 */}
+              {sentOverdue.length > 0 && (
+                <section>
+                  <h2 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">{sentOverdue.length}</span>
+                    기한 초과
+                  </h2>
+                  <div className="space-y-2">
+                    {sentOverdue.filter(d => !sentNeedAction.find(a => a.id === d.id)).map(d => (
+                      <DirectiveCard key={d.id} directive={d} mode="sent" onAction={handleDirectiveAction} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 나머지 지시 */}
+              {(() => {
+                const actionIds = new Set([...sentNeedAction.map(d => d.id), ...sentOverdue.map(d => d.id)]);
+                const rest = sentDirectives.filter(d => !actionIds.has(d.id));
+                return rest.length > 0 ? (
+                  <section>
+                    <h2 className="text-sm font-semibold text-gray-500 mb-2">진행 중 / 완료</h2>
+                    <div className="space-y-2">
+                      {rest.map(d => (
+                        <DirectiveCard key={d.id} directive={d} mode="sent" onAction={handleDirectiveAction} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null;
+              })()}
+
+              {sentDirectives.length === 0 && (
                 <div className="bg-gray-50 rounded-xl p-8 text-center text-sm text-gray-400">
                   보낸 업무지시가 없습니다
                 </div>
-              ) : (
-                sentDirectives.map(d => (
-                  <DirectiveCard key={d.id} directive={d} mode="sent" />
-                ))
               )}
             </div>
           )}
 
           {/* === 받은 보고 탭 === */}
           {activeTab === 'inbox' && (
-            <div className="space-y-3">
-              {receivedDirectives.length === 0 ? (
+            <div className="space-y-4">
+              {/* 처리 필요 그룹 */}
+              {recvNeedAction.length > 0 && (
+                <section>
+                  <h2 className="text-sm font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">{recvNeedAction.length}</span>
+                    내 처리가 필요한 건
+                  </h2>
+                  <div className="space-y-2">
+                    {recvNeedAction.map(d => (
+                      <DirectiveCard key={d.id} directive={d} mode="received" onAction={handleDirectiveAction} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 진행 중 */}
+              {(() => {
+                const inProgress = receivedDirectives.filter(d =>
+                  ['acknowledged', 'in_progress'].includes(d.status)
+                );
+                return inProgress.length > 0 ? (
+                  <section>
+                    <h2 className="text-sm font-semibold text-purple-600 mb-2">진행 중</h2>
+                    <div className="space-y-2">
+                      {inProgress.map(d => (
+                        <DirectiveCard key={d.id} directive={d} mode="received" onAction={handleDirectiveAction} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null;
+              })()}
+
+              {/* 완료/기타 */}
+              {(() => {
+                const done = receivedDirectives.filter(d =>
+                  !['pending', 'reopened', 'acknowledged', 'in_progress'].includes(d.status)
+                );
+                return done.length > 0 ? (
+                  <section>
+                    <h2 className="text-sm font-semibold text-gray-500 mb-2">완료</h2>
+                    <div className="space-y-2">
+                      {done.map(d => (
+                        <DirectiveCard key={d.id} directive={d} mode="received" onAction={handleDirectiveAction} />
+                      ))}
+                    </div>
+                  </section>
+                ) : null;
+              })()}
+
+              {receivedDirectives.length === 0 && (
                 <div className="bg-gray-50 rounded-xl p-8 text-center text-sm text-gray-400">
                   받은 보고/요청이 없습니다
                 </div>
-              ) : (
-                receivedDirectives.map(d => (
-                  <DirectiveCard key={d.id} directive={d} mode="received" onAction={handleDirectiveAction} />
-                ))
               )}
             </div>
           )}
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -441,9 +651,10 @@ export default function CEOBoard() {
 function DirectiveCard({ directive: d, mode, onAction }: {
   directive: Directive;
   mode: 'sent' | 'received';
-  onAction?: (id: number, action: 'acknowledge' | 'start' | 'complete' | 'reject', memo?: string) => void;
+  onAction?: (id: number, action: string, memo?: string) => void;
 }) {
   const [showMemo, setShowMemo] = useState(false);
+  const [memoAction, setMemoAction] = useState<string>('complete');
   const [memo, setMemo] = useState('');
 
   const TYPE_ICONS: Record<string, string> = { directive: '↓', report: '↑', lateral: '↔' };
@@ -451,31 +662,85 @@ function DirectiveCard({ directive: d, mode, onAction }: {
   const PRIORITY_DOTS: Record<string, string> = {
     urgent: 'bg-red-500', high: 'bg-orange-500', normal: 'bg-blue-400', low: 'bg-gray-400',
   };
+  const REPORT_TYPE_LABELS: Record<string, string> = {
+    daily_ops: '일일 운영', cleaning_summary: '청소 현황', field_incident: '현장 사고',
+    cost_report: '비용 보고', escalation: '상향 결재',
+  };
+
+  const isOverdue = d.deadline && new Date(d.deadline) < new Date() &&
+    !['completed', 'verified', 'agreed', 'rejected'].includes(d.status);
+
+  const openMemoFor = (action: string, placeholder: string) => {
+    setMemoAction(action);
+    setMemo('');
+    setShowMemo(true);
+  };
+
+  const submitMemo = () => {
+    if (onAction) onAction(d.id, memoAction, memo);
+    setShowMemo(false);
+    setMemo('');
+  };
+
+  const MEMO_PLACEHOLDERS: Record<string, string> = {
+    complete: '완료 메모 (예: 가격 인하 10% 적용 완료)',
+    reopen: '재작업 사유 (예: 데이터 누락, 재확인 필요)',
+    approve: '승인 메모 (선택)',
+    'request-revision': '수정 요청 사항',
+    counter: '대안 내용',
+    escalate: 'Founder 중재 요청 사유',
+    reject: '반려 사유',
+  };
 
   return (
-    <div className={`bg-white border rounded-xl p-4 ${d.has_conflict ? 'border-red-200' : 'border-gray-200'}`}>
+    <div className={`bg-white border rounded-xl p-4 ${d.has_conflict ? 'border-red-200' : isOverdue ? 'border-orange-300' : 'border-gray-200'}`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${PRIORITY_DOTS[d.priority] ?? 'bg-gray-400'}`} />
           <span className="text-xs font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
             {TYPE_ICONS[d.type]} {TYPE_LABELS[d.type]}
           </span>
+          {d.report_type && (
+            <span className="text-xs font-medium bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded">
+              {REPORT_TYPE_LABELS[d.report_type] || d.report_type}
+            </span>
+          )}
           <span className="text-sm font-medium text-gray-900">{d.title}</span>
+          {d.revision_count > 0 && (
+            <span className="text-xs text-orange-500">수정 {d.revision_count}회</span>
+          )}
         </div>
-        <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_BADGES[d.status]?.bg ?? 'bg-gray-100'}`}>
-          {STATUS_BADGES[d.status]?.label ?? d.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {isOverdue && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-red-600 text-white">기한 초과</span>
+          )}
+          {d.deadline && !isOverdue && (
+            <span className="text-xs text-gray-400">~{d.deadline.slice(5, 10)}</span>
+          )}
+          <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_BADGES[d.status]?.bg ?? 'bg-gray-100'}`}>
+            {STATUS_BADGES[d.status]?.label ?? d.status}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-        <span>{d.from_user_name} ({ROLE_LABELS[d.from_role]})</span>
+        <span>{d.from_user_name} ({ROLE_LABELS[d.from_role] || d.from_role})</span>
         <span className="text-gray-300">→</span>
-        <span>{d.to_user_name} ({ROLE_LABELS[d.to_role]})</span>
+        <span>{d.to_user_name} ({ROLE_LABELS[d.to_role] || d.to_role})</span>
+        {d.verified_by && <span className="text-emerald-600 ml-2">확인: {d.verified_by}</span>}
         <span className="text-gray-300 ml-auto">{d.created_at?.slice(5, 16)}</span>
       </div>
 
       {d.content && <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 mb-2">{d.content}</div>}
-      {d.result_memo && <div className="text-xs text-green-700 bg-green-50 rounded p-2 mb-2">결과: {d.result_memo}</div>}
+      {d.result_memo && (
+        <div className={`text-xs rounded p-2 mb-2 ${
+          d.status === 'rejected' ? 'bg-red-50 text-red-600' :
+          d.status === 'reopened' ? 'bg-orange-50 text-orange-700' :
+          'bg-green-50 text-green-700'
+        }`}>
+          {d.status === 'reopened' ? '수정 요청: ' : '결과: '}{d.result_memo}
+        </div>
+      )}
 
       {d.server_analysis && (
         <div className={`text-xs rounded p-2 mb-2 whitespace-pre-line ${d.has_conflict ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -483,69 +748,124 @@ function DirectiveCard({ directive: d, mode, onAction }: {
         </div>
       )}
 
-      {/* 받은 보고/지시에 대한 액션 */}
-      {mode === 'received' && onAction && d.status !== 'completed' && d.status !== 'rejected' && (
+      {/* === 보낸 지시 — 발신자 액션 === */}
+      {mode === 'sent' && onAction && (
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-          {d.status === 'pending' && (
-            <button
-              onClick={() => onAction(d.id, 'acknowledge')}
-              className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition"
-            >
-              확인
-            </button>
+          {/* 지시 완료 → 확인/재작업 */}
+          {d.type === 'directive' && d.status === 'completed' && (
+            <>
+              <button onClick={() => onAction(d.id, 'verify')}
+                className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition">
+                완료 확인
+              </button>
+              <button onClick={() => openMemoFor('reopen', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition">
+                재작업 요청
+              </button>
+            </>
           )}
-          {(d.status === 'acknowledged' || d.status === 'pending') && (
-            <button
-              onClick={() => onAction(d.id, 'start')}
-              className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition"
-            >
-              진행 시작
-            </button>
+          {/* lateral 대안 → 수정하여 재전송 or 중재 */}
+          {d.type === 'lateral' && d.status === 'countered' && (
+            <>
+              <button onClick={() => onAction(d.id, 'agree')}
+                className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition">
+                대안 수용
+              </button>
+              <button onClick={() => openMemoFor('escalate', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition">
+                Founder 중재
+              </button>
+            </>
           )}
-          <button
-            onClick={() => setShowMemo(!showMemo)}
-            className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition"
-          >
-            완료 보고
-          </button>
-          <button
-            onClick={() => {
-              const reason = prompt('반려 사유를 입력하세요');
-              if (reason) onAction(d.id, 'reject', reason);
-            }}
-            className="px-3 py-1.5 text-xs font-medium bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition ml-auto"
-          >
-            반려
-          </button>
         </div>
       )}
 
+      {/* === 받은 보고/지시 — 수신자 액션 === */}
+      {mode === 'received' && onAction && !['verified', 'agreed', 'rejected'].includes(d.status) && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+          {/* 공통: directive 수신자 액션 */}
+          {d.type === 'directive' && (
+            <>
+              {d.status === 'pending' && (
+                <button onClick={() => onAction(d.id, 'acknowledge')}
+                  className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition">
+                  확인
+                </button>
+              )}
+              {['pending', 'acknowledged', 'reopened'].includes(d.status) && (
+                <button onClick={() => onAction(d.id, 'start')}
+                  className="px-3 py-1.5 text-xs font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">
+                  진행 시작
+                </button>
+              )}
+              {['in_progress', 'acknowledged', 'reopened'].includes(d.status) && (
+                <button onClick={() => openMemoFor('complete', '')}
+                  className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition">
+                  완료 보고
+                </button>
+              )}
+              <button onClick={() => openMemoFor('reject', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition ml-auto">
+                반려
+              </button>
+            </>
+          )}
+
+          {/* 보고(report) 수신자(상위자) 액션 */}
+          {d.type === 'report' && ['pending', 'completed'].includes(d.status) && (
+            <>
+              <button onClick={() => openMemoFor('approve', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition">
+                승인
+              </button>
+              <button onClick={() => openMemoFor('request-revision', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition">
+                수정 요청
+              </button>
+              <button onClick={() => openMemoFor('reject', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition ml-auto">
+                반려
+              </button>
+            </>
+          )}
+
+          {/* lateral 수신자 액션 */}
+          {d.type === 'lateral' && ['pending', 'acknowledged'].includes(d.status) && (
+            <>
+              <button onClick={() => onAction(d.id, 'agree')}
+                className="px-3 py-1.5 text-xs font-medium bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 transition">
+                합의
+              </button>
+              <button onClick={() => openMemoFor('counter', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition">
+                대안 제시
+              </button>
+              <button onClick={() => openMemoFor('escalate', '')}
+                className="px-3 py-1.5 text-xs font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition ml-auto">
+                Founder 중재
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 메모 입력 영역 */}
       {showMemo && (
         <div className="flex items-center gap-2 mt-2">
           <input
-            type="text"
-            value={memo}
-            onChange={e => setMemo(e.target.value)}
-            placeholder="완료 메모 (예: 가격 인하 10% 적용 완료)"
+            type="text" value={memo} onChange={e => setMemo(e.target.value)}
+            placeholder={MEMO_PLACEHOLDERS[memoAction] || '메모'}
             className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2"
-            onKeyDown={e => {
-              if (e.key === 'Enter' && onAction) {
-                onAction(d.id, 'complete', memo);
-                setShowMemo(false);
-                setMemo('');
-              }
-            }}
+            onKeyDown={e => { if (e.key === 'Enter') submitMemo(); }}
             autoFocus
           />
-          <button
-            onClick={() => {
-              if (onAction) onAction(d.id, 'complete', memo);
-              setShowMemo(false);
-              setMemo('');
-            }}
-            className="px-3 py-2 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700"
-          >
-            보고
+          <button onClick={submitMemo}
+            className="px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700">
+            전송
+          </button>
+          <button onClick={() => setShowMemo(false)}
+            className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700">
+            취소
           </button>
         </div>
       )}

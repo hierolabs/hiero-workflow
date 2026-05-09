@@ -56,6 +56,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	marketDataHandler := handler.NewMarketDataHandler()
 	monthlyReportHandler := handler.NewMonthlyReportHandler()
 	schedulerHandler := handler.NewSchedulerHandler(schedulerInstance)
+	devProjectHandler := handler.NewDevProjectHandler()
 
 	admin := r.Group("/admin")
 	{
@@ -347,16 +348,32 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/etf-board/cross-activity", etfBoardHandler.CrossActivity)
 			protected.GET("/etf-board/got", etfBoardHandler.GOTSummary)
 
+			// 개발 프로젝트 추적
+			protected.GET("/dev-projects", devProjectHandler.List)
+			protected.GET("/dev-projects/progress", devProjectHandler.AllProgress)
+			protected.GET("/dev-projects/:id", devProjectHandler.Get)
+			protected.GET("/dev-projects/:id/progress", devProjectHandler.Progress)
+			protected.PATCH("/dev-milestones/:id/status", devProjectHandler.UpdateMilestoneStatus)
+
 			// ETF 업무지시/보고 시스템
 			protected.POST("/directives", directiveHandler.Create)
 			protected.GET("/directives", directiveHandler.ListAll)
 			protected.GET("/directives/sent", directiveHandler.ListSent)
 			protected.GET("/directives/received", directiveHandler.ListReceived)
+			protected.GET("/directives/visible", directiveHandler.ListVisible)
+			protected.GET("/directives/overdue", directiveHandler.ListOverdue)
 			protected.GET("/directives/relationship", directiveHandler.Relationship)
 			protected.PATCH("/directives/:id/acknowledge", directiveHandler.Acknowledge)
 			protected.PATCH("/directives/:id/start", directiveHandler.Start)
 			protected.PATCH("/directives/:id/complete", directiveHandler.Complete)
 			protected.PATCH("/directives/:id/reject", directiveHandler.Reject)
+			protected.PATCH("/directives/:id/verify", directiveHandler.Verify)
+			protected.PATCH("/directives/:id/reopen", directiveHandler.Reopen)
+			protected.PATCH("/directives/:id/approve", directiveHandler.Approve)
+			protected.PATCH("/directives/:id/request-revision", directiveHandler.RequestRevision)
+			protected.PATCH("/directives/:id/agree", directiveHandler.Agree)
+			protected.PATCH("/directives/:id/counter", directiveHandler.Counter)
+			protected.PATCH("/directives/:id/escalate", directiveHandler.Escalate)
 
 			// 알림 + 업무 로그
 			protected.GET("/notifications", notifHandler.List)

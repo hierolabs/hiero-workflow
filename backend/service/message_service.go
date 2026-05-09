@@ -331,7 +331,7 @@ func (s *MessageService) HandleIncomingMessage(reservationCode string) {
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
-		notifSvc.NotifyByRoleTitle("execution", models.NotifTypeMessage,
+		notifSvc.NotifyByRoleTitle("operations", models.NotifTypeMessage,
 			"새 게스트 메시지",
 			fmt.Sprintf("%s님 메시지 %d건: %s", conv.GuestName, newCount, preview),
 			nil, conv.GuestName)
@@ -372,7 +372,7 @@ func (s *MessageService) SendMessage(conversationID string, content string) (*mo
 			fmt.Sprintf("메시지 발송 → %s: %s", conv.GuestName, msgTruncate(content, 100)))
 
 		notifSvc := NewNotificationService()
-		notifSvc.NotifyByRoleTitle("execution", models.NotifTypeMessage,
+		notifSvc.NotifyByRoleTitle("operations", models.NotifTypeMessage,
 			"호스트 메시지 발송",
 			fmt.Sprintf("%s에게 메시지 발송: %s", conv.GuestName, msgTruncate(content, 100)),
 			nil, "호스트")

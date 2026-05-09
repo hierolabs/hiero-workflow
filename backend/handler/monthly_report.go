@@ -15,13 +15,20 @@ func NewMonthlyReportHandler() *MonthlyReportHandler {
 	return &MonthlyReportHandler{}
 }
 
-// List GET /admin/reports/monthly?month=2026-04
+// List GET /admin/reports/monthly?month=2026-04 OR ?start_date=2026-01-01&end_date=2026-05-10
 func (h *MonthlyReportHandler) List(c *gin.Context) {
 	month := c.Query("month")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 
 	db := config.DB.Model(&models.MonthlyPropertyReport{}).Order("gross DESC")
 	if month != "" {
 		db = db.Where("month = ?", month)
+	} else if startDate != "" && endDate != "" {
+		// start_date/end_date → 해당 기간에 포함되는 월들 (YYYY-MM)
+		startMonth := startDate[:7] // "2026-01"
+		endMonth := endDate[:7]     // "2026-05"
+		db = db.Where("month >= ? AND month <= ?", startMonth, endMonth)
 	}
 
 	var reports []models.MonthlyPropertyReport

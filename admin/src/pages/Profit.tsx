@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import api from '../utils/api';
 import AiAgentPanel from '../components/AiAgentPanel';
+import PeriodFilter, { calcRange, type PeriodKey } from '../components/PeriodFilter';
 
 interface MonthlyReport {
   id: number;
@@ -25,29 +26,28 @@ interface MonthlyReport {
 const fmt = (n: number) => n.toLocaleString('ko-KR');
 
 export default function Profit() {
-  const [month, setMonth] = useState('');
-  const [months, setMonths] = useState<string[]>([]);
+  const [period, setPeriod] = useState<PeriodKey>("this_month");
+  const [startDate, setStartDate] = useState(() => calcRange("this_month")[0]);
+  const [endDate, setEndDate] = useState(() => calcRange("this_month")[1]);
   const [reports, setReports] = useState<MonthlyReport[]>([]);
   const [summary, setSummary] = useState<{ total_gross: number; total_cost: number; total_net: number; avg_aor: number; avg_margin: number }>({ total_gross: 0, total_cost: 0, total_net: 0, avg_aor: 0, avg_margin: 0 });
   const [sortBy, setSortBy] = useState<'net' | 'margin' | 'gross'>('net');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/reports/months').then(res => {
-      const m = res.data || [];
-      setMonths(m);
-      if (m.length > 0) setMonth(m[0]);
-    });
-  }, []);
+  const handlePeriodChange = (key: PeriodKey, start: string, end: string) => {
+    setPeriod(key);
+    setStartDate(start);
+    setEndDate(end);
+  };
 
   useEffect(() => {
-    if (!month) return;
+    if (!startDate || !endDate) return;
     setLoading(true);
-    api.get(`/reports/monthly?month=${month}`).then(res => {
+    api.get(`/reports/monthly?start_date=${startDate}&end_date=${endDate}`).then(res => {
       setReports(res.data.reports || []);
       setSummary(res.data.summary || { total_gross: 0, total_cost: 0, total_net: 0, avg_aor: 0, avg_margin: 0 });
     }).finally(() => setLoading(false));
-  }, [month]);
+  }, [startDate, endDate]);
 
   const sorted = [...reports].sort((a, b) => {
     if (sortBy === 'net') return b.net - a.net;
@@ -62,6 +62,11 @@ export default function Profit() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Data 3 · 수익성 분석</h1>
         <p className="text-sm text-slate-500 mt-1">월간 매출·비용·순이익·마진율 (monthly_property_reports 실데이터)</p>
+      </div>
+
+      {/* Period Filter */}
+      <div className="mb-5">
+        <PeriodFilter value={period} onChange={handlePeriodChange} />
       </div>
 
       {/* Summary */}
@@ -90,10 +95,6 @@ export default function Profit() {
 
       {/* Filters */}
       <div className="flex gap-3 mb-4">
-        <select value={month} onChange={e => setMonth(e.target.value)}
-          className="px-3 py-1.5 border border-slate-300 rounded-md text-sm">
-          {months.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
         <select value={sortBy} onChange={e => setSortBy(e.target.value as 'net' | 'margin' | 'gross')}
           className="px-3 py-1.5 border border-slate-300 rounded-md text-sm">
           <option value="net">순이익순</option>
@@ -139,7 +140,7 @@ export default function Profit() {
           </thead>
           <tbody>
             {sorted.map(p => (
-              <tr key={p.property_id} className="border-b border-slate-100 hover:bg-slate-50">
+              <tr key={`${p.property_id}-${p.month}`} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-800 max-w-[200px] truncate">{p.property_name}</td>
                 <td className="px-4 py-3 text-right text-slate-600">{(p.aor * 100).toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right text-slate-600">{fmt(p.adr)}</td>
