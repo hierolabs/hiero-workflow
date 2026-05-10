@@ -84,6 +84,7 @@ func main() {
 		&models.ETFDirective{},
 		&models.GOTReport{},
 		&models.GOTAlert{},
+		&models.DailyTaskCheck{},
 		&models.DevProject{},
 		&models.DevMilestone{},
 	)

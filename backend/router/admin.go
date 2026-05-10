@@ -37,6 +37,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	issueDetectionHandler := handler.NewIssueDetectionHandler()
 	opsFeedHandler := handler.NewOpsFeedHandler()
 	opsPulseHandler := handler.NewOpsPulseHandler()
+	dailyTaskHandler := handler.NewDailyTaskHandler()
 	csAgentHandler := handler.NewCSAgentHandler()
 	notifHandler := handler.NewNotificationHandler()
 	wikiHandler := handler.NewWikiHandler()
@@ -402,6 +403,9 @@ func registerAdminRoutes(r *gin.Engine) {
 			// 오늘 운영 피드
 			protected.GET("/ops/feed", opsFeedHandler.Feed)
 			protected.GET("/ops/pulse", opsPulseHandler.Pulse)
+			protected.GET("/daily-tasks", dailyTaskHandler.List)
+			protected.POST("/daily-tasks/check", dailyTaskHandler.Check)
+			protected.POST("/daily-tasks/bulk-check", dailyTaskHandler.BulkCheck)
 
 			// 팀 채팅
 			protected.GET("/chat/channels", teamChatHandler.ListChannels)

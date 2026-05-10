@@ -757,101 +757,191 @@ function FeedCard({ title, badge, badgeColor, empty, items, prefix, navigate }: 
   );
 }
 
-// === TaskDetail: 업무 항목 클릭 시 상세 목록 ===
+// === TaskDetail: 업무 항목 클릭 시 상세 목록 + 체크포인트 ===
 function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; navigate: (p: string) => void }) {
-  const [items, setItems] = useState<{id: number; label: string; sub: string; done: boolean; link: string}[]>([]);
+  const [items, setItems] = useState<{id: number; label: string; sub: string; done: boolean; checkStatus: string; link: string}[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const userName = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}').name || ''; } catch { return ''; } })();
+
+  const API_URL = import.meta.env.VITE_API_URL;
+  const headers = (): Record<string, string> => ({ Authorization: `Bearer ${localStorage.getItem('token') || ''}`, 'Content-Type': 'application/json' });
+
+  const loadChecks = async (rawItems: {id: number; label: string; sub: string; done: boolean; link: string}[]) => {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const res = await fetch(`${API_URL}/daily-tasks?date=${today}&task_key=${taskKey}`, { headers: headers() });
+      const d = await res.json();
+      const checks = d.checks || [];
+      const checkMap: Record<number, string> = {};
+      checks.forEach((c: {ref_id: number; status: string}) => { checkMap[c.ref_id] = c.status; });
+      setItems(rawItems.map(item => ({
+        ...item,
+        checkStatus: checkMap[item.id] || '',
+        done: item.done || !!checkMap[item.id],
+      })));
+    } catch {
+      setItems(rawItems.map(item => ({ ...item, checkStatus: '' })));
+    }
+  };
+
+  const doCheck = async (refId: number, status: string) => {
+    await fetch(`${API_URL}/daily-tasks/check`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ task_key: taskKey, ref_id: refId, status, checked_by: userName }),
+    });
+    // 갱신
+    setItems(prev => prev.map(item =>
+      item.id === refId ? { ...item, checkStatus: status, done: true } : item
+    ));
+  };
+
+  const doBulkCheck = async (status: string) => {
+    const unchecked = items.filter(i => !i.checkStatus);
+    if (unchecked.length === 0) return;
+    await fetch(`${API_URL}/daily-tasks/bulk-check`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ task_key: taskKey, ref_ids: unchecked.map(i => i.id), status, checked_by: userName }),
+    });
+    setItems(prev => prev.map(item =>
+      !item.checkStatus ? { ...item, checkStatus: status, done: true } : item
+    ));
+    setShowBulk(false);
+  };
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
-    const token = localStorage.getItem('token');
-    const headers: Record<string, string> = { Authorization: `Bearer ${token || ''}` };
-    const API_URL = import.meta.env.VITE_API_URL;
+    const h = headers();
 
-    if (taskKey === 'manual_checkin') {
-      fetch(`${API_URL}/reservations?check_in_date=${today}&page_size=50`, { headers })
-        .then(r => r.json())
-        .then(d => {
-          const reservations = d.reservations || d.data || [];
-          const manual = reservations.filter((r: { channel_name: string }) =>
-            r.channel_name && !['Airbnb', 'airbnb'].includes(r.channel_name)
-          );
-          setItems(manual.map((r: { id: number; guest_name: string; channel_name: string; property_name: string; conversation_id: string }) => ({
-            id: r.id,
-            label: `${r.guest_name} — ${r.channel_name}`,
-            sub: r.property_name || '',
-            done: !!r.conversation_id,
-            link: '/messages',
-          })));
-          setLoaded(true);
-        }).catch(() => setLoaded(true));
-    } else if (taskKey === 'cleaning') {
-      fetch(`${API_URL}/cleaning?date=${today}&page_size=50`, { headers })
-        .then(r => r.json())
-        .then(d => {
-          const tasks = d.tasks || d.data || [];
-          setItems(tasks.map((t: { id: number; property_name: string; cleaner_name: string; status: string }) => ({
-            id: t.id,
-            label: t.property_name || `청소 #${t.id}`,
-            sub: t.cleaner_name || '미배정',
-            done: t.status === 'completed',
-            link: '/cleaning',
-          })));
-          setLoaded(true);
-        }).catch(() => setLoaded(true));
-    } else if (taskKey === 'issues') {
-      fetch(`${API_URL}/issues?status=open&page_size=20`, { headers })
-        .then(r => r.json())
-        .then(d => {
-          const issues = d.issues || [];
-          setItems(issues.map((i: { id: number; title: string; assignee_name: string; priority: string }) => ({
-            id: i.id,
-            label: `[${i.priority}] ${i.title}`,
-            sub: i.assignee_name || '미배정',
-            done: false,
-            link: '/issues',
-          })));
-          setLoaded(true);
-        }).catch(() => setLoaded(true));
-    } else if (taskKey === 'detections') {
-      fetch(`${API_URL}/issue-detections`, { headers })
-        .then(r => r.json())
-        .then(d => {
-          const dets = (d.detections || []).filter((x: { status: string }) => x.status === 'pending' || x.status === 'responding');
-          setItems(dets.map((x: { id: number; guest_name: string; detected_category: string; property_name: string; status: string }) => ({
-            id: x.id,
-            label: `${x.guest_name} — ${x.detected_category}`,
-            sub: x.property_name || '',
-            done: x.status !== 'pending',
-            link: '/issue-detections',
-          })));
-          setLoaded(true);
-        }).catch(() => setLoaded(true));
-    } else {
+    const load = async () => {
+      let rawItems: {id: number; label: string; sub: string; done: boolean; link: string}[] = [];
+
+      if (taskKey === 'manual_checkin') {
+        const res = await fetch(`${API_URL}/reservations?check_in_date=${today}&page_size=50`, { headers: h });
+        const d = await res.json();
+        const all = d.reservations || d.data || [];
+        const manual = all.filter((r: {channel_name: string}) => r.channel_name && !['Airbnb','airbnb'].includes(r.channel_name));
+        rawItems = manual.map((r: {id:number;guest_name:string;channel_name:string;property_name:string;conversation_id:string}) => ({
+          id: r.id, label: `${r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
+          done: !!r.conversation_id, link: '/messages',
+        }));
+      } else if (taskKey === 'cleaning') {
+        const res = await fetch(`${API_URL}/cleaning?date=${today}&page_size=50`, { headers: h });
+        const d = await res.json();
+        rawItems = (d.tasks || d.data || []).map((t: {id:number;property_name:string;cleaner_name:string;status:string}) => ({
+          id: t.id, label: t.property_name || `청소 #${t.id}`, sub: t.cleaner_name || '미배정',
+          done: t.status === 'completed', link: '/cleaning',
+        }));
+      } else if (taskKey === 'issues') {
+        const res = await fetch(`${API_URL}/issues?status=open&page_size=20`, { headers: h });
+        const d = await res.json();
+        rawItems = (d.issues || []).map((i: {id:number;title:string;assignee_name:string;priority:string}) => ({
+          id: i.id, label: `[${i.priority}] ${i.title}`, sub: i.assignee_name || '미배정',
+          done: false, link: '/issues',
+        }));
+      } else if (taskKey === 'detections') {
+        const res = await fetch(`${API_URL}/issue-detections`, { headers: h });
+        const d = await res.json();
+        const dets = (d.detections || []).filter((x: {status:string}) => x.status === 'pending' || x.status === 'responding');
+        rawItems = dets.map((x: {id:number;guest_name:string;detected_category:string;property_name:string;status:string}) => ({
+          id: x.id, label: `${x.guest_name} — ${x.detected_category}`, sub: x.property_name || '',
+          done: x.status !== 'pending', link: '/issue-detections',
+        }));
+      }
+
+      await loadChecks(rawItems);
       setLoaded(true);
-    }
+    };
+
+    load().catch(() => setLoaded(true));
   }, [taskKey]);
 
   if (!loaded) return <div className="px-6 py-2 text-xs text-gray-400">로딩...</div>;
   if (items.length === 0) return <div className="px-6 py-2 text-xs text-gray-400">해당 항목 없음</div>;
 
+  const uncheckedCount = items.filter(i => !i.checkStatus).length;
+  const STATUS_BADGE: Record<string, {label: string; color: string}> = {
+    completed: { label: '완료', color: 'bg-emerald-500 text-white' },
+    rejected: { label: '반려', color: 'bg-red-500 text-white' },
+    deleted: { label: '삭제', color: 'bg-gray-500 text-white' },
+  };
+
   return (
-    <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 space-y-1">
-      {items.map(item => (
-        <div key={item.id}
-          onClick={() => navigate(item.link)}
-          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white cursor-pointer transition">
-          <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
-            item.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300'
-          }`}>
-            {item.done ? '✓' : ''}
-          </span>
-          <span className={`text-sm flex-1 ${item.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.label}</span>
-          <span className="text-xs text-gray-400">{item.sub}</span>
+    <div className="bg-gray-50 border-t border-gray-100 px-4 py-2">
+      {/* 일괄 처리 버튼 */}
+      {uncheckedCount > 0 && (
+        <div className="flex items-center justify-between py-2 mb-1 border-b border-gray-200">
+          <span className="text-xs text-gray-500">미처리 {uncheckedCount}건</span>
+          <button onClick={() => setShowBulk(true)}
+            className="px-3 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            일괄 처리
+          </button>
         </div>
-      ))}
-      <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
-        {items.filter(i => i.done).length}/{items.length} 완료
+      )}
+
+      {/* 일괄 처리 팝업 */}
+      {showBulk && (
+        <div className="mb-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="text-sm font-medium text-indigo-900 mb-2">미처리 {uncheckedCount}건 일괄 처리</div>
+          <div className="flex gap-2">
+            <button onClick={() => doBulkCheck('completed')}
+              className="px-4 py-2 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+              전체 완료
+            </button>
+            <button onClick={() => doBulkCheck('rejected')}
+              className="px-4 py-2 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600">
+              전체 반려
+            </button>
+            <button onClick={() => doBulkCheck('deleted')}
+              className="px-4 py-2 text-xs font-medium bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+              전체 삭제
+            </button>
+            <button onClick={() => setShowBulk(false)}
+              className="px-4 py-2 text-xs text-gray-500 hover:text-gray-700 ml-auto">
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 항목 목록 */}
+      <div className="space-y-0.5">
+        {items.map(item => (
+          <div key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white transition group">
+            {/* 상태 뱃지 */}
+            {item.checkStatus ? (
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_BADGE[item.checkStatus]?.color || 'bg-gray-100'}`}>
+                {STATUS_BADGE[item.checkStatus]?.label || item.checkStatus}
+              </span>
+            ) : (
+              <span className="w-4 h-4 rounded border border-gray-300 flex-shrink-0" />
+            )}
+
+            {/* 내용 */}
+            <span className={`text-sm flex-1 cursor-pointer hover:text-blue-600 ${item.checkStatus ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+              onClick={() => navigate(item.link)}>
+              {item.label}
+            </span>
+            <span className="text-xs text-gray-400">{item.sub}</span>
+
+            {/* 액션 버튼 (미처리일 때만) */}
+            {!item.checkStatus && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button onClick={() => doCheck(item.id, 'completed')}
+                  className="px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">완료</button>
+                <button onClick={() => doCheck(item.id, 'rejected')}
+                  className="px-2 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 rounded hover:bg-red-200">반려</button>
+                <button onClick={() => doCheck(item.id, 'deleted')}
+                  className="px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded hover:bg-gray-200">삭제</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="text-[10px] text-gray-400 pt-1.5 mt-1 border-t border-gray-100 flex justify-between">
+        <span>{items.filter(i => i.checkStatus === 'completed').length}/{items.length} 완료</span>
+        {items.some(i => i.checkStatus === 'rejected') && <span className="text-red-500">{items.filter(i => i.checkStatus === 'rejected').length}건 반려</span>}
       </div>
     </div>
   );
