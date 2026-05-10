@@ -89,28 +89,6 @@ const TIME_BLOCKS = [
       { text: '현장 이슈 대응', link: '/issues', key: 'issues' },
     ],
   },
-  {
-    id: 'afternoon',
-    time: '13:00 — 17:00',
-    label: '삼투 · 개인입금 · 행정',
-    tasks: [
-      { text: '삼삼엠투 예약 승인/안내', link: '/reservations', key: 'manual_checkin' },
-      { text: '개인입금 계약 관리', link: '/leads', key: 'monthly_leads' },
-      { text: '정산/비용 행정 업무', link: '/settlement', key: 'monthly_settlement' },
-      { text: '청소 완료 확인', link: '/cleaning', key: 'cleaning' },
-    ],
-  },
-  {
-    id: 'evening',
-    time: '17:00 — 23:00',
-    label: '체크인 후 대응',
-    tasks: [
-      { text: '게스트 체크인 후 문의 응답', link: '/messages', key: 'manual_checkin' },
-      { text: '현장 이슈 에스컬레이션', link: '/issues?status=open', key: 'issues' },
-      { text: '미완료 청소 확인', link: '/cleaning', key: 'cleaning' },
-      { text: '내일 체크인/아웃 미리보기', link: '/calendar', key: '' },
-    ],
-  },
 ];
 
 function OverallRing({ pct }: { pct: number }) {
