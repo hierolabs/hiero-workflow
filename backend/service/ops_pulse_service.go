@@ -91,6 +91,20 @@ func (s *OpsPulseService) GetPulse() PulseResult {
 		Color: "amber", Link: "/issue-detections",
 	})
 
+	// 5. 얼리/레이트 체크인 요청 (오늘 감지된 checkin + 연장/레이트)
+	var earlyTotal, earlyDone int64
+	config.DB.Model(&models.IssueDetection{}).
+		Where("DATE(created_at) = ? AND (detected_category = 'checkin' OR detected_keywords LIKE '%연장%' OR detected_keywords LIKE '%레이트%')", today).
+		Count(&earlyTotal)
+	config.DB.Model(&models.IssueDetection{}).
+		Where("DATE(created_at) = ? AND (detected_category = 'checkin' OR detected_keywords LIKE '%연장%' OR detected_keywords LIKE '%레이트%') AND status IN ('resolved', 'issue_created', 'dismissed')", today).
+		Count(&earlyDone)
+	daily = append(daily, PulseItem{
+		Key: "early_late", Label: "얼리/레이트 요청", Frequency: "daily",
+		Total: int(earlyTotal), Done: int(earlyDone), Pct: pct(int(earlyDone), int(earlyTotal)),
+		Color: "purple", Link: "/messages",
+	})
+
 	// ========== WEEKLY: 주 1회 업무 ==========
 	weekly := make([]PulseItem, 0, 2)
 	weekStart := now.AddDate(0, 0, -int(now.Weekday()))

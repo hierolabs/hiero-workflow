@@ -83,11 +83,10 @@ const TIME_BLOCKS = [
   {
     id: 'midday',
     time: '10:00 — 13:00',
-    label: '청소 · 체크인 응대',
+    label: '체크인 응대 · 현장',
     tasks: [
-      { text: '청소 배정 이슈 처리', link: '/cleaning', key: 'cleaning' },
-      { text: '레이트/얼리 체크인 응대', link: '/messages', key: 'manual_checkin' },
-      { text: '현장 이슈 대응 (진태)', link: '/issues', key: 'issues' },
+      { text: '얼리/레이트 체크인 요청 응대', link: '/messages', key: 'early_late' },
+      { text: '현장 이슈 대응', link: '/issues', key: 'issues' },
     ],
   },
   {
@@ -848,6 +847,19 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
         rawItems = dets.map((x: {id:number;guest_name:string;detected_category:string;property_name:string;status:string}) => ({
           id: x.id, label: `${x.guest_name} — ${x.detected_category}`, sub: x.property_name || '',
           done: x.status !== 'pending', link: '/issue-detections',
+        }));
+      } else if (taskKey === 'early_late') {
+        const res = await fetch(`${API_URL}/issue-detections/resolved?start=${today}&end=${today}`, { headers: h });
+        const d = await res.json();
+        const items = (d.items || []).filter((x: {detected_category:string;detected_keywords:string}) =>
+          x.detected_category === 'checkin' || (x.detected_keywords || '').includes('연장') || (x.detected_keywords || '').includes('레이트')
+        );
+        rawItems = items.map((x: {id:number;guest_name:string;detected_keywords:string;property_name:string;status:string;message_content:string}) => ({
+          id: x.id,
+          label: `${x.guest_name} — ${x.detected_keywords}`,
+          sub: x.property_name || '',
+          done: x.status === 'resolved',
+          link: '/messages',
         }));
       }
 
