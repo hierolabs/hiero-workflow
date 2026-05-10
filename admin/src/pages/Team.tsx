@@ -220,6 +220,8 @@ export default function Team() {
   const [newDir, setNewDir] = useState({ type: 'directive', title: '', content: '', priority: 'normal' });
   const [detailModal, setDetailModal] = useState<Directive | null>(null);
   const [actionMemo, setActionMemo] = useState('');
+  const [threadModal, setThreadModal] = useState<{ role: string; name: string; userId: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const fetchAll = () => {
@@ -264,6 +266,7 @@ export default function Team() {
       });
       setSendTo(null);
       setNewDir({ type: 'directive', title: '', content: '', priority: 'normal' });
+      showToast(`→ ${sendTo.name}에게 전송 완료`);
       fetchAll();
     } catch { alert('전송 실패'); }
   };
@@ -282,7 +285,19 @@ export default function Team() {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    const ACTION_TOAST: Record<string, string> = {
+      acknowledge: '확인 처리됨', start: '진행 시작', complete: '완료 보고됨',
+      verify: '완료 확인됨', reopen: '재작업 요청됨', approve: '승인됨',
+      'request-revision': '수정 요청됨', reject: '반려됨',
+      agree: '합의 완료', counter: '대안 제시됨', escalate: '중재 요청됨',
+    };
+    showToast(ACTION_TOAST[action] || '처리됨');
     fetchAll();
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
   };
 
   // 지시 전달 (기존 지시를 다른 역할에게 새 지시로 생성)
@@ -454,22 +469,34 @@ export default function Team() {
             {g.members.map(m => {
               const onto = ROLE_ONTOLOGY[m.role_title];
               const maxResolved = Math.max(...members.map(x => x.stats.resolved_week), 1);
+              const sentToThis = directives.filter(d => d.to_role === m.role_title && (d.from_user_id === currentUser.id || d.from_role === currentUser.role_title));
+              const recvFromThis = directives.filter(d => d.from_role === m.role_title && (d.to_user_id === currentUser.id || d.to_role === currentUser.role_title));
+              const pendingFromThis = recvFromThis.filter(d => ['pending', 'completed'].includes(d.status));
               return (
-                <div key={m.user_id} className={`border rounded-xl p-4 transition hover:shadow-md ${onto?.bgCard || 'border-gray-200 bg-white'}`}>
+                <div key={m.user_id}
+                  className={`border rounded-xl p-4 transition hover:shadow-md cursor-pointer ${pendingFromThis.length > 0 ? 'ring-2 ring-orange-300' : ''} ${onto?.bgCard || 'border-gray-200 bg-white'}`}
+                  onClick={() => m.user_id !== currentUser.id && setThreadModal({ role: m.role_title, name: m.name, userId: m.user_id })}>
                   {/* 헤더 */}
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <button onClick={() => setSelectedRole(selectedRole === m.role_title ? null : m.role_title)}
+                      <button onClick={(e) => { e.stopPropagation(); setSelectedRole(selectedRole === m.role_title ? null : m.role_title); }}
                         className={`px-2 py-0.5 rounded text-xs font-bold ${onto?.color || 'bg-gray-100'}`}>
                         {onto?.label || m.role_title}
                       </button>
-                      <div className="text-sm font-semibold text-gray-900 mt-1 cursor-pointer hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openLogModal(m.name); }}>{m.name}</div>
+                      <div className="text-sm font-semibold text-gray-900 mt-1">{m.name}</div>
                     </div>
-                    {m.stats.unread_notifications > 0 && (
-                      <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {m.stats.unread_notifications}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {sentToThis.length > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600">
+                          ↓{sentToThis.length}
+                        </span>
+                      )}
+                      {recvFromThis.length > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${pendingFromThis.length > 0 ? 'bg-orange-500 text-white' : 'bg-emerald-100 text-emerald-600'}`}>
+                          ↑{recvFromThis.length}{pendingFromThis.length > 0 ? ` (${pendingFromThis.length} 처리)` : ''}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* KPI — 클릭 드릴다운 */}
@@ -662,6 +689,151 @@ export default function Team() {
                   <span className="text-xs text-gray-400">상세 →</span>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* === 대화 쓰레드 모달 === */}
+      {threadModal && (() => {
+        const t = threadModal;
+        const onto = ROLE_ONTOLOGY[t.role];
+        const myRole = currentUser.role_title || 'founder';
+
+        // 나↔상대 사이 모든 directive (양방향)
+        const thread = directives.filter(d =>
+          (d.from_role === myRole && d.to_role === t.role) ||
+          (d.from_role === t.role && d.to_role === myRole)
+        ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        const ARROWS: Record<string, string> = { directive: '↓ 지시', report: '↑ 보고', lateral: '↔ 협의' };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setThreadModal(null)}>
+            <div className="bg-white rounded-2xl w-[600px] max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <div className="px-5 py-4 border-b flex items-center justify-between bg-gray-50 rounded-t-2xl">
+                <div className="flex items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${onto?.color || 'bg-gray-100'}`}>
+                    {onto?.label || t.role}
+                  </span>
+                  <div>
+                    <div className="text-base font-bold text-gray-900">{t.name}</div>
+                    <div className="text-xs text-gray-500">대화 {thread.length}건</div>
+                  </div>
+                </div>
+                <button onClick={() => setThreadModal(null)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+              </div>
+
+              {/* 대화 목록 */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {thread.length === 0 ? (
+                  <div className="text-center text-gray-400 text-sm py-12">주고받은 내용이 없습니다</div>
+                ) : thread.map(d => {
+                  const isMine = d.from_role === myRole;
+                  const statusInfo = STATUS_LABELS[d.status] || { label: d.status, color: 'bg-gray-100' };
+                  return (
+                    <div key={d.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-xl p-3 ${
+                        isMine ? 'bg-indigo-50 border border-indigo-200' : 'bg-white border border-gray-200'
+                      }`}>
+                        {/* 방향 + 유형 + 상태 */}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] text-gray-400">{ARROWS[d.type]}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusInfo.color}`}>{statusInfo.label}</span>
+                          {d.priority === 'urgent' && <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">긴급</span>}
+                          <span className="text-[10px] text-gray-300 ml-auto">
+                            {new Date(d.created_at).toLocaleString('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+                          </span>
+                        </div>
+
+                        {/* 제목 */}
+                        <div className="text-sm font-medium text-gray-900">{d.title}</div>
+
+                        {/* 내용 */}
+                        {d.content && (
+                          <div className="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap bg-gray-50 rounded p-2">{d.content}</div>
+                        )}
+
+                        {/* 결과/응답 */}
+                        {d.result_memo && (
+                          <div className={`text-xs mt-1.5 whitespace-pre-wrap rounded p-2 ${
+                            d.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                            d.status === 'reopened' ? 'bg-orange-50 text-orange-700' :
+                            'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            <span className="font-medium">
+                              {d.status === 'completed' || d.status === 'verified' ? '결과: ' :
+                               d.status === 'reopened' ? '수정요청: ' :
+                               d.status === 'rejected' ? '반려: ' :
+                               d.status === 'countered' ? '대안: ' : ''}
+                            </span>
+                            {d.result_memo}
+                          </div>
+                        )}
+
+                        {/* 액션 버튼 — 내가 처리할 수 있는 건만 */}
+                        {!isMine && ['pending', 'reopened'].includes(d.status) && (
+                          <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                            {d.type === 'report' && (
+                              <>
+                                <button onClick={() => { handleDirectiveAction(d.id, 'approve', ''); fetchAll(); }}
+                                  className="px-2.5 py-1 text-[10px] font-medium bg-emerald-500 text-white rounded hover:bg-emerald-600">승인</button>
+                                <button onClick={() => { const m = prompt('수정 요청:'); if (m) handleDirectiveAction(d.id, 'request-revision', m); }}
+                                  className="px-2.5 py-1 text-[10px] font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200">수정요청</button>
+                              </>
+                            )}
+                            {d.type === 'lateral' && (
+                              <>
+                                <button onClick={() => handleDirectiveAction(d.id, 'agree')}
+                                  className="px-2.5 py-1 text-[10px] font-medium bg-teal-500 text-white rounded hover:bg-teal-600">합의</button>
+                                <button onClick={() => { const m = prompt('대안:'); if (m) handleDirectiveAction(d.id, 'counter', m); }}
+                                  className="px-2.5 py-1 text-[10px] font-medium bg-amber-100 text-amber-700 rounded hover:bg-amber-200">대안</button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {isMine && d.status === 'completed' && (
+                          <div className="flex gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                            <button onClick={() => handleDirectiveAction(d.id, 'verify')}
+                              className="px-2.5 py-1 text-[10px] font-medium bg-emerald-500 text-white rounded hover:bg-emerald-600">완료 확인</button>
+                            <button onClick={() => { const m = prompt('재작업 사유:'); if (m) handleDirectiveAction(d.id, 'reopen', m); }}
+                              className="px-2.5 py-1 text-[10px] font-medium bg-orange-100 text-orange-700 rounded hover:bg-orange-200">재작업</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 하단: 새 메시지 보내기 */}
+              <div className="px-4 py-3 border-t bg-gray-50 rounded-b-2xl">
+                <div className="flex gap-2 mb-2">
+                  <select value={newDir.type} onChange={e => setNewDir(prev => ({ ...prev, type: e.target.value }))}
+                    className="text-xs border border-gray-300 rounded px-2 py-1.5">
+                    <option value="directive">↓ 지시</option>
+                    <option value="report">↑ 보고</option>
+                    <option value="lateral">↔ 협의</option>
+                  </select>
+                  <input type="text" value={newDir.title} onChange={e => setNewDir(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="제목을 입력하세요"
+                    className="flex-1 text-sm border border-gray-300 rounded px-3 py-1.5"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newDir.title.trim()) {
+                        setSendTo({ role: t.role, name: t.name });
+                        handleSendDirective();
+                      }
+                    }} />
+                  <button onClick={() => {
+                    setSendTo({ role: t.role, name: t.name });
+                    setTimeout(() => handleSendDirective(), 0);
+                  }} disabled={!newDir.title.trim()}
+                    className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                    전송
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );

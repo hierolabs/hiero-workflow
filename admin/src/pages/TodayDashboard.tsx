@@ -152,6 +152,24 @@ function PulseBar({ item, onClick }: { item: PulseItem; onClick: () => void }) {
   );
 }
 
+interface DirectiveItem {
+  id: number; type: string; from_role: string; from_user_name: string;
+  to_role: string; to_user_name: string; title: string; content: string;
+  priority: string; status: string; result_memo: string; deadline: string | null;
+  report_type: string; created_at: string;
+}
+
+const DIR_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '대기', color: 'bg-yellow-100 text-yellow-700' },
+  acknowledged: { label: '확인', color: 'bg-blue-100 text-blue-700' },
+  in_progress: { label: '진행', color: 'bg-purple-100 text-purple-700' },
+  completed: { label: '완료', color: 'bg-green-100 text-green-700' },
+  verified: { label: '확인됨', color: 'bg-emerald-100 text-emerald-700' },
+  reopened: { label: '재작업', color: 'bg-orange-100 text-orange-700' },
+};
+const DIR_TYPE: Record<string, string> = { directive: '↓ 지시', report: '↑ 보고', lateral: '↔ 협의' };
+const ROLE_NAME: Record<string, string> = { founder: 'Founder', ceo: 'CEO', cto: 'CTO', cfo: 'CFO', operations: '운영', cleaning_dispatch: '청소배정', field: '현장', marketing: '마케팅' };
+
 export default function TodayDashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -160,8 +178,11 @@ export default function TodayDashboard() {
   const [detections, setDetections] = useState<Detection[]>([]);
   const [resolved, setResolved] = useState<Detection[]>([]);
   const [resolvedStats, setResolvedStats] = useState<ResolvedStats | null>(null);
+  const [receivedDirs, setReceivedDirs] = useState<DirectiveItem[]>([]);
+  const [sentDirs, setSentDirs] = useState<DirectiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'flow' | 'pulse' | 'feed'>('flow');
+  const [actionMemo, setActionMemo] = useState('');
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const currentBlock = getCurrentBlock();
@@ -175,6 +196,30 @@ export default function TodayDashboard() {
       setResolved(resRes.data?.items || []);
       setResolvedStats(resRes.data?.stats || null);
     });
+  };
+
+  const loadDirectives = () => {
+    if (!user.id) return;
+    Promise.all([
+      api.get(`/directives/received?role=${user.role_title}`).catch(() => ({ data: { directives: [] } })),
+      api.get(`/directives/sent?user_id=${user.id}`).catch(() => ({ data: { directives: [] } })),
+    ]).then(([recvRes, sentRes]) => {
+      setReceivedDirs(recvRes.data.directives || []);
+      setSentDirs(sentRes.data.directives || []);
+    });
+  };
+
+  const handleDirAction = async (id: number, action: string, memo?: string) => {
+    const body: Record<string, string> = {};
+    if (action === 'complete') body.result_memo = memo || '';
+    else if (action === 'reject') body.reason = memo || '';
+    else if (action === 'verify' || action === 'agree') body.user_name = user.name || '';
+    else if (action === 'approve') { body.user_name = user.name || ''; body.comment = memo || ''; }
+    else if (action === 'request-revision') { body.user_name = user.name || ''; body.memo = memo || ''; }
+    else if (action === 'reopen') { body.user_name = user.name || ''; body.memo = memo || ''; }
+    await api.patch(`/directives/${id}/${action}`, body);
+    setActionMemo('');
+    loadDirectives();
   };
 
   useEffect(() => {
@@ -193,6 +238,7 @@ export default function TodayDashboard() {
       setResolved(resRes.data?.items || []);
       setResolvedStats(resRes.data?.stats || null);
     }).finally(() => setLoading(false));
+    loadDirectives();
   }, []);
 
   const handleRespond = async (id: number, assignedTo: string, aiAssisted: boolean) => {
@@ -270,6 +316,121 @@ export default function TodayDashboard() {
       {/* ========== 업무 흐름 탭 ========== */}
       {tab === 'flow' && (
         <div className="space-y-3">
+
+          {/* === 내 지시함: 처리 필요 === */}
+          {(() => {
+            const needAction = receivedDirs.filter(d => ['pending', 'reopened'].includes(d.status));
+            const needVerify = sentDirs.filter(d => d.status === 'completed');
+            const inProgress = receivedDirs.filter(d => ['acknowledged', 'in_progress'].includes(d.status));
+            if (needAction.length === 0 && needVerify.length === 0 && inProgress.length === 0) return null;
+
+            return (
+              <div className="rounded-lg border border-orange-300 bg-white overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-orange-50 border-b border-orange-200">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+                    <h3 className="text-sm font-bold text-orange-900">
+                      내 지시함
+                      {needAction.length > 0 && <span className="ml-2 px-2 py-0.5 bg-orange-500 text-white rounded-full text-xs">{needAction.length} 처리 필요</span>}
+                    </h3>
+                  </div>
+                  <span className="text-xs text-orange-600">
+                    {ROLE_NAME[user.role_title] || user.role_title} · {user.name}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-gray-100">
+                  {/* 처리 필요 (받은 것 중 pending/reopened) */}
+                  {needAction.map(d => (
+                    <div key={d.id} className="px-4 py-3 bg-orange-50/50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs text-gray-400">{DIR_TYPE[d.type]}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${DIR_STATUS[d.status]?.color}`}>{DIR_STATUS[d.status]?.label}</span>
+                        {d.priority === 'urgent' && <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600">긴급</span>}
+                        <span className="text-xs text-gray-500">{d.from_user_name} ({ROLE_NAME[d.from_role]})</span>
+                        {d.deadline && <span className="text-[10px] text-gray-400 ml-auto">기한: {d.deadline.slice(5, 10)}</span>}
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 mb-1">{d.title}</div>
+                      {d.content && <div className="text-xs text-gray-600 mb-2 line-clamp-2">{d.content}</div>}
+                      {d.status === 'reopened' && d.result_memo && (
+                        <div className="text-xs text-orange-700 bg-orange-50 rounded p-2 mb-2">수정 요청: {d.result_memo}</div>
+                      )}
+
+                      {/* 액션 버튼 */}
+                      <div className="flex items-center gap-2">
+                        {d.type === 'directive' && d.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleDirAction(d.id, 'acknowledge')}
+                              className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">확인</button>
+                            <button onClick={() => handleDirAction(d.id, 'start')}
+                              className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">바로 시작</button>
+                          </>
+                        )}
+                        {d.type === 'directive' && ['acknowledged', 'reopened'].includes(d.status) && (
+                          <button onClick={() => handleDirAction(d.id, 'start')}
+                            className="px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">진행 시작</button>
+                        )}
+                        {d.type === 'report' && (
+                          <>
+                            <button onClick={() => { const m = prompt('승인 메모:'); handleDirAction(d.id, 'approve', m || ''); }}
+                              className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">승인</button>
+                            <button onClick={() => { const m = prompt('수정 요청:'); if (m) handleDirAction(d.id, 'request-revision', m); }}
+                              className="px-3 py-1.5 text-xs font-medium bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200">수정 요청</button>
+                          </>
+                        )}
+                        {d.type === 'lateral' && (
+                          <>
+                            <button onClick={() => handleDirAction(d.id, 'agree')}
+                              className="px-3 py-1.5 text-xs font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700">합의</button>
+                            <button onClick={() => { const m = prompt('대안:'); if (m) handleDirAction(d.id, 'counter', m); }}
+                              className="px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200">대안</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 완료 확인 필요 (보낸 것 중 completed) */}
+                  {needVerify.map(d => (
+                    <div key={d.id} className="px-4 py-3 bg-green-50/50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">완료 보고</span>
+                        <span className="text-xs text-gray-500">→ {d.to_user_name} ({ROLE_NAME[d.to_role]})</span>
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 mb-1">{d.title}</div>
+                      {d.result_memo && <div className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 mb-2">결과: {d.result_memo}</div>}
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleDirAction(d.id, 'verify')}
+                          className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">완료 확인</button>
+                        <button onClick={() => { const m = prompt('재작업 사유:'); if (m) handleDirAction(d.id, 'reopen', m); }}
+                          className="px-3 py-1.5 text-xs font-medium bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200">재작업</button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 진행 중 (내가 받아서 작업 중인 것) */}
+                  {inProgress.map(d => (
+                    <div key={d.id} className="px-4 py-3">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs text-gray-400">{DIR_TYPE[d.type]}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${DIR_STATUS[d.status]?.color}`}>{DIR_STATUS[d.status]?.label}</span>
+                        <span className="text-xs text-gray-500">{d.from_user_name}</span>
+                      </div>
+                      <div className="text-sm text-gray-900 mb-1">{d.title}</div>
+                      <div className="flex items-center gap-2">
+                        <input type="text" value={actionMemo} onChange={e => setActionMemo(e.target.value)}
+                          placeholder="완료 메모" className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5"
+                          onKeyDown={e => { if (e.key === 'Enter') { handleDirAction(d.id, 'complete', actionMemo); } }} />
+                        <button onClick={() => handleDirAction(d.id, 'complete', actionMemo)}
+                          className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">완료 보고</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {TIME_BLOCKS.map((block, bi) => {
             const isCurrent = block.id === currentBlock;
             const isPast = bi < TIME_BLOCKS.findIndex(b => b.id === currentBlock);
