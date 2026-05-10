@@ -817,10 +817,13 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
       let rawItems: {id: number; label: string; sub: string; done: boolean; link: string}[] = [];
 
       if (taskKey === 'manual_checkin') {
+        const MANUAL_CHANNELS = ['삼삼엠투', '리브', 'Agoda'];
         const res = await fetch(`${API_URL}/reservations?check_in_date=${today}&page_size=50`, { headers: h });
         const d = await res.json();
         const all = d.reservations || d.data || [];
-        const manual = all.filter((r: {channel_name: string}) => r.channel_name && !['Airbnb','airbnb'].includes(r.channel_name));
+        const manual = all.filter((r: {channel_name: string}) =>
+          MANUAL_CHANNELS.some(ch => (r.channel_name || '').includes(ch))
+        );
         rawItems = manual.map((r: {id:number;guest_name:string;channel_name:string;property_name:string;conversation_id:string}) => ({
           id: r.id, label: `${r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
           done: !!r.conversation_id, link: '/messages',

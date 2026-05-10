@@ -47,15 +47,13 @@ func (s *OpsPulseService) GetPulse() PulseResult {
 	// ========== DAILY: 매일 실제로 하는 일 ==========
 	daily := make([]PulseItem, 0, 5)
 
-	// 1. 삼투/리브 체크인 안내 발송 (Airbnb 외 채널, 오전 10시 수동 발송)
-	// 비-에어비앤비 채널의 오늘 체크인 예약
+	// 1. 삼투/리브/Agoda 체크인 안내 발송 (수동 안내 필요 채널만)
 	var manualTotal, manualDone int64
 	config.DB.Model(&models.Reservation{}).
-		Where("check_in_date = ? AND channel_name NOT IN (?, ?) AND channel_name != ''", today, "Airbnb", "airbnb").
+		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%')", today).
 		Count(&manualTotal)
-	// 메시지가 발송된 건 (conversation_id가 있으면 대화가 진행된 것)
 	config.DB.Model(&models.Reservation{}).
-		Where("check_in_date = ? AND channel_name NOT IN (?, ?) AND channel_name != '' AND conversation_id != ''", today, "Airbnb", "airbnb").
+		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%') AND conversation_id != ''", today).
 		Count(&manualDone)
 	daily = append(daily, PulseItem{
 		Key: "manual_checkin", Label: "체크인 안내 발송", Frequency: "daily",
