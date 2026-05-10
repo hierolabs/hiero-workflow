@@ -821,7 +821,7 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
         const d = await res.json();
         const manual = d.reservations || [];
         rawItems = manual.map((r: {id:number;guest_name:string;channel_name:string;property_name:string;conversation_id:string}) => ({
-          id: r.id, label: `${r.channel_name} — ${r.property_name || ''}`, sub: r.guest_name || '',
+          id: r.id, label: `${r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
           done: !!r.conversation_id, link: '/messages',
         }));
       } else if (taskKey === 'cleaning') {
