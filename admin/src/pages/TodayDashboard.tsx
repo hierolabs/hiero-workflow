@@ -74,7 +74,7 @@ const TIME_BLOCKS = [
     time: '06:00 — 10:00',
     label: '오늘 준비',
     tasks: [
-      { text: '삼투/리브 체크인 안내 발송', link: '/messages', key: 'manual_checkin' },
+      { text: '체크인 안내 발송', link: '/messages', key: 'manual_checkin' },
       { text: '오늘 청소 배정 확인', link: '/cleaning', key: 'cleaning' },
       { text: '어제 미해결 이슈 확인', link: '/issues?status=open', key: 'issues' },
       { text: '이슈 감지 처리', link: '/issue-detections', key: 'detections' },
@@ -817,13 +817,9 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
       let rawItems: {id: number; label: string; sub: string; done: boolean; link: string}[] = [];
 
       if (taskKey === 'manual_checkin') {
-        const MANUAL_CHANNELS = ['삼삼엠투', '리브', 'Agoda'];
-        const res = await fetch(`${API_URL}/reservations?check_in_date=${today}&page_size=50`, { headers: h });
+        const res = await fetch(`${API_URL}/daily-tasks/checkin-targets?date=${today}`, { headers: h });
         const d = await res.json();
-        const all = d.reservations || d.data || [];
-        const manual = all.filter((r: {channel_name: string}) =>
-          MANUAL_CHANNELS.some(ch => (r.channel_name || '').includes(ch))
-        );
+        const manual = d.reservations || [];
         rawItems = manual.map((r: {id:number;guest_name:string;channel_name:string;property_name:string;conversation_id:string}) => ({
           id: r.id, label: `${r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
           done: !!r.conversation_id, link: '/messages',

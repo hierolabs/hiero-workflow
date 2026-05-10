@@ -93,6 +93,27 @@ func (h *DailyTaskHandler) BulkCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("%d건 처리됨", count), "count": count})
 }
 
+// GET /admin/daily-tasks/checkin-targets?date=2026-05-10 — 수동 체크인 안내 대상 (DB 직접)
+func (h *DailyTaskHandler) CheckinTargets(c *gin.Context) {
+	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
+
+	var reservations []models.Reservation
+	config.DB.Where("check_in_date = ? AND status != 'cancelled' AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%')", date).
+		Find(&reservations)
+
+	// property_name 매핑
+	for i := range reservations {
+		if reservations[i].InternalPropID != nil {
+			var prop models.Property
+			if err := config.DB.First(&prop, *reservations[i].InternalPropID).Error; err == nil {
+				reservations[i].PropertyName = prop.Name
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reservations": reservations, "count": len(reservations)})
+}
+
 // GET /admin/daily-tasks?date=2026-05-10&task_key=manual_checkin — 체크 현황
 func (h *DailyTaskHandler) List(c *gin.Context) {
 	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))

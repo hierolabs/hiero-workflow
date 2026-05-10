@@ -404,6 +404,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/ops/feed", opsFeedHandler.Feed)
 			protected.GET("/ops/pulse", opsPulseHandler.Pulse)
 			protected.GET("/daily-tasks", dailyTaskHandler.List)
+			protected.GET("/daily-tasks/checkin-targets", dailyTaskHandler.CheckinTargets)
 			protected.POST("/daily-tasks/check", dailyTaskHandler.Check)
 			protected.POST("/daily-tasks/bulk-check", dailyTaskHandler.BulkCheck)
 
