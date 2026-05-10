@@ -825,11 +825,14 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
           done: !!r.conversation_id, link: '/messages',
         }));
       } else if (taskKey === 'cleaning') {
-        const res = await fetch(`${API_URL}/cleaning?date=${today}&page_size=50`, { headers: h });
+        const res = await fetch(`${API_URL}/cleaning/tasks?cleaning_date=${today}&page_size=50`, { headers: h });
         const d = await res.json();
-        rawItems = (d.tasks || d.data || []).map((t: {id:number;property_name:string;cleaner_name:string;status:string}) => ({
-          id: t.id, label: t.property_name || `청소 #${t.id}`, sub: t.cleaner_name || '미배정',
-          done: t.status === 'completed', link: '/cleaning',
+        rawItems = (d.tasks || []).map((t: {id:number;property_name:string;cleaner_name:string;status:string}) => ({
+          id: t.id,
+          label: t.property_name || `청소 #${t.id}`,
+          sub: `${t.cleaner_name || '미배정'} · ${t.status === 'completed' ? '완료' : t.status === 'assigned' ? '배정됨' : '대기'}`,
+          done: t.status === 'completed',
+          link: '/cleaning',
         }));
       } else if (taskKey === 'issues') {
         const res = await fetch(`${API_URL}/issues?status=open&page_size=20`, { headers: h });
