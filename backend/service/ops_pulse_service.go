@@ -50,10 +50,10 @@ func (s *OpsPulseService) GetPulse() PulseResult {
 	// 1. 삼투/리브/Agoda 체크인 안내 발송 (수동 안내 필요 채널만)
 	var manualTotal, manualDone int64
 	config.DB.Model(&models.Reservation{}).
-		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%')", today).
+		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%' OR channel_name LIKE '%개인%')", today).
 		Count(&manualTotal)
 	config.DB.Model(&models.Reservation{}).
-		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%') AND conversation_id != ''", today).
+		Where("check_in_date = ? AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%' OR channel_name LIKE '%개인%') AND conversation_id != ''", today).
 		Count(&manualDone)
 	daily = append(daily, PulseItem{
 		Key: "manual_checkin", Label: "체크인 안내 발송", Frequency: "daily",

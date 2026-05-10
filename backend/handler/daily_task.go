@@ -98,7 +98,7 @@ func (h *DailyTaskHandler) CheckinTargets(c *gin.Context) {
 	date := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
 
 	var reservations []models.Reservation
-	config.DB.Where("check_in_date = ? AND status != 'cancelled' AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%')", date).
+	config.DB.Where("check_in_date = ? AND status != 'cancelled' AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%' OR channel_name LIKE '%개인%')", date).
 		Find(&reservations)
 
 	// property_name 매핑
