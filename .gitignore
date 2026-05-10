@@ -21,3 +21,5 @@ backend/tmp/
 # OS
 .DS_Store
 Thumbs.db
+backend/main
+scripts/samsam_collect.js # 안 올릴 거면
