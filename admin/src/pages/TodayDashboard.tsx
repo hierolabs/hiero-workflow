@@ -183,6 +183,7 @@ export default function TodayDashboard() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'flow' | 'pulse' | 'feed'>('flow');
   const [actionMemo, setActionMemo] = useState('');
+  const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const currentBlock = getCurrentBlock();
@@ -317,11 +318,20 @@ export default function TodayDashboard() {
       {tab === 'flow' && (
         <div className="space-y-3">
 
-          {/* === 내 지시함: 처리 필요 === */}
-          {(() => {
-            const needAction = receivedDirs.filter(d => ['pending', 'reopened'].includes(d.status));
-            const needVerify = sentDirs.filter(d => d.status === 'completed');
-            const inProgress = receivedDirs.filter(d => ['acknowledged', 'in_progress'].includes(d.status));
+          {/* === 내 지시함: 운영 업무만 (Founder는 /founder에서 처리) === */}
+          {user.role_layer !== 'founder' && (() => {
+            // execution: 내가 받은 지시(directive)만
+            // etf: 내가 받은 지시 + 하위에서 올라온 보고
+            const needAction = receivedDirs.filter(d =>
+              ['pending', 'reopened'].includes(d.status) &&
+              (user.role_layer === 'execution' ? d.type === 'directive' : true)
+            );
+            const needVerify = sentDirs.filter(d =>
+              d.status === 'completed' && d.type === 'directive'
+            );
+            const inProgress = receivedDirs.filter(d =>
+              ['acknowledged', 'in_progress'].includes(d.status) && d.type === 'directive'
+            );
             if (needAction.length === 0 && needVerify.length === 0 && inProgress.length === 0) return null;
 
             return (
@@ -455,28 +465,40 @@ export default function TodayDashboard() {
                   )}
                 </div>
 
-                {/* 업무 리스트 */}
+                {/* 업무 리스트 — 클릭하면 확장하여 상세 표시 */}
                 <div className={`divide-y divide-gray-100 ${isPast ? 'opacity-50' : ''}`}>
                   {block.tasks.map((task, ti) => {
                     const p = getPulse(task.key);
+                    const isExpanded = expandedTask === `${block.id}-${ti}`;
                     return (
-                      <button key={ti} onClick={() => navigate(task.link)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition text-left group">
-                        <span className="text-sm text-gray-900 group-hover:text-blue-600">
-                          {task.text}
-                        </span>
-                        {p && p.total > 0 && (
+                      <div key={ti}>
+                        <button onClick={() => setExpandedTask(isExpanded ? null : `${block.id}-${ti}`)}
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition text-left group">
                           <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${BAR_COLOR[p.color] || 'bg-gray-400'}`}
-                                style={{ width: `${Math.max(p.pct, 5)}%` }} />
-                            </div>
-                            <span className="text-xs font-medium text-gray-500 w-10 text-right">
-                              {p.done}/{p.total}
+                            <span className={`w-1.5 h-1.5 rounded-full ${p && p.pct >= 100 ? 'bg-emerald-500' : p && p.total > 0 ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                            <span className={`text-sm group-hover:text-blue-600 ${p && p.pct >= 100 ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                              {task.text}
                             </span>
                           </div>
+                          {p && p.total > 0 && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${BAR_COLOR[p.color] || 'bg-gray-400'}`}
+                                  style={{ width: `${Math.max(p.pct, 5)}%` }} />
+                              </div>
+                              <span className={`text-xs font-medium w-10 text-right ${p.pct >= 100 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                {p.done}/{p.total}
+                              </span>
+                              <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                            </div>
+                          )}
+                        </button>
+
+                        {/* 확장: 상세 목록 */}
+                        {isExpanded && p && p.total > 0 && (
+                          <TaskDetail taskKey={task.key} pulse={p} navigate={navigate} />
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -735,7 +757,102 @@ function FeedCard({ title, badge, badgeColor, empty, items, prefix, navigate }: 
   );
 }
 
-interface FeedItem {
-  type: string; title: string; detail: string; severity: string;
-  assignee: string; ref_id: number; ref_type: string;
+// === TaskDetail: 업무 항목 클릭 시 상세 목록 ===
+function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; navigate: (p: string) => void }) {
+  const [items, setItems] = useState<{id: number; label: string; sub: string; done: boolean; link: string}[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = { Authorization: `Bearer ${token || ''}` };
+    const API_URL = import.meta.env.VITE_API_URL;
+
+    if (taskKey === 'manual_checkin') {
+      fetch(`${API_URL}/reservations?check_in_date=${today}&page_size=50`, { headers })
+        .then(r => r.json())
+        .then(d => {
+          const reservations = d.reservations || d.data || [];
+          const manual = reservations.filter((r: { channel_name: string }) =>
+            r.channel_name && !['Airbnb', 'airbnb'].includes(r.channel_name)
+          );
+          setItems(manual.map((r: { id: number; guest_name: string; channel_name: string; property_name: string; conversation_id: string }) => ({
+            id: r.id,
+            label: `${r.guest_name} — ${r.channel_name}`,
+            sub: r.property_name || '',
+            done: !!r.conversation_id,
+            link: '/messages',
+          })));
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+    } else if (taskKey === 'cleaning') {
+      fetch(`${API_URL}/cleaning?date=${today}&page_size=50`, { headers })
+        .then(r => r.json())
+        .then(d => {
+          const tasks = d.tasks || d.data || [];
+          setItems(tasks.map((t: { id: number; property_name: string; cleaner_name: string; status: string }) => ({
+            id: t.id,
+            label: t.property_name || `청소 #${t.id}`,
+            sub: t.cleaner_name || '미배정',
+            done: t.status === 'completed',
+            link: '/cleaning',
+          })));
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+    } else if (taskKey === 'issues') {
+      fetch(`${API_URL}/issues?status=open&page_size=20`, { headers })
+        .then(r => r.json())
+        .then(d => {
+          const issues = d.issues || [];
+          setItems(issues.map((i: { id: number; title: string; assignee_name: string; priority: string }) => ({
+            id: i.id,
+            label: `[${i.priority}] ${i.title}`,
+            sub: i.assignee_name || '미배정',
+            done: false,
+            link: '/issues',
+          })));
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+    } else if (taskKey === 'detections') {
+      fetch(`${API_URL}/issue-detections`, { headers })
+        .then(r => r.json())
+        .then(d => {
+          const dets = (d.detections || []).filter((x: { status: string }) => x.status === 'pending' || x.status === 'responding');
+          setItems(dets.map((x: { id: number; guest_name: string; detected_category: string; property_name: string; status: string }) => ({
+            id: x.id,
+            label: `${x.guest_name} — ${x.detected_category}`,
+            sub: x.property_name || '',
+            done: x.status !== 'pending',
+            link: '/issue-detections',
+          })));
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+    } else {
+      setLoaded(true);
+    }
+  }, [taskKey]);
+
+  if (!loaded) return <div className="px-6 py-2 text-xs text-gray-400">로딩...</div>;
+  if (items.length === 0) return <div className="px-6 py-2 text-xs text-gray-400">해당 항목 없음</div>;
+
+  return (
+    <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 space-y-1">
+      {items.map(item => (
+        <div key={item.id}
+          onClick={() => navigate(item.link)}
+          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white cursor-pointer transition">
+          <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+            item.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300'
+          }`}>
+            {item.done ? '✓' : ''}
+          </span>
+          <span className={`text-sm flex-1 ${item.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.label}</span>
+          <span className="text-xs text-gray-400">{item.sub}</span>
+        </div>
+      ))}
+      <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+        {items.filter(i => i.done).length}/{items.length} 완료
+      </div>
+    </div>
+  );
 }
