@@ -140,6 +140,54 @@ func (h *FounderHandler) AlertReject(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "반려됨"})
 }
 
+// POST /admin/founder/reports/:id/decisions/:index/approve — 결정 승인 → directive 자동 생성
+func (h *FounderHandler) DecisionApprove(c *gin.Context) {
+	reportID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	index, _ := strconv.Atoi(c.Param("index"))
+	var req struct {
+		UserID uint   `json:"user_id"`
+		Memo   string `json:"memo"`
+	}
+	c.ShouldBindJSON(&req)
+	dir, err := h.reportSvc.ApproveDecision(uint(reportID), index, req.UserID, req.Memo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "결정 승인 → 지시 생성 완료",
+		"directive_id": dir.ID,
+		"to_role":      dir.ToRole,
+		"to_user":      dir.ToUserName,
+	})
+}
+
+// POST /admin/founder/reports/:id/decisions/:index/hold — 결정 보류
+func (h *FounderHandler) DecisionHold(c *gin.Context) {
+	reportID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	index, _ := strconv.Atoi(c.Param("index"))
+	var req struct{ Memo string `json:"memo"` }
+	c.ShouldBindJSON(&req)
+	if err := h.reportSvc.HoldDecision(uint(reportID), index, "hold", req.Memo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "보류 처리됨"})
+}
+
+// POST /admin/founder/reports/:id/decisions/:index/reject — 결정 반려
+func (h *FounderHandler) DecisionReject(c *gin.Context) {
+	reportID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	index, _ := strconv.Atoi(c.Param("index"))
+	var req struct{ Memo string `json:"memo"` }
+	c.ShouldBindJSON(&req)
+	if err := h.reportSvc.HoldDecision(uint(reportID), index, "rejected", req.Memo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "반려 처리됨"})
+}
+
 // POST /admin/founder/reports/generate — 수동 생성
 func (h *FounderHandler) ReportGenerate(c *gin.Context) {
 	reportType := c.DefaultQuery("type", "daily")

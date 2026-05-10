@@ -41,7 +41,10 @@ type CostAlert = AnomalyAlert
 type DecisionItem struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	Category    string `json:"category"` // revenue, risk, strategy
+	Category    string `json:"category"`   // revenue, risk, strategy
+	AssignTo    string `json:"assign_to"`  // 담당 ETF: ceo, cto, cfo
+	Status      string `json:"status"`     // pending, approved, rejected, hold
+	DirectiveID *uint  `json:"directive_id,omitempty"` // 승인 후 생성된 지시 ID
 }
 
 // --- Daily Report ---
@@ -50,20 +53,31 @@ func (s *GOTReportService) BuildDailyReport() (*models.GOTReport, error) {
 	now := time.Now()
 	period := now.Format("2006-01-02")
 
-	// 이번달 Data 1/2/3
-	fin := s.etfSvc.BuildFinancialFlow("", "")
+	// 이번 주 기준 (월~오늘)
+	dow := int(now.Weekday())
+	if dow == 0 {
+		dow = 7
+	}
+	weekStart := now.AddDate(0, 0, -(dow - 1))
+	weekStartStr := weekStart.Format("2006-01-02")
+	todayStr := now.Format("2006-01-02")
+
+	// 이번 주 Data 1/2/3
+	fin := s.etfSvc.BuildFinancialFlow(weekStartStr, todayStr)
 
 	// 7일 입금 예정
 	weekEnd := now.AddDate(0, 0, 7).Format("2006-01-02")
-	todayStr := now.Format("2006-01-02")
 	deposit7d := int64(0)
 	if summary, err := s.data3Svc.GetData3Summary(todayStr, weekEnd); err == nil && summary != nil {
 		deposit7d = summary.ExpectedDeposit
 	}
 
-	// 비용 이상 감지
-	alerts := s.DetectAlerts()
+	// 비용 이상 감지 (주간 기준)
+	alerts := s.DetectAlertsWeekly(weekStartStr, todayStr)
 	alertsJSON, _ := json.Marshal(alerts)
+
+	// 어제 결정 실행 결과 조회
+	prevResults := s.getPreviousDecisionResults()
 
 	// 결정 사항 생성
 	decisions := s.buildDecisions(fin, deposit7d, alerts)
@@ -72,11 +86,11 @@ func (s *GOTReportService) BuildDailyReport() (*models.GOTReport, error) {
 	// 현금 갭
 	cashGap := fin.Data2.ThisMonth - fin.Data1.ThisMonth
 
-	// 최대 비용 카테고리
-	topCat := s.getTopCostCategory()
+	// 최대 비용 카테고리 (주간)
+	topCat := s.getTopCostCategoryRange(weekStartStr, todayStr)
 
 	// 요약 생성
-	summary := s.generateSummary(fin, cashGap, deposit7d, alerts)
+	summary := s.generateWeeklySummary(fin, cashGap, deposit7d, alerts, prevResults)
 
 	report := &models.GOTReport{
 		ReportType:        models.GOTReportDaily,
@@ -102,7 +116,7 @@ func (s *GOTReportService) BuildDailyReport() (*models.GOTReport, error) {
 	// Founder에게 알림
 	notifSvc := NewNotificationService()
 	notifSvc.NotifyByRoleTitle("founder", "delegated",
-		fmt.Sprintf("[일간 재무] 매출 ₩%s · 비용 ₩%s", formatKRW(int(fin.Data1.ThisMonth)), formatKRW(int(fin.Data2.ThisMonth))),
+		fmt.Sprintf("[일간 재무] 금주 매출 ₩%s · 비용 ₩%s", formatKRW(int(fin.Data1.ThisMonth)), formatKRW(int(fin.Data2.ThisMonth))),
 		summary, nil, "시스템")
 
 	LogActivity(nil, "시스템", "got_report_daily", "got_report", &report.ID, summary)
@@ -150,7 +164,7 @@ func (s *GOTReportService) BuildWeeklyReport() (*models.GOTReport, error) {
 		CostPrev:        fin.Data2.LastMonth,
 		NetPrev:         fin.Data3.LastMonth,
 		CashGap:         cashGap,
-		TopCostCategory: s.getTopCostCategory(),
+		TopCostCategory: s.getTopCostCategoryRange("", ""),
 		Alerts:          string(alertsJSON),
 		Summary:         summary,
 	}
@@ -209,7 +223,7 @@ func (s *GOTReportService) BuildMonthlyReport() (*models.GOTReport, error) {
 		CostPrev:        fin.Data2.LastMonth,
 		NetPrev:         fin.Data3.LastMonth,
 		CashGap:         fin.Data2.ThisMonth - fin.Data1.ThisMonth,
-		TopCostCategory: s.getTopCostCategory(),
+		TopCostCategory: s.getTopCostCategoryRange("", ""),
 		Alerts:          string(alertsJSON),
 		Summary:         summary,
 	}
@@ -471,22 +485,24 @@ func (s *GOTReportService) RejectAlert(id uint, userName, memo string) error {
 		}).Error
 }
 
-// --- 결정 사항 생성 ---
+// --- 결정 사항 생성 (담당 ETF 자동 매핑) ---
 
 func (s *GOTReportService) buildDecisions(fin FinancialFlow, deposit7d int64, alerts []CostAlert) []DecisionItem {
 	var decisions []DecisionItem
 
-	// 현금 갭 결정
+	// 현금 갭 → CFO
 	cashGap := fin.Data2.ThisMonth - fin.Data1.ThisMonth
 	if cashGap > 0 {
 		decisions = append(decisions, DecisionItem{
 			Title:       fmt.Sprintf("현금 갭 ₩%s — 운전 자금 확보 필요", formatKRW(int(cashGap))),
 			Description: fmt.Sprintf("비용 ₩%s이 매출 ₩%s보다 많음. 7일내 입금 예정 ₩%s", formatKRW(int(fin.Data2.ThisMonth)), formatKRW(int(fin.Data1.ThisMonth)), formatKRW(int(deposit7d))),
 			Category:    "risk",
+			AssignTo:    "cfo",
+			Status:      "pending",
 		})
 	}
 
-	// 비용 이상 결정
+	// 비용 이상 → CFO
 	if len(alerts) > 0 {
 		desc := ""
 		for _, a := range alerts {
@@ -496,28 +512,257 @@ func (s *GOTReportService) buildDecisions(fin FinancialFlow, deposit7d int64, al
 			Title:       fmt.Sprintf("비용 이상 %d건 감지", len(alerts)),
 			Description: desc,
 			Category:    "risk",
+			AssignTo:    "cfo",
+			Status:      "pending",
 		})
 	}
 
-	// 매출 추세 결정
+	// 매출 하락 → CEO
 	if fin.Data1.ChangeRate < -20 {
 		decisions = append(decisions, DecisionItem{
 			Title:       fmt.Sprintf("매출 %.0f%% 하락 — 가동률/가격 점검 필요", fin.Data1.ChangeRate),
 			Description: fmt.Sprintf("이전 기간 ₩%s → 현재 ₩%s", formatKRW(int(fin.Data1.LastMonth)), formatKRW(int(fin.Data1.ThisMonth))),
 			Category:    "revenue",
+			AssignTo:    "ceo",
+			Status:      "pending",
 		})
 	}
 
 	return decisions
 }
 
-// --- 최대 비용 카테고리 ---
+// --- 주간 기준 이상 감지 ---
 
-func (s *GOTReportService) getTopCostCategory() string {
+func (s *GOTReportService) DetectAlertsWeekly(weekStart, weekEnd string) []AnomalyAlert {
+	var alerts []AnomalyAlert
+
+	// 전주 기간 계산
+	ws, _ := time.Parse("2006-01-02", weekStart)
+	we, _ := time.Parse("2006-01-02", weekEnd)
+	days := int(we.Sub(ws).Hours()/24) + 1
+	if days < 1 {
+		days = 1
+	}
+	prevStart := ws.AddDate(0, 0, -7).Format("2006-01-02")
+	prevEnd := ws.Format("2006-01-02")
+
+	// ① 비용 카테고리별 급증 (주간 vs 전주)
+	categories := []string{"청소 비용", "관리비", "Rent_out", "운영 비용", "노동 비용", "소모품 비용", "인테리어"}
+	for _, cat := range categories {
+		var thisAmt, lastAmt int64
+		config.DB.Model(&models.HostexTransaction{}).
+			Where("type = '비용' AND category = ? AND transaction_at >= ? AND transaction_at <= ?", cat, weekStart, weekEnd).
+			Select("COALESCE(SUM(amount), 0)").Scan(&thisAmt)
+		config.DB.Model(&models.HostexTransaction{}).
+			Where("type = '비용' AND category = ? AND transaction_at >= ? AND transaction_at < ?", cat, prevStart, prevEnd).
+			Select("COALESCE(SUM(amount), 0)").Scan(&lastAmt)
+
+		if lastAmt > 0 {
+			rate := (float64(thisAmt) - float64(lastAmt)) / float64(lastAmt) * 100
+			if rate > 30 {
+				sev := "warning"
+				if rate > 50 {
+					sev = "critical"
+				}
+				alerts = append(alerts, AnomalyAlert{
+					Type: "cost_spike", Severity: sev,
+					Title:      fmt.Sprintf("%s 금주 %.0f%% 증가", cat, rate),
+					Evidence:   fmt.Sprintf("금주 ₩%s vs 전주 ₩%s", formatKRW(int(thisAmt)), formatKRW(int(lastAmt))),
+					Impact:     fmt.Sprintf("주간 초과 ₩%s", formatKRW(int(thisAmt-lastAmt))),
+					Action:     "해당 카테고리 거래 내역 확인 → /settlement",
+					Value:      thisAmt, ChangeRate: rate, Category: cat,
+				})
+			}
+		}
+	}
+
+	// ② 매출 급감 (주간 vs 전주)
+	var revThis, revLast int64
+	config.DB.Model(&models.HostexTransaction{}).
+		Where("type = '수입' AND transaction_at >= ? AND transaction_at <= ?", weekStart, weekEnd).
+		Select("COALESCE(SUM(amount), 0)").Scan(&revThis)
+	config.DB.Model(&models.HostexTransaction{}).
+		Where("type = '수입' AND transaction_at >= ? AND transaction_at < ?", prevStart, prevEnd).
+		Select("COALESCE(SUM(amount), 0)").Scan(&revLast)
+
+	if revLast > 0 {
+		revRate := (float64(revThis) - float64(revLast)) / float64(revLast) * 100
+		if revRate < -20 {
+			sev := "warning"
+			if revRate < -40 {
+				sev = "critical"
+			}
+			alerts = append(alerts, AnomalyAlert{
+				Type: "revenue_drop", Severity: sev,
+				Title:      fmt.Sprintf("매출 금주 %.0f%% 감소", -revRate),
+				Evidence:   fmt.Sprintf("금주 ₩%s vs 전주 ₩%s", formatKRW(int(revThis)), formatKRW(int(revLast))),
+				Impact:     fmt.Sprintf("주간 감소 ₩%s", formatKRW(int(revLast-revThis))),
+				Action:     "가동률·가격 점검 → /revenue",
+				Value:      revThis, ChangeRate: revRate,
+			})
+		}
+	}
+
+	// ③ 현금 갭 (금주 비용 > 금주 매출)
+	var costThis int64
+	config.DB.Model(&models.HostexTransaction{}).
+		Where("type = '비용' AND transaction_at >= ? AND transaction_at <= ?", weekStart, weekEnd).
+		Select("COALESCE(SUM(amount), 0)").Scan(&costThis)
+	if costThis > revThis && revThis > 0 {
+		gap := costThis - revThis
+		alerts = append(alerts, AnomalyAlert{
+			Type: "cash_gap", Severity: "critical",
+			Title:    fmt.Sprintf("금주 현금 갭 ₩%s", formatKRW(int(gap))),
+			Evidence: fmt.Sprintf("비용 ₩%s > 매출 ₩%s", formatKRW(int(costThis)), formatKRW(int(revThis))),
+			Impact:   "운전 자금 부족 위험",
+			Action:   "입금 예정 확인 + 비용 이연 검토",
+			Value:    gap,
+		})
+	}
+
+	// DB 저장
+	period := time.Now().Format("2006-01-02")
+	for _, a := range alerts {
+		key := fmt.Sprintf("%s_%s_%s", a.Type, a.Category, period)
+		var existing models.GOTAlert
+		if err := config.DB.Where("alert_key = ?", key).First(&existing).Error; err != nil {
+			config.DB.Create(&models.GOTAlert{
+				AlertKey: key, Type: a.Type, Severity: a.Severity,
+				Title: a.Title, Evidence: a.Evidence, Impact: a.Impact,
+				Action: a.Action, Value: a.Value, Category: a.Category,
+				Status: models.AlertStatusNew, Period: period,
+			})
+		}
+	}
+	return alerts
+}
+
+// --- 어제 결정 실행 결과 조회 ---
+
+func (s *GOTReportService) getPreviousDecisionResults() []string {
+	var results []string
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+	// 어제 일간 보고서의 decisions에서 승인된 것 → 연결된 directive 상태 확인
+	var prevReport models.GOTReport
+	if err := config.DB.Where("report_type = 'daily' AND period = ?", yesterday).
+		Order("created_at DESC").First(&prevReport).Error; err != nil {
+		return results
+	}
+
+	var decisions []DecisionItem
+	if err := json.Unmarshal([]byte(prevReport.Decisions), &decisions); err != nil {
+		return results
+	}
+
+	for _, d := range decisions {
+		if d.DirectiveID != nil {
+			var dir models.ETFDirective
+			if err := config.DB.First(&dir, *d.DirectiveID).Error; err == nil {
+				status := "미완료"
+				if dir.Status == models.DirectiveStatusCompleted || dir.Status == models.DirectiveStatusVerified {
+					status = "완료"
+				} else if dir.Status == models.DirectiveStatusInProgress {
+					status = "진행 중"
+				}
+				results = append(results, fmt.Sprintf("[%s] %s → %s(%s)", status, d.Title, dir.ToUserName, dir.ToRole))
+			}
+		}
+	}
+	return results
+}
+
+// --- Decision 승인 → Directive 자동 생성 ---
+
+func (s *GOTReportService) ApproveDecision(reportID uint, decisionIndex int, founderUserID uint, memo string) (*models.ETFDirective, error) {
+	var report models.GOTReport
+	if err := config.DB.First(&report, reportID).Error; err != nil {
+		return nil, fmt.Errorf("보고서를 찾을 수 없습니다")
+	}
+
+	var decisions []DecisionItem
+	if err := json.Unmarshal([]byte(report.Decisions), &decisions); err != nil {
+		return nil, fmt.Errorf("결정 사항 파싱 실패")
+	}
+
+	if decisionIndex < 0 || decisionIndex >= len(decisions) {
+		return nil, fmt.Errorf("유효하지 않은 결정 인덱스: %d", decisionIndex)
+	}
+
+	d := &decisions[decisionIndex]
+	if d.Status != "pending" {
+		return nil, fmt.Errorf("이미 처리된 결정입니다: %s", d.Status)
+	}
+
+	// Directive 생성
+	dirSvc := NewDirectiveService()
+	content := d.Description
+	if memo != "" {
+		content = memo + "\n\n[자동생성 근거]\n" + d.Description
+	}
+
+	dir, err := dirSvc.Create(CreateDirectiveInput{
+		Type:       models.DirectiveTypeDirective,
+		FromUserID: founderUserID,
+		ToRole:     d.AssignTo,
+		Title:      d.Title,
+		Content:    content,
+		Priority:   "high",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("지시 생성 실패: %v", err)
+	}
+
+	// Decision 상태 업데이트
+	d.Status = "approved"
+	d.DirectiveID = &dir.ID
+	updatedJSON, _ := json.Marshal(decisions)
+	config.DB.Model(&models.GOTReport{}).Where("id = ?", reportID).
+		Update("decisions", string(updatedJSON))
+
+	LogActivity(&founderUserID, "김진우", "decision_approved", "got_report", &reportID,
+		fmt.Sprintf("결정 #%d 승인 → directive #%d → %s", decisionIndex, dir.ID, d.AssignTo))
+
+	return dir, nil
+}
+
+// --- Decision 보류/반려 ---
+
+func (s *GOTReportService) HoldDecision(reportID uint, decisionIndex int, status, memo string) error {
+	var report models.GOTReport
+	if err := config.DB.First(&report, reportID).Error; err != nil {
+		return err
+	}
+
+	var decisions []DecisionItem
+	if err := json.Unmarshal([]byte(report.Decisions), &decisions); err != nil {
+		return err
+	}
+
+	if decisionIndex < 0 || decisionIndex >= len(decisions) {
+		return fmt.Errorf("유효하지 않은 결정 인덱스")
+	}
+
+	decisions[decisionIndex].Status = status // "hold" or "rejected"
+	if memo != "" {
+		decisions[decisionIndex].Description += "\n\n[" + status + "] " + memo
+	}
+	updatedJSON, _ := json.Marshal(decisions)
+	config.DB.Model(&models.GOTReport{}).Where("id = ?", reportID).
+		Update("decisions", string(updatedJSON))
+	return nil
+}
+
+// --- 최대 비용 카테고리 (기간 지정) ---
+
+func (s *GOTReportService) getTopCostCategoryRange(start, end string) string {
 	now := time.Now()
-	start := fmt.Sprintf("%d-%02d-01", now.Year(), now.Month())
-	end := now.Format("2006-01-02")
-
+	if start == "" {
+		start = fmt.Sprintf("%d-%02d-01", now.Year(), now.Month())
+	}
+	if end == "" {
+		end = now.Format("2006-01-02")
+	}
 	type catRow struct {
 		Category string
 		Total    int64
@@ -525,15 +770,15 @@ func (s *GOTReportService) getTopCostCategory() string {
 	var top catRow
 	config.DB.Model(&models.HostexTransaction{}).
 		Select("category, SUM(amount) as total").
-		Where("type = '비용' AND transaction_at >= ? AND transaction_at < ?", start, end).
+		Where("type = '비용' AND transaction_at >= ? AND transaction_at <= ?", start, end).
 		Group("category").Order("total DESC").Limit(1).Scan(&top)
 	return top.Category
 }
 
-// --- 요약 생성 ---
+// --- 주간 요약 생성 ---
 
-func (s *GOTReportService) generateSummary(fin FinancialFlow, cashGap, deposit7d int64, alerts []CostAlert) string {
-	line1 := fmt.Sprintf("이번달 매출 ₩%s, 비용 ₩%s, 순이익 ₩%s.",
+func (s *GOTReportService) generateWeeklySummary(fin FinancialFlow, cashGap, deposit7d int64, alerts []CostAlert, prevResults []string) string {
+	line1 := fmt.Sprintf("금주 매출 ₩%s, 비용 ₩%s, 순이익 ₩%s.",
 		formatKRW(int(fin.Data1.ThisMonth)),
 		formatKRW(int(fin.Data2.ThisMonth)),
 		formatKRW(int(fin.Data3.ThisMonth)))
@@ -547,12 +792,17 @@ func (s *GOTReportService) generateSummary(fin FinancialFlow, cashGap, deposit7d
 
 	line3 := ""
 	if len(alerts) > 0 {
-		line3 = fmt.Sprintf("비용 이상 %d건: %s 등 전월 대비 20%%+ 증가.", len(alerts), alerts[0].Category)
+		line3 = fmt.Sprintf("이상 %d건: %s.", len(alerts), alerts[0].Title)
 	} else {
-		line3 = "비용 이상 없음."
+		line3 = "이상 없음."
 	}
 
-	return line1 + " " + line2 + " " + line3
+	line4 := ""
+	if len(prevResults) > 0 {
+		line4 = fmt.Sprintf(" 어제 결정 %d건: %s.", len(prevResults), prevResults[0])
+	}
+
+	return line1 + " " + line2 + " " + line3 + line4
 }
 
 // --- 조회 ---
