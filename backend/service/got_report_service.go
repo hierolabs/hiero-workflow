@@ -432,57 +432,190 @@ func (s *GOTReportService) GetDismissedAlerts(limit int) []models.GOTAlert {
 	return alerts
 }
 
-// --- 알림 액션 ---
+// --- 7단계 의사결정 프로세스 ---
 
+// Step 1→2: 검토 (Founder가 데이터 확인)
 func (s *GOTReportService) AcknowledgeAlert(id uint, userName string) error {
 	now := time.Now()
 	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status": models.AlertStatusAcknowledged, "action_by": userName, "action_at": now,
+			"status": models.AlertStatusAcknowledged, "action_by": userName,
+			"action_at": now, "step": models.AlertStep2Reviewed,
 		}).Error
 }
 
-func (s *GOTReportService) ForwardAlert(id uint, userName, toRole, memo string) error {
-	now := time.Now()
-	err := config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"status": models.AlertStatusForwarded, "action_by": userName,
-			"action_at": now, "forwarded_to": toRole, "action_memo": memo,
-		}).Error
-	if err != nil {
+// Step 2→3: 판단 (승인 — 다음 단계에서 지시 자동 생성)
+func (s *GOTReportService) ApproveAlert(id uint, userName, memo string) error {
+	var alert models.GOTAlert
+	if err := config.DB.First(&alert, id).Error; err != nil {
 		return err
 	}
 
-	// ETF에 알림 전송
-	var alert models.GOTAlert
-	config.DB.First(&alert, id)
-	notifSvc := NewNotificationService()
-	notifSvc.NotifyByRoleTitle(toRole, "delegated",
-		fmt.Sprintf("[GOT 전달] %s", alert.Title),
-		fmt.Sprintf("근거: %s\n메모: %s", alert.Evidence, memo),
-		nil, userName)
-
-	LogActivity(nil, userName, "got_alert_forwarded", "got_alert", &id,
-		fmt.Sprintf("→ %s: %s", toRole, alert.Title))
-	return nil
-}
-
-func (s *GOTReportService) ApproveAlert(id uint, userName, memo string) error {
 	now := time.Now()
-	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+	assignTo := alert.AssignTo
+	if assignTo == "" {
+		assignTo = models.AlertAssignMap[alert.Type]
+	}
+	if assignTo == "" {
+		assignTo = "ceo" // 기본값
+	}
+
+	// Step 3: 판단 기록
+	if err := config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status": models.AlertStatusApproved, "action_by": userName,
 			"action_at": now, "action_memo": memo,
+			"step": models.AlertStep3Decided, "decision": "approved",
+			"assign_to": assignTo,
+		}).Error; err != nil {
+		return err
+	}
+
+	// Step 3→4: 자동 전달 — directive 생성
+	return s.forwardAlertAsDirective(id, userName, assignTo, memo)
+}
+
+// Step 3→4: 판단 후 자동 전달 (directive 생성)
+func (s *GOTReportService) forwardAlertAsDirective(alertID uint, userName, toRole, memo string) error {
+	var alert models.GOTAlert
+	if err := config.DB.First(&alert, alertID).Error; err != nil {
+		return err
+	}
+
+	// Founder 사용자 조회
+	var founder models.AdminUser
+	config.DB.Where("role_title = 'founder' AND login_id != 'admin'").First(&founder)
+
+	content := fmt.Sprintf("[시스템 감지] %s\n\n근거: %s\n영향: %s", alert.Title, alert.Evidence, alert.Impact)
+	if memo != "" {
+		content = memo + "\n\n" + content
+	}
+
+	dirSvc := NewDirectiveService()
+	dir, err := dirSvc.Create(CreateDirectiveInput{
+		Type:       models.DirectiveTypeDirective,
+		FromUserID: founder.ID,
+		ToRole:     toRole,
+		Title:      alert.Title,
+		Content:    content,
+		Priority:   "high",
+	})
+	if err != nil {
+		return fmt.Errorf("지시 생성 실패: %v", err)
+	}
+
+	// Step 4 업데이트
+	now := time.Now()
+	config.DB.Model(&models.GOTAlert{}).Where("id = ?", alertID).
+		Updates(map[string]interface{}{
+			"step":         models.AlertStep4Forwarded,
+			"directive_id": dir.ID,
+			"forwarded_to": toRole,
+			"status":       models.AlertStatusForwarded,
+			"action_at":    now,
+		})
+
+	LogActivity(&founder.ID, userName, "alert_directive_created", "got_alert", &alertID,
+		fmt.Sprintf("→ %s(directive #%d): %s", toRole, dir.ID, alert.Title))
+
+	return nil
+}
+
+// Step 2→3: 판단 (보류 — 추가 정보 필요)
+func (s *GOTReportService) HoldAlert(id uint, userName, memo string) error {
+	now := time.Now()
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"step": models.AlertStep3Decided, "decision": "hold",
+			"action_by": userName, "action_at": now, "action_memo": memo,
+			"status": models.AlertStatusAcknowledged,
 		}).Error
 }
 
+// Step 2→3: 판단 (반려 — 조치 불필요)
 func (s *GOTReportService) RejectAlert(id uint, userName, memo string) error {
 	now := time.Now()
 	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
+			"step": models.AlertStep3Decided, "decision": "rejected",
 			"status": models.AlertStatusRejected, "action_by": userName,
 			"action_at": now, "action_memo": memo,
 		}).Error
+}
+
+// Step 4→5: 전송 (특정 역할에게 직접 지시 — approve 안 거치고 바로 전송)
+func (s *GOTReportService) ForwardAlert(id uint, userName, toRole, memo string) error {
+	var alert models.GOTAlert
+	if err := config.DB.First(&alert, id).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"step": models.AlertStep3Decided, "decision": "approved",
+			"assign_to": toRole, "action_by": userName, "action_at": now,
+			"action_memo": memo,
+		})
+
+	return s.forwardAlertAsDirective(id, userName, toRole, memo)
+}
+
+// Step 5→6: Founder 결과 확인 (directive가 completed 되면 호출)
+func (s *GOTReportService) VerifyAlertResult(id uint, userName string) error {
+	now := time.Now()
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"step": models.AlertStep6Verified, "action_by": userName, "action_at": now,
+		}).Error
+}
+
+// Step 6→7: 아카이빙 (자동 — 다음 일간 보고서 생성 시 호출)
+func (s *GOTReportService) ArchiveAlert(id uint) error {
+	return config.DB.Model(&models.GOTAlert{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"step": models.AlertStep7Archived, "status": "archived",
+		}).Error
+}
+
+// 연결된 directive 상태 동기화 (Step 5 자동 감지)
+func (s *GOTReportService) SyncAlertDirectiveStatus() {
+	var alerts []models.GOTAlert
+	config.DB.Where("directive_id IS NOT NULL AND step = ?", models.AlertStep4Forwarded).Find(&alerts)
+	for _, a := range alerts {
+		if a.DirectiveID == nil {
+			continue
+		}
+		var dir models.ETFDirective
+		if err := config.DB.First(&dir, *a.DirectiveID).Error; err != nil {
+			continue
+		}
+		if dir.Status == models.DirectiveStatusInProgress ||
+			dir.Status == models.DirectiveStatusAcknowledged {
+			config.DB.Model(&models.GOTAlert{}).Where("id = ?", a.ID).
+				Update("step", models.AlertStep5Executing)
+		}
+		if dir.Status == models.DirectiveStatusCompleted {
+			config.DB.Model(&models.GOTAlert{}).Where("id = ?", a.ID).
+				Updates(map[string]interface{}{
+					"step":        models.AlertStep5Executing,
+					"action_memo": dir.ResultMemo,
+				})
+		}
+		if dir.Status == models.DirectiveStatusVerified {
+			config.DB.Model(&models.GOTAlert{}).Where("id = ?", a.ID).
+				Updates(map[string]interface{}{
+					"step":   models.AlertStep6Verified,
+					"status": models.AlertStatusApproved,
+				})
+		}
+	}
+}
+
+// 활성 알림 조회 시 directive 상태 동기화
+func (s *GOTReportService) GetActiveAlertsWithSync() []models.GOTAlert {
+	s.SyncAlertDirectiveStatus()
+	return s.GetActiveAlerts()
 }
 
 // --- 결정 사항 생성 (담당 ETF 자동 매핑) ---

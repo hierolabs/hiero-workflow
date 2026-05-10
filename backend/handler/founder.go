@@ -69,12 +69,12 @@ func (h *FounderHandler) ReportRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "읽음 처리됨"})
 }
 
-// GET /admin/founder/anomalies — 이상 감지 (DB 상태 포함)
+// GET /admin/founder/anomalies — 이상 감지 (DB 상태 포함 + directive 동기화)
 func (h *FounderHandler) Anomalies(c *gin.Context) {
 	// 실시간 감지 실행 (새 알림 DB 저장)
 	h.reportSvc.DetectAlerts()
-	// DB에서 상태별 조회
-	active := h.reportSvc.GetActiveAlerts()
+	// directive 상태 동기화
+	active := h.reportSvc.GetActiveAlertsWithSync()
 	dismissed := h.reportSvc.GetDismissedAlerts(10)
 	c.JSON(http.StatusOK, gin.H{
 		"active":    active,
@@ -110,6 +110,20 @@ func (h *FounderHandler) AlertForward(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "전송됨"})
+}
+
+// PATCH /admin/founder/alerts/:id/hold
+func (h *FounderHandler) AlertHold(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	userName, _ := c.Get("user_name")
+	name, _ := userName.(string)
+	var req struct{ Memo string `json:"memo"` }
+	c.ShouldBindJSON(&req)
+	if err := h.reportSvc.HoldAlert(uint(id), name, req.Memo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "보류 처리됨"})
 }
 
 // PATCH /admin/founder/alerts/:id/approve

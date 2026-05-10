@@ -109,7 +109,7 @@ export default function FounderDashboard() {
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [sentDirectives, setSentDirectives] = useState<Directive[]>([]);
   const [latestReports, setLatestReports] = useState<Record<string, GOTReport>>({});
-  interface AlertItem { id: number; type: string; severity: string; title: string; evidence: string; impact: string; action: string; status: string; action_by: string; action_memo: string; forwarded_to: string }
+  interface AlertItem { id: number; type: string; severity: string; title: string; evidence: string; impact: string; action: string; status: string; action_by: string; action_memo: string; forwarded_to: string; step: number; assign_to: string; directive_id: number | null; decision: string }
   const [activeAlerts, setActiveAlerts] = useState<AlertItem[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<AlertItem[]>([]);
   const [showDismissed, setShowDismissed] = useState(false);
@@ -214,39 +214,146 @@ export default function FounderDashboard() {
             <div className="space-y-2 mb-3">
               {activeAlerts.map(a => {
                 const isCrit = a.severity === 'critical';
+                const step = a.step || 1;
+                const STEP_LABELS = ['', '감지', '검토', '판단', '전달', '실행', '확인', '기록'];
+                const STEP_COLORS = ['', 'bg-red-500', 'bg-blue-500', 'bg-purple-500', 'bg-indigo-500', 'bg-amber-500', 'bg-emerald-500', 'bg-gray-500'];
+                const ASSIGN_LABELS: Record<string, string> = { ceo: 'CEO', cto: 'CTO', cfo: 'CFO' };
+                const assignTo = a.assign_to || (({ cost_spike: 'cfo', revenue_drop: 'ceo', cash_gap: 'cfo', duplicate: 'cfo', refund_spike: 'ceo' } as Record<string, string>)[a.type] || 'ceo');
+
                 return (
-                  <div key={a.id} className={`border rounded-xl p-4 ${isCrit ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'}`}>
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg mt-0.5">{isCrit ? '🔴' : '🟡'}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-bold ${isCrit ? 'text-red-800' : 'text-amber-800'}`}>{a.title}</div>
-                        <div className="text-xs text-gray-600 mt-1"><span className="font-medium">근거:</span> {a.evidence}</div>
-                        <div className="text-xs text-gray-600 mt-0.5"><span className="font-medium">영향:</span> {a.impact}</div>
-                        <div className="text-xs text-gray-500 mt-1"><span className="font-medium">조치:</span> {a.action}</div>
-                        {/* 액션 버튼 */}
-                        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-200/60">
-                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/acknowledge`).then(fetchData)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">
-                            확인
-                          </button>
-                          <button onClick={() => {
-                            const role = prompt('전송 대상 (ceo/cto/cfo):');
-                            if (role) api.patch(`/founder/alerts/${a.id}/forward`, { to_role: role, memo: '' }).then(fetchData);
-                          }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-blue-200 text-blue-600 hover:bg-blue-50">
-                            전송
-                          </button>
-                          <button onClick={() => api.patch(`/founder/alerts/${a.id}/approve`, { memo: '' }).then(fetchData)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100">
-                            승인
-                          </button>
-                          <button onClick={() => {
-                            const memo = prompt('반려 사유:');
-                            if (memo) api.patch(`/founder/alerts/${a.id}/reject`, { memo }).then(fetchData);
-                          }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-red-200 text-red-600 hover:bg-red-50">
-                            반려
-                          </button>
+                  <div key={a.id} className={`border rounded-xl overflow-hidden ${isCrit ? 'border-red-300' : 'border-amber-300'}`}>
+                    {/* 7단계 진행 바 */}
+                    <div className="flex h-1.5">
+                      {[1,2,3,4,5,6,7].map(s => (
+                        <div key={s} className={`flex-1 ${s <= step ? STEP_COLORS[s] : 'bg-gray-200'}`} />
+                      ))}
+                    </div>
+
+                    <div className={`p-4 ${step <= 2 ? (isCrit ? 'bg-red-50' : 'bg-amber-50') : step <= 4 ? 'bg-blue-50' : step <= 6 ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-lg">{isCrit ? '🔴' : '🟡'}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded text-white ${STEP_COLORS[step]}`}>
+                            {step}/{7}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {/* 헤더 */}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-sm font-bold ${isCrit ? 'text-red-800' : 'text-amber-800'}`}>{a.title}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded text-white ${STEP_COLORS[step]}`}>
+                              {STEP_LABELS[step]}
+                            </span>
+                            {a.assign_to && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                → {ASSIGN_LABELS[a.assign_to] || a.assign_to}
+                              </span>
+                            )}
+                            {a.directive_id && (
+                              <span className="text-[10px] text-gray-400">지시 #{a.directive_id}</span>
+                            )}
+                          </div>
+
+                          {/* Step 1~2: 근거/영향/조치 표시 */}
+                          {step <= 2 && (
+                            <>
+                              <div className="text-xs text-gray-600 mt-1"><span className="font-medium">근거:</span> {a.evidence}</div>
+                              <div className="text-xs text-gray-600 mt-0.5"><span className="font-medium">영향:</span> {a.impact}</div>
+                              <div className="text-xs text-gray-500 mt-1"><span className="font-medium">추천:</span> {a.action}</div>
+                              <div className="text-xs text-indigo-600 mt-1"><span className="font-medium">담당:</span> {ASSIGN_LABELS[assignTo]} (자동 매핑)</div>
+                            </>
+                          )}
+
+                          {/* Step 3~4: 판단 결과 표시 */}
+                          {step >= 3 && step <= 4 && (
+                            <>
+                              <div className="text-xs text-gray-600 mt-1">
+                                <span className="font-medium">판단:</span> {a.decision === 'approved' ? '승인' : a.decision === 'hold' ? '보류' : '반려'}
+                                {a.action_by && ` (${a.action_by})`}
+                              </div>
+                              {a.action_memo && <div className="text-xs text-gray-500 mt-0.5">메모: {a.action_memo}</div>}
+                              {a.directive_id && <div className="text-xs text-indigo-600 mt-0.5">→ {ASSIGN_LABELS[a.forwarded_to || a.assign_to]}에게 지시 #{a.directive_id} 전달됨</div>}
+                            </>
+                          )}
+
+                          {/* Step 5~6: 실행/확인 상태 */}
+                          {step >= 5 && (
+                            <>
+                              <div className="text-xs text-emerald-700 mt-1">
+                                {step === 5 ? '담당자 실행 중...' : step === 6 ? '실행 완료 — 결과 확인됨' : '아카이빙 완료'}
+                              </div>
+                              {a.action_memo && <div className="text-xs text-gray-500 mt-0.5">결과: {a.action_memo}</div>}
+                            </>
+                          )}
+
+                          {/* === 단계별 액션 버튼 === */}
+                          <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-200/60">
+                            {/* Step 1: 감지 → 검토 */}
+                            {step === 1 && (
+                              <button onClick={() => api.patch(`/founder/alerts/${a.id}/acknowledge`).then(fetchData)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700">
+                                검토 시작
+                              </button>
+                            )}
+
+                            {/* Step 1~2: 판단 (승인/전송/보류/반려) */}
+                            {step <= 2 && (
+                              <>
+                                <button onClick={() => {
+                                  const memo = prompt(`${ASSIGN_LABELS[assignTo]}에게 전달할 지시 메모:`);
+                                  if (memo !== null) api.patch(`/founder/alerts/${a.id}/approve`, { memo }).then(fetchData);
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700">
+                                  승인 → {ASSIGN_LABELS[assignTo]}
+                                </button>
+                                <button onClick={() => {
+                                  const role = prompt('다른 담당자에게 전송 (ceo/cto/cfo):');
+                                  if (role) {
+                                    const memo = prompt('전송 메모:');
+                                    api.patch(`/founder/alerts/${a.id}/forward`, { to_role: role, memo: memo || '' }).then(fetchData);
+                                  }
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
+                                  다른 담당 전송
+                                </button>
+                                <button onClick={() => {
+                                  const memo = prompt('보류 사유:');
+                                  if (memo) api.patch(`/founder/alerts/${a.id}/hold`, { memo }).then(fetchData);
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200">
+                                  보류
+                                </button>
+                                <button onClick={() => {
+                                  const memo = prompt('반려 사유:');
+                                  if (memo) api.patch(`/founder/alerts/${a.id}/reject`, { memo }).then(fetchData);
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 ml-auto">
+                                  반려
+                                </button>
+                              </>
+                            )}
+
+                            {/* Step 3 (hold): 재판단 가능 */}
+                            {step === 3 && a.decision === 'hold' && (
+                              <>
+                                <button onClick={() => {
+                                  const memo = prompt(`보류 해제 → ${ASSIGN_LABELS[assignTo]}에게 전달:`);
+                                  if (memo !== null) api.patch(`/founder/alerts/${a.id}/approve`, { memo }).then(fetchData);
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700">
+                                  승인 → 전달
+                                </button>
+                                <button onClick={() => {
+                                  const memo = prompt('반려 사유:');
+                                  if (memo) api.patch(`/founder/alerts/${a.id}/reject`, { memo }).then(fetchData);
+                                }} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">
+                                  반려
+                                </button>
+                              </>
+                            )}
+
+                            {/* Step 4~5: 실행 대기/진행 중 — 상태만 표시 */}
+                            {(step === 4 || step === 5) && (
+                              <span className="text-xs text-gray-500">
+                                {step === 4 ? `${ASSIGN_LABELS[a.forwarded_to || a.assign_to]}에게 전달됨 — 응답 대기` : '실행 중...'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -339,6 +339,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/founder/anomalies", founderHandler.Anomalies)
 			protected.PATCH("/founder/alerts/:id/acknowledge", founderHandler.AlertAcknowledge)
 			protected.PATCH("/founder/alerts/:id/forward", founderHandler.AlertForward)
+			protected.PATCH("/founder/alerts/:id/hold", founderHandler.AlertHold)
 			protected.PATCH("/founder/alerts/:id/approve", founderHandler.AlertApprove)
 			protected.PATCH("/founder/alerts/:id/reject", founderHandler.AlertReject)
 
