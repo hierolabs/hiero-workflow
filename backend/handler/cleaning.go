@@ -321,7 +321,7 @@ func (h *CleaningHandler) CostMatch(c *gin.Context) {
 	var csvData []csvRow
 	config.DB.Model(&models.HostexTransaction{}).
 		Select("property_id, property_name, SUM(ABS(amount)) as csv_total, COUNT(*) as tx_count").
-		Where("category = ? AND year_month = ? AND property_id IS NOT NULL", models.TxCatCleaning, yearMonth).
+		Where("category = ? AND `year_month` = ? AND property_id IS NOT NULL", models.TxCatCleaning, yearMonth).
 		Group("property_id, property_name").
 		Order("property_name ASC").
 		Scan(&csvData)
@@ -428,6 +428,102 @@ func (h *CleaningHandler) CostMatch(c *gin.Context) {
 		"match_count":    matchCount,
 		"mismatch_count": mismatchCount,
 		"property_count": len(matched),
+	})
+}
+
+// BackfillFromCSV — CSV(hostex_transactions) 청소 비용 → cleaning_tasks 역매칭/자동생성
+func (h *CleaningHandler) BackfillFromCSV(c *gin.Context) {
+	yearMonth := c.DefaultQuery("year_month", time.Now().Format("2006-01"))
+
+	// 1. CSV 청소 비용 레코드 조회
+	var txRows []models.HostexTransaction
+	config.DB.Where("category = ? AND `year_month` = ? AND property_id IS NOT NULL AND property_id > 0",
+		models.TxCatCleaning, yearMonth).
+		Find(&txRows)
+
+	if len(txRows) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "해당 월 CSV 청소 비용 데이터가 없습니다", "created": 0, "updated": 0, "skipped": 0})
+		return
+	}
+
+	created, updated, skipped := 0, 0, 0
+
+	for _, tx := range txRows {
+		cost := int(tx.Amount)
+		if cost < 0 {
+			cost = -cost
+		}
+		propID := tx.PropertyID // *uint
+
+		// reservation_ref로 기존 cleaning_task 매칭 시도
+		var existing models.CleaningTask
+		found := false
+
+		if tx.ReservationRef != "" {
+			err := config.DB.Where("reservation_code = ? AND property_id = ?", tx.ReservationRef, propID).
+				First(&existing).Error
+			if err == nil {
+				found = true
+			}
+		}
+
+		// 매칭 안 되면 property_id + check_out(cleaning_date)으로 시도
+		if !found && tx.CheckOut != "" {
+			err := config.DB.Where("property_id = ? AND cleaning_date = ?", propID, tx.CheckOut).
+				First(&existing).Error
+			if err == nil {
+				found = true
+			}
+		}
+
+		if found {
+			// 이미 비용 채워져 있으면 스킵
+			if existing.TotalCost > 0 {
+				skipped++
+				continue
+			}
+			config.DB.Model(&existing).Updates(map[string]interface{}{
+				"total_cost": cost,
+				"base_price": cost,
+				"status":     models.CleaningStatusCompleted,
+			})
+			updated++
+		} else {
+			// 신규 생성
+			cleaningDate := tx.CheckOut
+			if cleaningDate == "" {
+				cleaningDate = tx.CheckIn
+			}
+			if cleaningDate == "" {
+				cleaningDate = tx.TransactionAt.Format("2006-01-02")
+			}
+
+			task := models.CleaningTask{
+				PropertyID:      propID,
+				PropertyName:    tx.PropertyName,
+				ReservationCode: tx.ReservationRef,
+				CleaningDate:    cleaningDate,
+				GuestName:       tx.GuestName,
+				Status:          models.CleaningStatusCompleted,
+				BasePrice:       cost,
+				TotalCost:       cost,
+				Memo:            fmt.Sprintf("CSV 역생성 (tx_id:%d, %s)", tx.ID, yearMonth),
+			}
+			if err := config.DB.Create(&task).Error; err != nil {
+				skipped++
+				continue
+			}
+			created++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    fmt.Sprintf("%s 청소 비용 역매칭 완료", yearMonth),
+		"year_month": yearMonth,
+		"total_csv":  len(txRows),
+		"created":    created,
+		"updated":    updated,
+		"skipped":    skipped,
 	})
 }
 

@@ -147,6 +147,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/cleaning/records", cleaningHandler.AllRecords)
 			protected.GET("/cleaning/export", cleaningHandler.ExportCSV)
 			protected.GET("/cleaning/cost-match", cleaningHandler.CostMatch)
+			protected.POST("/cleaning/backfill-from-csv", cleaningHandler.BackfillFromCSV)
 
 			// 띵동 배정 시스템
 			protected.POST("/cleaning/parse-assignment", cleaningDispatchHandler.ParseAssignment)
