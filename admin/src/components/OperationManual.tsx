@@ -12,7 +12,8 @@ export type ManualPage =
   | "messages"
   | "diagnosis"
   | "tasks"
-  | "price-calendar";
+  | "price-calendar"
+  | "org-chart";
 
 interface SectionDef {
   key: string;
@@ -500,6 +501,92 @@ OTA 채널 → Hostex → API/웹훅 → reservations 테이블 (Data 1) → 매
 - [ ] 와이파이 비밀번호 카드
 - [ ] 리모컨 정위치
 - [ ] 에어컨/히터 정상 작동 확인` },
+      { key: "page-structure", label: "페이지 구성요소 도식", defaultContent: `## /cleaning 페이지 구성요소 도식
+
+### 전체 구조
+\`\`\`
+Cleaning.tsx (메인 페이지)
+├── TabBtn (9개 탭 네비게이션)
+│
+├── 1. DashboardTab ─── 대시보드
+│   ├── PeriodFilter (기간 선택)
+│   ├── SummaryCard × 6 (KPI 요약)
+│   ├── TaskRow × N (청소 태스크 행)
+│   │   └── ActionBtn (배정/시작/완료)
+│   └── Modal → Field (배정 폼)
+│
+├── 2. DispatchTab ──── AI 배정
+│   └── Modal (배정 확인)
+│
+├── 3. LedgerTab ────── 원장
+│   ├── LedgerLink (원장 항목)
+│   └── ReservationPopup (예약 상세)
+│
+├── 4. CleanersTab ──── 청소자 관리
+│   └── Modal → Field × N (등록/수정)
+│
+├── 5. SettlementTab ── 주간 정산
+├── 6. RecordsTab ───── 이력 조회
+├── 7. CostMatchTab ─── 비용 매칭
+├── 8. CodesTab ─────── 청소 코드
+│
+├── 9. RouteAnalysisTab ── 동선 분석
+│   └── MiniCard (이동 정보)
+│
+├── OperationManual (이 히로가이드)
+└── AiAgentPanel (AI 채팅)
+\`\`\`
+
+### 데이터 흐름
+\`\`\`
+Cleaning.tsx ──API──▶ cleaning-api.ts ──HTTP──▶ Backend (Go)
+ (State 관리)  ◀────── (18개 함수)     ◀──────
+\`\`\`
+
+### API 엔드포인트 (12개)
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | /admin/cleaning/tasks | 태스크 목록 |
+| GET | /admin/cleaning/summary | 일간/기간 요약 |
+| POST | /admin/cleaning/generate | 자동 생성 |
+| PATCH | /admin/cleaning/tasks/:id/assign | 배정 |
+| PATCH | /admin/cleaning/tasks/:id/start | 시작 |
+| PATCH | /admin/cleaning/tasks/:id/complete | 완료 |
+| PATCH | /admin/cleaning/tasks/:id/issue | 이슈 보고 |
+| POST | /admin/cleaners | 청소자 등록 |
+| PUT | /admin/cleaners/:id | 청소자 수정 |
+| DELETE | /admin/cleaners/:id | 청소자 삭제 |
+| GET | /admin/cleaning-codes | 청소 코드 목록 |
+| GET | /admin/cleaning/workload | 작업량 분석 |
+
+### 타입 정의
+| 타입 | 위치 | 설명 |
+|------|------|------|
+| CleaningTask | cleaning-api.ts | 청소 태스크 |
+| CleaningSummary | cleaning-api.ts | 일간 요약 |
+| Cleaner | cleaning-api.ts | 청소자 정보 |
+| CleaningCode | cleaning-api.ts | 청소 코드 |
+| CleanerWorkload | cleaning-api.ts | 작업량 |
+| CleaningStatus | types/index.ts | 상태 Union |
+
+### 권한 (RBAC)
+접근 가능: super_admin, ceo, operations, cleaning_manager, field_manager
+
+### 백엔드 파일
+| 파일 | 역할 |
+|------|------|
+| handler/cleaning.go | API 핸들러 |
+| handler/cleaning_dispatch.go | 배정 핸들러 |
+| handler/cleaning_records.go | 이력 핸들러 |
+| service/cleaning_service.go | 비즈니스 로직 |
+| service/cleaning_dispatch_service.go | 배정 로직 |
+| models/cleaning_task.go | DB 모델 |
+| models/cleaning_code.go | 코드 모델 |
+
+### 참고
+- 9개 탭 + 10개 유틸 컴포넌트가 Cleaning.tsx 단일 파일(~2000줄)에 정의
+- 공용 컴포넌트: PeriodFilter, OperationManual, AiAgentPanel
+- AI 퀵액션: '오늘 청소 현황 요약', '배정 최적화 제안', '청소자별 효율 비교', '누락 위험 있어?'` },
     ],
   },
   issues: {
@@ -1346,16 +1433,217 @@ Hostex가 메시지/예약/캘린더 자동 처리.
 | 5 | 가격 동기화 자동화 | 수동 → 주기적 자동 (cron) |` },
     ],
   },
+  "org-chart": {
+    title: "조직문서",
+    sections: [
+      { key: "system-arch", label: "시스템 구성도", defaultContent: `## HIERO 시스템 전체 구성도
+
+### 시스템 개요
+\`\`\`
+숙박 운영의 모든 상태 변화를 추적하고 연결하는 AI 운영 OS
+\`\`\`
+
+### 구성 요소
+| 레이어 | 기술 스택 | 포트 | 역할 |
+|--------|----------|------|------|
+| Admin | React + TypeScript + Vite | 5181 | 운영진 관리 페이지 |
+| Frontend | React + TypeScript + Vite | 5180 | 외부 고객용 랜딩페이지 (Vercel) |
+| Backend | Go 1.26 (Gin + GORM + JWT) | 8080 | API 서버 + 비즈니스 로직 |
+| Database | MySQL (AWS RDS) | - | ziero-dev |
+| External | Hostex API | - | 숙박 플랫폼 연동 |
+
+### 전체 흐름
+\`\`\`
+[사용자 (Admin 5181)]
+        │ API 호출
+        ▼
+[Go Backend :8080]
+  ├── Router → Handler → Service → Model → GORM
+  │
+  ├── 주요 도메인:
+  │   • 예약 (Reservation)  — Hostex 웹훅 동기화
+  │   • 청소 (Cleaning)     — 체크아웃 기반 자동 배정
+  │   • 이슈 (Issue)        — 33개 타입 자동 배정
+  │   • 정산 (Transaction)  — CSV 업로드 + 월간 집계
+  │   • 진단 (Diagnosis)    — 5엔진 × 5지표 = 25개
+  │   • 숙소 (Property)     — 101개 라이프사이클 관리
+  │
+  ├── 미들웨어: JWT 인증 / CORS
+  │
+  ▼
+[MySQL - AWS RDS]          [Hostex API]
+ • reservations (6,364+)    • 예약 동기화
+ • properties (101)         • 웹훅 수신
+ • cleaning_tasks           • 거래 CSV 원본
+ • issues
+ • hostex_transactions (11K+)
+ • cost_raw / cost_allocations
+ • admin_users / activity_logs
+\`\`\`
+
+### 데이터 아키텍처
+| 구분 | 소스 | 역할 | 날짜 기준 |
+|------|------|------|-----------|
+| Data 1 | Hostex API 예약 | 매출 원본 | reservation_date |
+| Data 2 | Hostex CSV 정산 | 비용 원본 | transaction_at |
+| Data 3 | Data 1 + Data 2 JOIN | 분석 기준 | deposit_date |
+
+### 자동화 흐름
+\`\`\`
+예약 웹훅 수신
+  → DB 저장 (reservations)
+  → 체크아웃 감지 → 청소 자동 배정
+  → 이슈 발생 시 → 타입별 담당자 자동 배정
+  → 금액별 에스컬레이션 (<10만 자동 / 10~30만 ETF / 30만+ Founder)
+  → 5엔진 진단 자동 생성
+\`\`\`` },
+      { key: "org-pyramid", label: "조직 피라미드", defaultContent: `## 조직 피라미드
+
+### 의사결정 구조
+\`\`\`
+Founder (김진우) → 오늘 결정 3개만
+    ↑ escalation_level = founder
+ETF (CEO 김지훈 / CTO 변유진 / CFO 박수빈)
+    ↑ escalation_level = etf
+Execution (운영 재관 / 청소배정 우현 / 마케팅 예린 / 현장 진태)
+\`\`\`
+
+### 에스컬레이션 규칙
+| 금액 | 결재 레벨 |
+|------|-----------|
+| < 10만원 | 자동 처리 |
+| 10 ~ 30만원 | ETF 승인 |
+| > 30만원 | Founder 승인 |
+
+### 역할별 담당
+| 이름 | 역할 | 레이어 | 주요 업무 |
+|------|------|--------|-----------|
+| 김진우 | Founder | founder | 최종 의사결정, 전략 |
+| 김지훈 | CEO | etf | 영업, 운영 총괄 |
+| 변유진 | CTO | etf | 시스템, 분석, 숙소 발굴 |
+| 박수빈 | CFO | etf | 재무, 정산, 비용 관리 |
+| 재관 | 운영 | execution | 일상 운영, 게스트 대응 |
+| 우현 | 청소배정 | execution | 청소 스케줄 관리 |
+| 예린 | 마케팅 | execution | 콘텐츠, 플랫폼 등록 |
+| 진태 | 현장 | execution | 세팅, 촬영, 현장 점검 |` },
+      { key: "business-funnel", label: "업무 퍼널", defaultContent: `## 업무 퍼널
+
+### 5단계 퍼널
+| 단계 | 담당 | OS | 설명 |
+|------|------|-----|------|
+| 01 발견 | CTO | Property OS | 잠재 숙소 발굴 |
+| 02 분석 | CTO | Property OS + MORO | 수익성/입지 분석 |
+| 03 생성 | CTO | Growth OS | 영업 기회 생성 |
+| 04 영업 | CEO | Growth OS + People OS | 계약 체결 |
+| 05 운영 | CEO+CFO | Operations + Money + Risk OS | 지속 운영 |
+
+### 숙소 라이프사이클
+\`\`\`
+Lead → Meeting → Negotiating → Contract
+→ Setting (light 3일 / standard 5일 / renovation 14일)
+→ Filming → OTA Registration
+→ partially_active (Airbnb만 active면 판매 시작)
+→ fully_distributed → Active
+\`\`\`
+
+### 온보딩 단계
+| Phase | 담당 | 내용 |
+|-------|------|------|
+| Phase 1 | 진태 | 세팅 (가구배치, 비품설치) |
+| Phase 2 | 진태 | 촬영 (인테리어, 전경) |
+| Phase 3 | 예린 | 콘텐츠 제작 (사진편집, 설명문) |
+| Phase 4 | 예린 | 플랫폼 등록 (Airbnb → 삼삼 → Agoda) |
+| Phase 5 | 재관 | 운영 준비 (가격설정, 청소배정) |` },
+      { key: "state-transitions", label: "핵심 상태 전이", defaultContent: `## 핵심 State Transitions
+
+### 예약 상태
+\`\`\`
+pending → accepted → checked_in → checked_out → completed
+\`\`\`
+
+### 청소 상태
+\`\`\`
+pending → assigned → dispatched → in_progress → completed
+                                                    ↘ issue
+\`\`\`
+
+### 이슈 상태
+\`\`\`
+open → in_progress → resolved → closed
+  ↓ escalate
+  etf → founder
+\`\`\`
+
+### 자동 연결
+| 이벤트 | 자동 동작 |
+|--------|-----------|
+| 이슈 생성 | 타입별 자동 배정 → 알림 → 금액 기준 에스컬레이트 |
+| 청소 완료 | 활동 로그 → 주간 정산 반영 (3.3% 원천징수) |
+| 에스컬레이트 | 레벨 변경 → 새 담당자 → 상위 알림 |
+| 온보딩 체크 | 활동 로그 → Phase 완료 시 다음 담당자 알림 |` },
+      { key: "pages-data", label: "페이지-데이터 매핑", defaultContent: `## 페이지 → 데이터 연결
+
+| 사이드바 | 경로 | 핵심 엔티티 |
+|---------|------|-----------|
+| 오늘의 업무 | /today | issues + cleaning_tasks |
+| 운영 캘린더 | /calendar | reservations |
+| 예약 관리 | /reservations | reservations |
+| 게스트 메시지 | /messages | conversations + messages |
+| 청소 관리 | /cleaning | cleaning_tasks + cleaners |
+| 민원/하자 | /issues | issues |
+| 위탁영업 | /leads | outsourcing_leads |
+| 공간 관리 | /properties | properties + platforms + onboarding |
+| 정산 관리 | /settlement | hostex_transactions + cost_allocations |
+| 매출 현황 | /revenue | reservations + transactions |
+| 수익성 분석 | /profit | settlement 집계 |
+| 경영 대시보드 | / | 전체 집계 |
+| ETF Board | /etf-board | issues + team_stats |
+| 팀 관리 | /team | admin_users + attendance + stats |
+
+### API 경로 규칙
+\`\`\`
+VITE_API_URL = http://localhost:8080/admin
+프론트: api.get('/issues') → http://localhost:8080/admin/issues
+절대 /admin/admin/ 중복 금지
+\`\`\`` },
+      { key: "ai-level", label: "AI 자동화 7레벨", defaultContent: `## AI 자동화 7레벨
+
+| 레벨 | 단계 | 현재 상태 | 설명 |
+|------|------|-----------|------|
+| L1 | 수동 입력 | - | 사람이 직접 입력 |
+| L2 | 자동 수집 | ✅ 완료 | Hostex 동기화, CSV 임포트 |
+| L3 | 자동 분류 | ✅ 완료 | 33개 이슈 타입 자동 배정 |
+| L4 | 자동 판단 | ⚡ 진행중 | Founder Brief, 5엔진 진단 |
+| L5 | 자동 실행 | 다음 | 자동 가격조정, 자동 발주 |
+| L6 | 자동 학습 | 향후 | 패턴 학습, 예측 |
+| L7 | 자동 생성 | 가능 | 보고서/콘텐츠 (데이터 충분) |
+
+### 플랫폼 티어
+| 티어 | 플랫폼 | 역할 |
+|------|--------|------|
+| Master | Airbnb | Source of Truth |
+| Fast Copy | 삼삼엠투, 리브, 자리톡 | 빠른 복사 등록 |
+| Complex | Booking, Agoda | 별도 설정 필요 |` },
+    ],
+  },
 };
+
+// 히로가이드 내부에서 이동 가능한 공통 문서 목록
+const GUIDE_NAV: { key: ManualPage; label: string }[] = [
+  { key: "org-chart", label: "조직문서" },
+];
 
 export default function OperationManual({
   page,
   onClose,
+  embedded = false,
 }: {
   page: ManualPage;
   onClose: () => void;
+  embedded?: boolean;
 }) {
-  const config = PAGE_CONFIG[page];
+  const [activePage, setActivePage] = useState<ManualPage>(page);
+  const config = PAGE_CONFIG[activePage];
   const [section, setSection] = useState(config.sections[0].key);
   const [entries, setEntries] = useState<Record<string, ManualEntry>>({});
   const [editing, setEditing] = useState(false);
@@ -1365,6 +1653,13 @@ export default function OperationManual({
 
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  // 페이지 전환 시 섹션 초기화
+  useEffect(() => {
+    setSection(PAGE_CONFIG[activePage].sections[0].key);
+    setEditing(false);
+    fetchEntries();
+  }, [activePage]);
 
   useEffect(() => {
     fetchEntries();
@@ -1424,13 +1719,72 @@ export default function OperationManual({
     setSaving(false);
   };
 
+  if (embedded) {
+    return (
+      <div className="flex h-full w-full overflow-hidden rounded-xl bg-white border border-gray-200">
+        {/* Sidebar */}
+        <div className="w-52 shrink-0 border-r border-gray-200 bg-gray-50 p-3 overflow-y-auto flex flex-col">
+          <div className="mb-3">
+            <h2 className="text-xs font-bold text-gray-800 leading-tight">{config.title}</h2>
+          </div>
+
+          {/* 페이지 전환 네비게이션 */}
+          <div className="mb-3 space-y-0.5">
+            {GUIDE_NAV.map((nav) => (
+              <button
+                key={nav.key}
+                onClick={() => setActivePage(nav.key)}
+                className={`w-full rounded-md px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wide transition ${
+                  activePage === nav.key ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {nav.label}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-200 mb-2" />
+
+          <nav className="space-y-0.5 flex-1">
+            {config.sections.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => { setSection(s.key); setEditing(false); }}
+                className={`w-full rounded-md px-3 py-2 text-left text-xs font-medium transition ${
+                  section === s.key ? "bg-slate-900 text-white" : "text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {s.label}
+                {entries[s.key] && <span className="ml-1 text-[9px] opacity-60">(수정됨)</span>}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-gray-900">{displayTitle}</h3>
+          </div>
+          {savedEntry && (
+            <p className="mb-4 text-[10px] text-gray-400">
+              마지막 수정: {savedEntry.updated_name} · {new Date(savedEntry.updated_at).toLocaleString("ko-KR")}
+            </p>
+          )}
+          <div className="prose prose-sm max-w-none">
+            <MarkdownRenderer content={displayContent} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       <div className="relative m-auto flex h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-2xl">
         {/* Sidebar */}
-        <div className="w-52 shrink-0 border-r border-gray-200 bg-gray-50 p-3 overflow-y-auto">
+        <div className="w-52 shrink-0 border-r border-gray-200 bg-gray-50 p-3 overflow-y-auto flex flex-col">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xs font-bold text-gray-800 leading-tight">{config.title}</h2>
             <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600">
@@ -1439,7 +1793,32 @@ export default function OperationManual({
               </svg>
             </button>
           </div>
-          <nav className="space-y-0.5">
+
+          {/* 페이지 전환 네비게이션 */}
+          <div className="mb-3 space-y-0.5">
+            <button
+              onClick={() => setActivePage(page)}
+              className={`w-full rounded-md px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wide transition ${
+                activePage === page && activePage !== "org-chart" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              현재 페이지 가이드
+            </button>
+            {GUIDE_NAV.map((nav) => (
+              <button
+                key={nav.key}
+                onClick={() => setActivePage(nav.key)}
+                className={`w-full rounded-md px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wide transition ${
+                  activePage === nav.key ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {nav.label}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-200 mb-2" />
+
+          <nav className="space-y-0.5 flex-1">
             {config.sections.map((s) => (
               <button
                 key={s.key}

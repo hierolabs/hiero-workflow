@@ -934,16 +934,37 @@ function CostMatchTab() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ created: number; updated: number; skipped: number; total_csv: number } | null>(null);
   const API_URL = import.meta.env.VITE_API_URL;
   const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     setLoading(true);
     const token = localStorage.getItem('token');
     fetch(`${API_URL}/cleaning/cost-match?year_month=${yearMonth}`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.json()).then(setData).finally(() => setLoading(false));
   }, [yearMonth]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleBackfill = async () => {
+    if (!confirm(`${yearMonth} CSV 청소 비용을 DB에 동기화합니다.\n기존 비용이 없는 건만 업데이트됩니다. 진행할까요?`)) return;
+    setSyncing(true);
+    setSyncResult(null);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_URL}/cleaning/backfill-from-csv?year_month=${yearMonth}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await res.json();
+      setSyncResult(result);
+      loadData();
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const STATUS_STYLE: Record<string, string> = {
     match: 'bg-emerald-100 text-emerald-700',
@@ -960,12 +981,27 @@ function CostMatchTab() {
 
   return (
     <div className="space-y-4">
-      {/* 월 선택 */}
+      {/* 월 선택 + 동기화 */}
       <div className="flex items-center gap-3">
         <input type="month" value={yearMonth} onChange={e => setYearMonth(e.target.value)}
           className="rounded border px-3 py-1.5 text-sm" />
         <span className="text-sm text-gray-500">Data 2 (CSV 정산) vs 청소 DB 비교</span>
+        <button onClick={handleBackfill} disabled={syncing}
+          className="ml-auto px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+          {syncing ? '동기화 중...' : 'CSV → DB 동기화'}
+        </button>
       </div>
+
+      {/* 동기화 결과 */}
+      {syncResult && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
+          <span className="font-semibold text-indigo-800">{yearMonth} 동기화 완료</span>
+          <span className="ml-3">CSV {syncResult.total_csv}건</span>
+          <span className="ml-2 text-emerald-700">신규 {syncResult.created}</span>
+          <span className="ml-2 text-blue-700">업데이트 {syncResult.updated}</span>
+          <span className="ml-2 text-gray-500">스킵 {syncResult.skipped}</span>
+        </div>
+      )}
 
       {/* 요약 */}
       {data && (

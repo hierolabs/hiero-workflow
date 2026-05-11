@@ -12,7 +12,9 @@ import {
 import ReservationDetailModal from "../components/ReservationDetailModal";
 import MultiSelect from "../components/MultiSelect";
 import AiChat from "../components/AiChat";
+import GuestList from "../components/GuestList";
 
+type PageTab = "reservations" | "guests";
 type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
 type PeriodPreset = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
 
@@ -82,6 +84,7 @@ function getDateRange(preset: PeriodPreset): { from: string; to: string } {
 }
 
 export default function Reservations() {
+  const [pageTab, setPageTab] = useState<PageTab>("reservations");
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -279,6 +282,31 @@ export default function Reservations() {
         <h1 className="text-2xl font-bold text-gray-900">예약 관리</h1>
         <button onClick={() => setShowManual(true)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">히로가이드</button>
       </div>
+
+      {/* 상위 탭: 예약 목록 / 게스트 */}
+      <div className="mb-4 flex gap-2 border-b border-gray-200">
+        <button
+          onClick={() => setPageTab("reservations")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            pageTab === "reservations" ? "border-slate-900 text-slate-900" : "border-transparent text-gray-400 hover:text-gray-600"
+          }`}
+        >
+          예약 목록
+        </button>
+        <button
+          onClick={() => setPageTab("guests")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            pageTab === "guests" ? "border-slate-900 text-slate-900" : "border-transparent text-gray-400 hover:text-gray-600"
+          }`}
+        >
+          게스트 내역
+        </button>
+      </div>
+
+      {pageTab === "guests" ? (
+        <GuestList />
+      ) : (
+      <>
       <div className="mb-4">
         <div className="mt-2 flex flex-wrap gap-4 text-sm">
           <span className="text-gray-500">총 <strong className="text-gray-900">{total}건</strong></span>
@@ -516,6 +544,8 @@ export default function Reservations() {
         reservations.forEach((r: { channel_name?: string; channel_type?: string }) => { const ch = r.channel_name || r.channel_type || '기타'; channels[ch] = (channels[ch] || 0) + 1; });
         return `총 ${reservations.length}건, 총매출 ${total}원\n채널별: ${Object.entries(channels).map(([k, v]) => `${k}=${v}건`).join(', ')}`;
       }} />
+      </>
+      )}
     </div>
   );
 }

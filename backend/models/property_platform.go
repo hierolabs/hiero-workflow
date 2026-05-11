@@ -54,8 +54,11 @@ type PropertyPlatform struct {
 	Status       string     `gorm:"size:20;default:'draft'" json:"status"`
 	Tier         string     `gorm:"size:20" json:"tier"`            // master, fast_copy, complex, hub
 	IsMaster     bool       `gorm:"default:false" json:"is_master"` // Airbnb = true (Source of Truth)
-	HostName     string     `gorm:"size:100" json:"host_name"`      // 담당 호스트
-	RegisteredAt *time.Time `json:"registered_at"`
+	HostName       string     `gorm:"size:100" json:"host_name"`         // 담당 호스트
+	CommissionRate float64    `gorm:"default:0" json:"commission_rate"` // 수수료율 (%)
+	MinStayNights  int        `gorm:"default:1" json:"min_stay_nights"` // 최소 숙박일
+	DepositRule    string     `gorm:"size:50" json:"deposit_rule"`      // 입금 규칙 (check_in/check_in+1/check_out/check_in+5)
+	RegisteredAt   *time.Time `json:"registered_at"`
 	ActivatedAt  *time.Time `json:"activated_at"`
 	Memo         string     `gorm:"type:text" json:"memo"`
 	CreatedAt    time.Time  `json:"created_at"`

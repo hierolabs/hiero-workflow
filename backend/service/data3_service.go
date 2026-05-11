@@ -37,6 +37,11 @@ type Data3Record struct {
 	// Data 2 집계 (해당 예약의 CSV 수입/비용)
 	CsvIncome  int64 `json:"csv_income"`  // CSV 기준 실제 입금액
 	CsvExpense int64 `json:"csv_expense"` // CSV 기준 비용
+
+	// 청소 정보 (cleaning_tasks JOIN)
+	CleanerName  string `json:"cleaner_name"`  // 청소 담당자
+	CleaningCost int64  `json:"cleaning_cost"` // 청소비
+	CleaningDate string `json:"cleaning_date"` // 청소일
 }
 
 // Data3Summary 기간별 집계
@@ -87,7 +92,7 @@ func (s *Data3Service) GetData3Records(startDate, endDate, dateField string, pro
 			r.id as reservation_id,
 			r.reservation_code,
 			r.internal_prop_id as property_id,
-			COALESCE(p.title, '') as property_name,
+			COALESCE(p.name, '') as property_name,
 			r.channel_name,
 			r.channel_type,
 			LEFT(r.booked_at, 10) as reservation_date,
@@ -99,10 +104,14 @@ func (s *Data3Service) GetData3Records(startDate, endDate, dateField string, pro
 			r.status,
 			r.guest_name,
 			COALESCE(SUM(CASE WHEN ht.type = '수입' THEN ht.amount ELSE 0 END), 0) as csv_income,
-			COALESCE(SUM(CASE WHEN ht.type = '비용' THEN ht.amount ELSE 0 END), 0) as csv_expense
+			COALESCE(SUM(CASE WHEN ht.type = '비용' THEN ht.amount ELSE 0 END), 0) as csv_expense,
+			COALESCE(ct.cleaner_name, '') as cleaner_name,
+			COALESCE(ct.total_cost, 0) as cleaning_cost,
+			COALESCE(ct.cleaning_date, '') as cleaning_date
 		FROM reservations r
 		LEFT JOIN properties p ON r.internal_prop_id = p.id
 		LEFT JOIN hostex_transactions ht ON r.reservation_code = ht.reservation_ref
+		LEFT JOIN cleaning_tasks ct ON r.reservation_code = ct.reservation_code
 		WHERE r.status IN ('accepted', 'checked_in', 'checked_out')
 	`
 	args := []interface{}{}

@@ -63,6 +63,7 @@ const DEFAULT_NAV: NavGroup[] = [
     items: [
       { to: "/chat", label: "팀 채팅", iconName: "MessagesIcon" },
       { to: "/wiki", label: "Hestory", iconName: "DiagnosisIcon" },
+      { to: "/org-docs", label: "조직문서", iconName: "DiagnosisIcon" },
       { to: "/hostex", label: "Hostex 연동", iconName: "HostexIcon" },
       { to: "/settings", label: "설정", iconName: "SettingsIcon" },
       { to: "/mypage", label: "마이페이지", iconName: "UsersIcon" },

@@ -57,6 +57,8 @@ func registerAdminRoutes(r *gin.Engine) {
 	marketDataHandler := handler.NewMarketDataHandler()
 	monthlyReportHandler := handler.NewMonthlyReportHandler()
 	schedulerHandler := handler.NewSchedulerHandler(schedulerInstance)
+	guestHandler := handler.NewGuestHandler()
+	onboardingHandler := handler.NewOnboardingHandler()
 	devProjectHandler := handler.NewDevProjectHandler()
 
 	admin := r.Group("/admin")
@@ -121,6 +123,14 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/reservations/:id", reservationHandler.Get)
 			protected.PATCH("/reservations/:id", reservationHandler.UpdateRemarks)
 			protected.POST("/reservations/rematch", reservationHandler.Rematch)
+
+			// 게스트 관리
+			protected.GET("/guests", guestHandler.List)
+			protected.GET("/guests/:name", guestHandler.Detail)
+
+			// 숙소 온보딩 워크플로우
+			protected.GET("/onboarding/:id/full", onboardingHandler.GetFull)
+			protected.PUT("/onboarding/:id/step/:step", onboardingHandler.SaveStep)
 
 			// 매출 집계
 			protected.GET("/revenue/summary", reservationHandler.RevenueSummary)

@@ -39,6 +39,8 @@ import TodayDashboard from "./pages/TodayDashboard";
 import KnowledgeBase from "./pages/wiki/KnowledgeBase";
 import MyPage from "./pages/MyPage";
 import PriceCalendar from "./pages/PriceCalendar";
+import OrgDocs from "./pages/OrgDocs";
+import PropertyOnboarding from "./pages/onboarding/PropertyOnboarding";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -98,6 +100,7 @@ function App() {
             <Route path="/chat" element={<TeamChat />} />
             <Route path="/issue-detections" element={<IssueDetections />} />
             <Route path="/wiki" element={<KnowledgeBase />} />
+            <Route path="/org-docs" element={<OrgDocs />} />
             <Route path="/mypage" element={<MyPage />} />
             <Route path="/dashboard-old" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarPage />} />
@@ -105,6 +108,7 @@ function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/checklist" element={<Checklist />} />
             <Route path="/properties" element={<Properties />} />
+            <Route path="/properties/:id/onboarding" element={<PropertyOnboarding />} />
             <Route path="/reservations" element={<Reservations />} />
             <Route path="/hostex" element={<HostexSync />} />
             <Route path="/messages" element={<Messages />} />
