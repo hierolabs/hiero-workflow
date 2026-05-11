@@ -106,7 +106,11 @@ func (h *DailyTaskHandler) CheckinTargets(c *gin.Context) {
 		if reservations[i].InternalPropID != nil {
 			var prop models.Property
 			if err := config.DB.First(&prop, *reservations[i].InternalPropID).Error; err == nil {
-				reservations[i].PropertyName = prop.Name
+				name := prop.DisplayName
+				if name == "" {
+					name = prop.Name
+				}
+				reservations[i].PropertyName = name
 			}
 		}
 	}

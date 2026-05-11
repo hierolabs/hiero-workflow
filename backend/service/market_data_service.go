@@ -385,7 +385,7 @@ func (s *MarketDataService) GetMarketComparison(platform string) ([]MarketCompar
 
 		results = append(results, MarketCompareResult{
 			PropertyID:         m.PropertyID,
-			PropertyName:       prop.Name,
+			PropertyName:       func() string { if prop.DisplayName != "" { return prop.DisplayName }; return prop.Name }(),
 			PropertyRegion:     region,
 			OurRentWeekly:      mp.RentWeekly,
 			MarketAvgWeekly:    avg,

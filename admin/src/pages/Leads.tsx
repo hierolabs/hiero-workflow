@@ -467,7 +467,7 @@ function ContractTab() {
             {filtered.map(p => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                  <div className="text-sm font-medium text-gray-900">{p.display_name || p.name}</div>
                   <div className="text-[10px] text-gray-400">{p.code} · {p.region}</div>
                 </td>
                 <td className="px-4 py-3">
@@ -609,6 +609,7 @@ interface OnboardingCheck {
 interface SimpleProperty {
   id: number;
   name: string;
+  display_name?: string;
   lifecycle_status: string;
 }
 
@@ -629,6 +630,7 @@ function PlatformTab() {
         const all: SimpleProperty[] = (data.properties || []).map((p: Record<string, unknown>) => ({
           id: p.id as number,
           name: p.name as string,
+          display_name: p.display_name as string | undefined,
           lifecycle_status: (p.lifecycle_status as string) || 'lead',
         }));
         // 온보딩 대상: active 이전 단계
@@ -703,7 +705,7 @@ function PlatformTab() {
             <option value="">숙소 선택</option>
             {properties.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.lifecycle_status})
+                {p.display_name || p.name} ({p.lifecycle_status})
               </option>
             ))}
           </select>

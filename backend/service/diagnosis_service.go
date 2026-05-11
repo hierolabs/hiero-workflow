@@ -283,7 +283,7 @@ func (s *DiagnosisService) diagnose(d models.PropertyBusinessDiagnosis, prop *mo
 	return DiagnosisResult{
 		PropertyID:         d.PropertyID,
 		PropertyCode:       prop.Code,
-		PropertyName:       prop.Name,
+		PropertyName:       func() string { if prop.DisplayName != "" { return prop.DisplayName }; return prop.Name }(),
 		OverallScore:       round1(overall),
 		OverallGrade:       grade(overall),
 		Engines:            engines,

@@ -87,6 +87,7 @@ func main() {
 		&models.DailyTaskCheck{},
 		&models.DevProject{},
 		&models.DevMilestone{},
+		&models.MessageTag{},
 	)
 	seedAdminUser()
 	service.SeedCSKnowledge()
@@ -98,6 +99,29 @@ func main() {
 	seedWikiArticles()
 	seedMoroWikiArticles()
 	seedDevProjects()
+
+	// guest_name_clean 백필
+	go func() {
+		var count int64
+		config.DB.Model(&models.Reservation{}).Where("guest_name_clean = '' OR guest_name_clean IS NULL").Count(&count)
+		if count > 0 {
+			log.Printf("[Boot] guest_name_clean 백필: %d건", count)
+			var reservations []models.Reservation
+			config.DB.Where("guest_name_clean = '' OR guest_name_clean IS NULL").Find(&reservations)
+			for _, r := range reservations {
+				clean := models.MakeCleanName(r.GuestName)
+				if clean != "" {
+					config.DB.Model(&r).Update("guest_name_clean", clean)
+				}
+			}
+			log.Printf("[Boot] guest_name_clean 백필 완료: %d건", count)
+		}
+	}()
+
+	// 메시지 태깅 (동기 실행 — 외부 API 불필요, DB만 사용)
+	log.Println("[Boot] 메시지 태깅 시작...")
+	service.NewMessageAnalysisService().TagUntaggedMessages()
+	log.Println("[Boot] 메시지 태깅 완료")
 
 	// Hostex 전체 동기화 (백그라운드)
 	go func() {

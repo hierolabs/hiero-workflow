@@ -12,6 +12,12 @@ import (
 func AdminAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+		// CSV 다운로드 등 URL 파라미터 token fallback
+		if authHeader == "" {
+			if qToken := c.Query("token"); qToken != "" {
+				authHeader = "Bearer " + qToken
+			}
+		}
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "인증이 필요합니다"})
 			c.Abort()

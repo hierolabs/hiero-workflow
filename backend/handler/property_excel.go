@@ -51,7 +51,11 @@ func (h *PropertyHandler) ExportProperties(c *gin.Context) {
 		r := row + 2
 		f.SetCellValue(sheet, fmt.Sprintf("A%d", r), p.ID)
 		f.SetCellValue(sheet, fmt.Sprintf("B%d", r), p.Code)
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", r), p.Name)
+		excelName := p.DisplayName
+		if excelName == "" {
+			excelName = p.Name
+		}
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", r), excelName)
 		f.SetCellValue(sheet, fmt.Sprintf("D%d", r), p.HostexID)
 		f.SetCellValue(sheet, fmt.Sprintf("E%d", r), p.Region)
 		f.SetCellValue(sheet, fmt.Sprintf("F%d", r), p.Address)

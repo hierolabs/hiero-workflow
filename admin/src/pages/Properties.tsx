@@ -102,7 +102,7 @@ export default function Properties() {
   };
 
   const handleDelete = async (property: Property) => {
-    if (!confirm(`"${property.name}" (${property.code})을(를) 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${property.display_name || property.name}" (${property.code})을(를) 삭제하시겠습니까?`)) return;
     try {
       await deleteProperty(property.id);
       load();
@@ -113,7 +113,7 @@ export default function Properties() {
 
   const handleExclude = async (property: Property) => {
     const action = property.status === "closed" ? "포함" : "제외";
-    if (!confirm(`"${property.name}"을(를) ${action}하시겠습니까?`)) return;
+    if (!confirm(`"${property.display_name || property.name}"을(를) ${action}하시겠습니까?`)) return;
     try {
       const newStatus = property.status === "closed" ? "active" : "closed";
       await updatePropertyStatus(property.id, newStatus);
@@ -352,8 +352,8 @@ export default function Properties() {
                             </div>
                           )}
                           <div>
-                            <div className="text-sm font-medium text-gray-900 hover:text-blue-600">{p.name}</div>
-                            <div className="font-mono text-[10px] text-gray-400">{p.code}</div>
+                            <div className="text-sm font-medium text-gray-900 hover:text-blue-600">{p.display_name || p.name}</div>
+                            <div className="font-mono text-[10px] text-gray-400">{p.code} · <span className="text-gray-300">{p.name}</span></div>
                           </div>
                         </button>
                       </Td>
@@ -517,6 +517,7 @@ function PropertyFormModal({
   const [form, setForm] = useState<CreatePropertyPayload>({
     code: property?.code || "",
     name: property?.name || "",
+    display_name: property?.display_name || "",
     region: property?.region || "",
     address: property?.address || "",
     detail_address: property?.detail_address || "",
@@ -592,13 +593,22 @@ function PropertyFormModal({
                 className={inputClass(isEdit)}
               />
             </FormField>
-            <FormField label="이름" required>
+            <FormField label="이름 (Hostex 원본)" required>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => updateField("name", e.target.value)}
-                placeholder="다하임 1005"
+                placeholder="B56_더하임 506_-_Q2_TV(ott)"
                 required
+                className={inputClass()}
+              />
+            </FormField>
+            <FormField label="디네임 (표시명)">
+              <input
+                type="text"
+                value={form.display_name || ""}
+                onChange={(e) => updateField("display_name", e.target.value)}
+                placeholder="B56 더하임 506호"
                 className={inputClass()}
               />
             </FormField>
@@ -930,7 +940,7 @@ function StatusChangeModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <ErrorAlert message={error} />}
         <p className="text-sm text-gray-600">
-          <span className="font-medium">{property.name}</span>의 상태를 변경합니다.
+          <span className="font-medium">{property.display_name || property.name}</span>의 상태를 변경합니다.
         </p>
         <div className="space-y-2">
           {PROPERTY_STATUSES.map((s) => (
@@ -1003,7 +1013,7 @@ function OpStatusChangeModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <ErrorAlert message={error} />}
         <p className="text-sm text-gray-600">
-          <span className="font-medium">{property.name}</span>의 운영 상태를 변경합니다.
+          <span className="font-medium">{property.display_name || property.name}</span>의 운영 상태를 변경합니다.
         </p>
         <div className="space-y-2">
           {OPERATION_STATUSES.map((s) => (

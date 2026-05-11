@@ -96,9 +96,13 @@ func (s *ActionEngineService) EvaluateAll() []Action {
 	// 숙소 맵
 	propMap := map[int64]string{}
 	for _, p := range properties {
-		propMap[int64(p.ID)] = p.Name
+		aName := p.DisplayName
+		if aName == "" {
+			aName = p.Name
+		}
+		propMap[int64(p.ID)] = aName
 		if p.HostexID > 0 {
-			propMap[p.HostexID] = p.Name
+			propMap[p.HostexID] = aName
 		}
 	}
 
@@ -138,7 +142,11 @@ func (s *ActionEngineService) evalVacancy(properties []models.Property, tomorrow
 		}
 		if !occupied[pid] {
 			vacantIDs = append(vacantIDs, int64(p.ID))
-			vacantNames = append(vacantNames, p.Name)
+			vName := p.DisplayName
+			if vName == "" {
+				vName = p.Name
+			}
+			vacantNames = append(vacantNames, vName)
 		}
 	}
 
@@ -211,7 +219,11 @@ func (s *ActionEngineService) evalLowOccupancy(properties []models.Property, wee
 		}
 		occ := float64(propOccDays[pid]) / float64(days) * 100
 		if occ < 40 {
-			lowList = append(lowList, lowProp{int64(p.ID), p.Name, occ})
+			lpName := p.DisplayName
+			if lpName == "" {
+				lpName = p.Name
+			}
+			lowList = append(lowList, lowProp{int64(p.ID), lpName, occ})
 		}
 	}
 

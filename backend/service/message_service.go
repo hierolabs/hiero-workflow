@@ -196,6 +196,21 @@ func (s *MessageService) SyncConversationMessages(conversationID string) (int, e
 		if err := config.DB.Where("hostex_message_id = ?", m.ID).First(&existing).Error; err != nil {
 			config.DB.Create(&msg)
 			total++
+
+			// 메시지 태깅 (insight + issue)
+			if msg.ID > 0 && msg.Content != "" {
+				var conv models.Conversation
+				if err := config.DB.Where("conversation_id = ?", conversationID).First(&conv).Error; err == nil {
+					propName := ""
+					if conv.InternalPropID != nil {
+						var prop models.Property
+						if err := config.DB.First(&prop, *conv.InternalPropID).Error; err == nil {
+							propName = prop.Name
+						}
+					}
+					NewMessageAnalysisService().TagMessage(msg, conv, propName)
+				}
+			}
 		}
 	}
 

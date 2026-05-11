@@ -65,3 +65,8 @@ export async function getMessageAnalysis(period: string) {
   const res = await apiRequest(`/messages/analysis?period=${period}`);
   return res.json();
 }
+
+export async function getMessageInsight(start: string, end: string) {
+  const res = await apiRequest(`/messages/insight?start=${start}&end=${end}`);
+  return res.json();
+}

@@ -5,6 +5,7 @@ interface Detection {
   id: number;
   conversation_id: string;
   guest_name: string;
+  guest_name_clean?: string;
   property_name: string;
   detected_category: string;
   detected_keywords: string;
@@ -114,7 +115,7 @@ export default function IssueDetections() {
 
                   {/* 게스트 / 숙소 */}
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-sm font-semibold text-gray-900">{d.guest_name}</span>
+                    <span className="text-sm font-semibold text-gray-900">{d.guest_name_clean || d.guest_name}</span>
                     {d.property_name && (
                       <span className="text-xs text-gray-500">{d.property_name}</span>
                     )}

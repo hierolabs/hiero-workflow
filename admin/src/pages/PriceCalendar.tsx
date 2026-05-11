@@ -115,7 +115,7 @@ export default function PriceCalendar() {
       ]);
       setProperties((propRes.properties || []).map((p: Record<string, unknown>) => ({
         id: p.id as number,
-        name: p.name as string,
+        name: (p.display_name || p.name) as string,
         code: p.code as string,
         region: (p.region as string) || "",
       })));
@@ -329,8 +329,8 @@ export default function PriceCalendar() {
                   style={{ width: LEFT_COL, height: 44 }}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-medium text-gray-900" title={prop.name}>
-                      {shortName(prop.name)}
+                    <div className="truncate text-xs font-medium text-gray-900" title={prop.display_name || prop.name}>
+                      {shortName(prop.display_name || prop.name)}
                     </div>
                     <div className="text-[9px] text-gray-400">{prop.region}</div>
                   </div>
@@ -593,7 +593,7 @@ function BulkEditModal({ info, onClose, onSaved }: {
         <div className="mb-4">
           <h3 className="text-base font-bold text-gray-900">가격 일괄 변경</h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            {info.prop ? shortName(info.prop.name) : `숙소 #${info.propId}`}
+            {info.prop ? shortName(info.prop.display_name || info.prop.name) : `숙소 #${info.propId}`}
             {" · "}
             {fmt(info.firstDate)}~{fmt(info.lastDate)} ({info.count}일)
           </p>

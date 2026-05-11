@@ -27,6 +27,7 @@ export interface CalendarProperty {
   id: number;
   code: string;
   name: string;
+  display_name?: string;
   hostex_id: number;
   region?: string;
   room_type?: string;

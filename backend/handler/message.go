@@ -219,9 +219,13 @@ func (h *MessageHandler) ListConversations(c *gin.Context) {
 	propNames := map[uint]string{}
 	if len(propIDs) > 0 {
 		var props []models.Property
-		config.DB.Select("id, name").Where("id IN ?", propIDs).Find(&props)
+		config.DB.Select("id, name, display_name").Where("id IN ?", propIDs).Find(&props)
 		for _, p := range props {
-			propNames[p.ID] = p.Name
+			if p.DisplayName != "" {
+				propNames[p.ID] = p.DisplayName
+			} else {
+				propNames[p.ID] = p.Name
+			}
 		}
 	}
 
@@ -326,7 +330,10 @@ func (h *MessageHandler) GetConversation(c *gin.Context) {
 			if rsv.InternalPropID != nil {
 				var p models.Property
 				if config.DB.First(&p, *rsv.InternalPropID).Error == nil {
-					propName = p.Name
+					propName = p.DisplayName
+					if propName == "" {
+						propName = p.Name
+					}
 				}
 			}
 			reservationInfo = map[string]interface{}{
@@ -496,6 +503,18 @@ func (h *MessageHandler) SyncReviews(c *gin.Context) {
 func (h *MessageHandler) AnalyzeMessages(c *gin.Context) {
 	period := c.DefaultQuery("period", "week")
 	result, err := h.analysisSvc.Analyze(period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// AnalyzeInsight — 게스트 인사이트 분석 (왜 여기를 골랐는가)
+func (h *MessageHandler) AnalyzeInsight(c *gin.Context) {
+	startDate := c.DefaultQuery("start", "")
+	endDate := c.DefaultQuery("end", "")
+	result, err := h.analysisSvc.AnalyzeInsight(startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

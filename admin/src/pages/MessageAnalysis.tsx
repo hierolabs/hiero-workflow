@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getMessageAnalysis } from "../utils/message-api";
+import { getMessageAnalysis, getMessageInsight } from "../utils/message-api";
 import { apiRequest } from "../utils/api";
+import PeriodFilter, { type PeriodKey, calcRange } from "../components/PeriodFilter";
 
 interface Issue {
   conversation_id: string;
   guest_name: string;
+  guest_name_clean?: string;
   property_name: string;
   category: string;
   content: string;
@@ -125,8 +127,241 @@ function renderChange(value: number, invertColor: boolean, suffix = "%p") {
   );
 }
 
+/* ── 게스트 인사이트 타입 ── */
+interface InsightItem {
+  conversation_id: string;
+  guest_name: string;
+  guest_name_clean?: string;
+  property_name: string;
+  category: string;
+  content: string;
+  sender_type: string;
+  sent_at: string;
+  channel_type: string;
+  matched_keyword: string;
+}
+
+interface ReasonSummary {
+  category: string;
+  count: number;
+  percent: number;
+  examples: string[];
+}
+
+interface InsightData {
+  period: string;
+  start_date: string;
+  end_date: string;
+  total_messages: number;
+  total_guest: number;
+  items: InsightItem[];
+  category_counts: Record<string, number>;
+  channel_counts: Record<string, number>;
+  top_reasons: ReasonSummary[];
+}
+
+const INSIGHT_COLORS: Record<string, string> = {
+  "가격/가성비": "bg-green-100 text-green-800",
+  "위치/교통": "bg-blue-100 text-blue-800",
+  "깨끗/청결": "bg-cyan-100 text-cyan-800",
+  "넓이/공간": "bg-indigo-100 text-indigo-800",
+  "시설/옵션": "bg-violet-100 text-violet-800",
+  "장기/출장": "bg-amber-100 text-amber-800",
+  "이사/독립": "bg-orange-100 text-orange-800",
+  "여행/관광": "bg-pink-100 text-pink-800",
+  "재방문/단골": "bg-emerald-100 text-emerald-800",
+  "추천받음": "bg-lime-100 text-lime-800",
+  "사진/기대": "bg-yellow-100 text-yellow-800",
+  "체류목적-의료": "bg-red-100 text-red-800",
+  "체류목적-학업": "bg-sky-100 text-sky-800",
+  "즉시입주": "bg-rose-100 text-rose-800",
+};
+
+/* ── 인사이트 탭 컴포넌트 ── */
+function InsightTab({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const [data, setData] = useState<InsightData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [filterCat, setFilterCat] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (startDate) load();
+  }, [startDate, endDate]);
+
+  async function load() {
+    setLoading(true);
+    const result = await getMessageInsight(startDate, endDate);
+    setData(result);
+    setLoading(false);
+  }
+
+  if (!data) return <div className="p-6 text-gray-400">로딩 중...</div>;
+
+  const filtered = filterCat ? data.items.filter(i => i.category === filterCat) : data.items;
+  const totalHits = data.top_reasons.reduce((a, b) => a + b.count, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">게스트 인사이트</h1>
+          <p className="text-sm text-gray-500">
+            {data.start_date} ~ {data.end_date} | 게스트 메시지 {data.total_guest.toLocaleString()}건 분석
+          </p>
+        </div>
+      </div>
+
+      {/* 핵심 질문 배너 */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="text-sm font-semibold text-amber-800">분석 관점</div>
+        <div className="text-base font-bold text-amber-900 mt-1">
+          "게스트는 왜 여기를 골랐는가?"
+        </div>
+        <div className="text-xs text-amber-700 mt-1">
+          기존 이슈 분석은 "뭐가 고장났나". 이 탭은 "왜 왔나, 뭘 기대했나, 뭐가 좋았나" 관점입니다.
+        </div>
+      </div>
+
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg border p-4">
+          <div className="text-sm text-gray-500">게스트 메시지</div>
+          <div className="text-2xl font-bold text-gray-900">{data.total_guest.toLocaleString()}</div>
+        </div>
+        <div className="bg-white rounded-lg border p-4">
+          <div className="text-sm text-gray-500">인사이트 감지</div>
+          <div className="text-2xl font-bold text-blue-600">{totalHits}</div>
+          <div className="text-xs text-gray-400 mt-1">
+            {data.total_guest > 0 ? Math.round(totalHits / data.total_guest * 100) : 0}% 감지율
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border p-4">
+          <div className="text-sm text-gray-500">1위 선택 이유</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {data.top_reasons[0]?.category || "-"}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">{data.top_reasons[0]?.count || 0}건 ({data.top_reasons[0]?.percent.toFixed(1)}%)</div>
+        </div>
+        <div className="bg-white rounded-lg border p-4">
+          <div className="text-sm text-gray-500">채널별</div>
+          <div className="space-y-1 mt-1">
+            {Object.entries(data.channel_counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([ch, cnt]) => (
+              <div key={ch} className="flex justify-between text-xs">
+                <span className="text-gray-600">{ch}</span>
+                <span className="font-medium text-gray-900">{cnt}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 선택 이유 순위 */}
+      <div className="bg-white rounded-lg border p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          게스트가 말한 선택 이유 TOP
+        </h3>
+        <div className="space-y-2">
+          {data.top_reasons.map((r, idx) => (
+            <div key={r.category} className="flex items-center gap-3">
+              <span className="text-xs font-bold text-gray-400 w-5">{idx + 1}</span>
+              <button
+                onClick={() => setFilterCat(filterCat === r.category ? null : r.category)}
+                className={`text-xs px-2 py-1 rounded-full ${
+                  filterCat === r.category ? "ring-2 ring-blue-400" : ""
+                } ${INSIGHT_COLORS[r.category] || "bg-gray-100 text-gray-700"}`}
+              >
+                {r.category}
+              </button>
+              <div className="flex-1">
+                <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-400 rounded-full"
+                    style={{ width: `${Math.min(r.percent, 100)}%` }}
+                  />
+                </div>
+              </div>
+              <span className="text-sm font-bold text-gray-900 w-12 text-right">{r.count}</span>
+              <span className="text-xs text-gray-400 w-12 text-right">{r.percent.toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 카테고리 필터 */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setFilterCat(null)}
+          className={`px-3 py-1.5 text-sm rounded-full border ${
+            !filterCat ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200"
+          }`}
+        >
+          전체 ({totalHits})
+        </button>
+        {data.top_reasons.map(r => (
+          <button
+            key={r.category}
+            onClick={() => setFilterCat(filterCat === r.category ? null : r.category)}
+            className={`px-3 py-1.5 text-sm rounded-full border ${
+              filterCat === r.category
+                ? INSIGHT_COLORS[r.category] || "bg-gray-200 text-gray-800"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {r.category} ({r.count})
+          </button>
+        ))}
+      </div>
+
+      {/* 메시지 목록 */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h3 className="font-semibold text-sm text-gray-900">
+            인사이트 메시지 ({filtered.length}건)
+            {filterCat && <span className="ml-2 text-gray-400 font-normal">— {filterCat}</span>}
+          </h3>
+        </div>
+        <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
+          {filtered.map((item, idx) => (
+            <div key={idx} className="px-4 py-3 hover:bg-gray-50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${INSIGHT_COLORS[item.category] || "bg-gray-100 text-gray-600"}`}>
+                  {item.category}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                  "{item.matched_keyword}"
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(item.sent_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span className="text-[10px] text-gray-400">{item.channel_type}</span>
+                <Link
+                  to={`/messages?conv=${item.conversation_id}`}
+                  className="ml-auto text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100"
+                >
+                  채팅
+                </Link>
+              </div>
+              <p className="text-sm text-gray-900 line-clamp-2">{item.content}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-medium text-gray-700">{item.guest_name_clean || item.guest_name}</span>
+                {item.property_name && <span className="text-xs text-gray-400">· {item.property_name}</span>}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-gray-400 text-sm">감지된 인사이트가 없습니다</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MessageAnalysis() {
-  const [period, setPeriod] = useState("week");
+  const [activeTab, setActiveTab] = useState<"issues" | "insight">("issues");
+  const [period, setPeriod] = useState<PeriodKey>("this_week");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
@@ -134,11 +369,24 @@ export default function MessageAnalysis() {
   const [creating, setCreating] = useState<number | null>(null);
 
   useEffect(() => {
-    load();
-    // 30초마다 자동 새로고침
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, [period]);
+    const [s, e] = calcRange("this_week");
+    setStartDate(s);
+    setEndDate(e);
+  }, []);
+
+  function onPeriodChange(p: PeriodKey, start: string, end: string) {
+    setPeriod(p);
+    setStartDate(start);
+    setEndDate(end);
+  }
+
+  useEffect(() => {
+    if (activeTab === "issues" && startDate) {
+      load();
+      const interval = setInterval(load, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [startDate, endDate, activeTab]);
 
   async function load() {
     setLoading(true);
@@ -179,6 +427,22 @@ export default function MessageAnalysis() {
     }
   }
 
+  // 탭 전환
+  if (activeTab === "insight") {
+    return (
+      <div>
+        <div className="flex gap-1 mb-4">
+          <button onClick={() => setActiveTab("issues")} className="px-4 py-2 text-sm rounded-t-md font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">이슈 분석</button>
+          <button onClick={() => setActiveTab("insight")} className="px-4 py-2 text-sm rounded-t-md font-medium bg-gray-900 text-white">게스트 인사이트</button>
+        </div>
+        <div className="mb-4">
+          <PeriodFilter value={period} onChange={onPeriodChange} />
+        </div>
+        <InsightTab startDate={startDate} endDate={endDate} />
+      </div>
+    );
+  }
+
   if (!data) {
     return <div className="p-6 text-gray-400">로딩 중...</div>;
   }
@@ -198,46 +462,20 @@ export default function MessageAnalysis() {
 
   return (
     <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      {/* 탭 */}
+      <div className="flex gap-1 mb-4">
+        <button onClick={() => setActiveTab("issues")} className="px-4 py-2 text-sm rounded-t-md font-medium bg-gray-900 text-white">이슈 분석</button>
+        <button onClick={() => setActiveTab("insight")} className="px-4 py-2 text-sm rounded-t-md font-medium bg-gray-100 text-gray-600 hover:bg-gray-200">게스트 인사이트</button>
+      </div>
+
+      {/* 헤더 + 통합 기간 필터 */}
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">메시지 이슈 분석</h1>
-          <p className="text-sm text-gray-500">
-            {data.start_date} ~ {data.end_date}
-          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/issues"
-            className="text-xs px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
-          >
-            이슈 목록 보기
-          </Link>
-          <div className="flex gap-1">
-            {[
-              { value: "day", label: "1일" },
-              { value: "week", label: "1주" },
-              { value: "month", label: "1달" },
-            ].map((p) => (
-              <button
-                key={p.value}
-                onClick={() => {
-                  setPeriod(p.value);
-                  setFilterCategory(null);
-                }}
-                disabled={loading}
-                className={`px-3 py-1.5 text-sm rounded-md font-medium ${
-                  period === p.value
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Link to="/issues" className="text-xs px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100">이슈 목록 보기</Link>
       </div>
+      <PeriodFilter value={period} onChange={onPeriodChange} />
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-4 gap-4">
@@ -462,7 +700,7 @@ export default function MessageAnalysis() {
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs font-medium text-gray-700">
-                      {issue.guest_name}
+                      {issue.guest_name_clean || issue.guest_name}
                     </span>
                     {issue.property_name && (
                       <span className="text-xs text-gray-400">

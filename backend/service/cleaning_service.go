@@ -81,7 +81,10 @@ func (s *CleaningService) GenerateFromCheckouts(date string) (int, error) {
 		var propID *uint
 		if r.InternalPropID != nil {
 			if prop, ok := propMap[*r.InternalPropID]; ok {
-				propName = prop.Name
+				propName = prop.DisplayName
+				if propName == "" {
+					propName = prop.Name
+				}
 				propCode = prop.Code
 				address = prop.Address
 				propID = &prop.ID

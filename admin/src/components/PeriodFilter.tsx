@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 
 export type PeriodKey =
+  | "all"
   | "today" | "yesterday" | "this_week" | "last_week"
   | "this_month" | "last_month"
   | "this_quarter" | "last_quarter"
@@ -13,6 +14,7 @@ interface PeriodFilterProps {
 }
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
+  { key: "all", label: "전체" },
   { key: "today", label: "오늘" },
   { key: "yesterday", label: "어제" },
   { key: "this_week", label: "이번주" },
@@ -35,6 +37,8 @@ export function calcRange(period: PeriodKey, customStart?: string, customEnd?: s
   const dow = now.getDay() || 7; // 일=7
 
   switch (period) {
+    case "all":
+      return ["2023-01-01", fmt(now)];
     case "today":
       return [fmt(now), fmt(now)];
     case "yesterday": {

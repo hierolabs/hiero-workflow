@@ -91,7 +91,7 @@ export default function Settlement() {
   // 필터 (다중 선택)
   const [filterPropIds, setFilterPropIds] = useState<string[]>([]);
   const [filterChannels, setFilterChannels] = useState<string[]>([]);
-  const [propertyList, setPropertyList] = useState<{ id: number; name: string }[]>([]);
+  const [propertyList, setPropertyList] = useState<{ id: number; name: string; display_name?: string }[]>([]);
   const [channelList, setChannelList] = useState<string[]>([]);
 
   // 연도별 월간 데이터
@@ -204,7 +204,7 @@ export default function Settlement() {
       ]);
       if (propRes.ok) {
         const d = await propRes.json();
-        const list = (d.properties || d || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+        const list = (d.properties || d || []).map((p: { id: number; name: string; display_name?: string }) => ({ id: p.id, name: p.display_name || p.name }));
         setPropertyList(list.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
       }
       if (chRes.ok) {
@@ -382,7 +382,7 @@ export default function Settlement() {
         {/* 숙소 / 채널 필터 */}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <MultiSelect
-            options={propertyList.map((p) => ({ value: String(p.id), label: p.name }))}
+            options={propertyList.map((p) => ({ value: String(p.id), label: p.display_name || p.name }))}
             selected={filterPropIds}
             onChange={setFilterPropIds}
             placeholder="전체 숙소"
@@ -1068,7 +1068,7 @@ function TransactionDetailModal({ propertyId, propertyName, field, fieldLabel, s
                     <td className="px-2 py-1.5 text-right font-medium text-gray-900">{fmt(t.amount)}</td>
                     <td className="px-2 py-1.5 text-gray-500 text-xs">{t.payment_method}</td>
                     <td className="px-2 py-1.5 text-gray-500 text-xs truncate max-w-[120px]">{t.reservation_ref || "—"}</td>
-                    <td className="px-2 py-1.5 text-gray-500 text-xs truncate max-w-[100px]">{t.guest_name || "—"}</td>
+                    <td className="px-2 py-1.5 text-gray-500 text-xs truncate max-w-[100px]">{t.guest_name_clean || t.guest_name || "—"}</td>
                     <td className="px-2 py-1.5 text-gray-500 text-xs">{t.channel}</td>
                     <td className="px-2 py-1.5 text-gray-400 text-xs truncate max-w-[120px]">{t.note || "—"}</td>
                   </tr>

@@ -39,8 +39,11 @@ func (s *OpsFeedService) GetTodayFeed() []FeedItem {
 		propName := ""
 		if r.InternalPropID != nil {
 			var p models.Property
-			if config.DB.Select("name").First(&p, *r.InternalPropID).Error == nil {
-				propName = p.Name
+			if config.DB.Select("name, display_name").First(&p, *r.InternalPropID).Error == nil {
+				propName = p.DisplayName
+				if propName == "" {
+					propName = p.Name
+				}
 			}
 		}
 		items = append(items, FeedItem{
@@ -63,8 +66,11 @@ func (s *OpsFeedService) GetTodayFeed() []FeedItem {
 		propName := ""
 		if r.InternalPropID != nil {
 			var p models.Property
-			if config.DB.Select("name").First(&p, *r.InternalPropID).Error == nil {
-				propName = p.Name
+			if config.DB.Select("name, display_name").First(&p, *r.InternalPropID).Error == nil {
+				propName = p.DisplayName
+				if propName == "" {
+					propName = p.Name
+				}
 			}
 		}
 		items = append(items, FeedItem{

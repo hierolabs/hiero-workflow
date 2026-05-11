@@ -18,69 +18,116 @@ type PageTab = "reservations" | "guests";
 type ViewMode = "booked" | "checkin" | "checkout" | "extension" | "cancelled";
 type PeriodPreset = "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
 
-function getDateRange(preset: PeriodPreset): { from: string; to: string } {
-  const now = new Date();
-  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const startOfWeek = (d: Date) => {
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.getFullYear(), d.getMonth(), diff);
-  };
+// 네비게이션 가능한 preset 그룹
+type NavGroup = "day" | "week" | "month" | "quarter" | "year" | null;
 
-  switch (preset) {
-    case "today":
-      return { from: fmt(now), to: fmt(now) };
-    case "yesterday": {
-      const y = new Date(now); y.setDate(y.getDate() - 1);
-      return { from: fmt(y), to: fmt(y) };
+function getNavGroup(preset: PeriodPreset): NavGroup {
+  if (preset === "today" || preset === "yesterday") return "day";
+  if (preset === "this_week" || preset === "last_week") return "week";
+  if (preset === "this_month" || preset === "last_month") return "month";
+  if (preset === "this_quarter" || preset === "last_quarter") return "quarter";
+  if (preset === "this_year" || preset === "last_year") return "year";
+  return null;
+}
+
+const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const startOfWeek = (d: Date) => {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.getFullYear(), d.getMonth(), diff);
+};
+
+function getDateRangeWithOffset(group: NavGroup, offset: number): { from: string; to: string } {
+  const now = new Date();
+
+  switch (group) {
+    case "day": {
+      const d = new Date(now);
+      d.setDate(d.getDate() + offset);
+      return { from: fmt(d), to: fmt(d) };
     }
-    case "this_week": {
+    case "week": {
       const s = startOfWeek(new Date(now));
+      s.setDate(s.getDate() + offset * 7);
       const e = new Date(s); e.setDate(e.getDate() + 6);
       return { from: fmt(s), to: fmt(e) };
     }
-    case "last_week": {
-      const s = startOfWeek(new Date(now)); s.setDate(s.getDate() - 7);
-      const e = new Date(s); e.setDate(e.getDate() + 6);
+    case "month": {
+      const s = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const e = new Date(s.getFullYear(), s.getMonth() + 1, 0);
       return { from: fmt(s), to: fmt(e) };
     }
-    case "this_month": {
-      const s = new Date(now.getFullYear(), now.getMonth(), 1);
-      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    case "quarter": {
+      const curQ = Math.floor(now.getMonth() / 3);
+      const totalQ = curQ + offset;
+      const y = now.getFullYear() + Math.floor(totalQ / 4);
+      const q = ((totalQ % 4) + 4) % 4;
+      const s = new Date(y, q * 3, 1);
+      const e = new Date(y, q * 3 + 3, 0);
       return { from: fmt(s), to: fmt(e) };
     }
-    case "last_month": {
-      const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const e = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { from: fmt(s), to: fmt(e) };
-    }
-    case "this_quarter": {
-      const qStart = Math.floor(now.getMonth() / 3) * 3;
-      const s = new Date(now.getFullYear(), qStart, 1);
-      const e = new Date(now.getFullYear(), qStart + 3, 0);
-      return { from: fmt(s), to: fmt(e) };
-    }
-    case "last_quarter": {
-      const qStart = Math.floor(now.getMonth() / 3) * 3 - 3;
-      const y = qStart < 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const q = qStart < 0 ? qStart + 12 : qStart;
-      const s = new Date(y, q, 1);
-      const e = new Date(y, q + 3, 0);
-      return { from: fmt(s), to: fmt(e) };
-    }
-    case "this_year": {
-      const s = new Date(now.getFullYear(), 0, 1);
-      const e = new Date(now.getFullYear(), 11, 31);
-      return { from: fmt(s), to: fmt(e) };
-    }
-    case "last_year": {
-      const s = new Date(now.getFullYear() - 1, 0, 1);
-      const e = new Date(now.getFullYear() - 1, 11, 31);
-      return { from: fmt(s), to: fmt(e) };
+    case "year": {
+      const y = now.getFullYear() + offset;
+      return { from: fmt(new Date(y, 0, 1)), to: fmt(new Date(y, 11, 31)) };
     }
     default:
       return { from: fmt(now), to: fmt(now) };
   }
+}
+
+function getNavLabel(group: NavGroup, offset: number): string {
+  const now = new Date();
+  const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+  switch (group) {
+    case "day": {
+      const d = new Date(now);
+      d.setDate(d.getDate() + offset);
+      const dayLabel = offset === 0 ? " (오늘)" : offset === -1 ? " (어제)" : "";
+      return `${d.getMonth() + 1}/${d.getDate()} ${WEEKDAYS[d.getDay()]}${dayLabel}`;
+    }
+    case "week": {
+      const s = startOfWeek(new Date(now));
+      s.setDate(s.getDate() + offset * 7);
+      const e = new Date(s); e.setDate(e.getDate() + 6);
+      const label = offset === 0 ? " (이번주)" : offset === -1 ? " (지난주)" : "";
+      return `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}${label}`;
+    }
+    case "month": {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const label = offset === 0 ? " (이번달)" : offset === -1 ? " (지난달)" : "";
+      return `${d.getFullYear()}년 ${d.getMonth() + 1}월${label}`;
+    }
+    case "quarter": {
+      const curQ = Math.floor(now.getMonth() / 3);
+      const totalQ = curQ + offset;
+      const y = now.getFullYear() + Math.floor(totalQ / 4);
+      const q = ((totalQ % 4) + 4) % 4 + 1;
+      const label = offset === 0 ? " (이번)" : offset === -1 ? " (지난)" : "";
+      return `${y}년 Q${q}${label}`;
+    }
+    case "year": {
+      const y = now.getFullYear() + offset;
+      const label = offset === 0 ? " (올해)" : offset === -1 ? " (작년)" : "";
+      return `${y}년${label}`;
+    }
+    default:
+      return "";
+  }
+}
+
+// 기존 호환용
+function getDateRange(preset: PeriodPreset): { from: string; to: string } {
+  const group = getNavGroup(preset);
+  if (!group) return { from: fmt(new Date()), to: fmt(new Date()) };
+  const offsetMap: Record<string, number> = {
+    today: 0, yesterday: -1,
+    this_week: 0, last_week: -1,
+    this_month: 0, last_month: -1,
+    this_quarter: 0, last_quarter: -1,
+    this_year: 0, last_year: -1,
+  };
+  return getDateRangeWithOffset(group, offsetMap[preset] ?? 0);
 }
 
 export default function Reservations() {
@@ -94,6 +141,7 @@ export default function Reservations() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("booked");
   const [period, setPeriod] = useState<PeriodPreset>("today");
+  const [navOffset, setNavOffset] = useState(0); // 날짜 네비게이션 오프셋
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [page, setPage] = useState(1);
@@ -108,13 +156,16 @@ export default function Reservations() {
   // 숙소/채널 필터 (다중 선택)
   const [filterPropIds, setFilterPropIds] = useState<string[]>([]);
   const [filterChannels, setFilterChannels] = useState<string[]>([]);
-  const [propOptions, setPropOptions] = useState<{ id: number; name: string }[]>([]);
+  const [propOptions, setPropOptions] = useState<{ id: number; name: string; display_name?: string }[]>([]);
   const [channelOptions, setChannelOptions] = useState<string[]>([]);
 
   const buildQuery = useCallback((): ReservationListQuery => {
+    const navGroup = getNavGroup(period);
     const range = period === "custom"
       ? { from: customFrom, to: customTo }
-      : getDateRange(period);
+      : navGroup
+        ? getDateRangeWithOffset(navGroup, navOffset)
+        : getDateRange(period);
 
     const q: ReservationListQuery = {
       page,
@@ -145,7 +196,7 @@ export default function Reservations() {
     if (sortBy) { q.sort_by = sortBy; q.sort_order = sortOrder; }
     (q as Record<string, unknown>).view_mode = viewMode;
     return q;
-  }, [viewMode, period, customFrom, customTo, page, keyword, filterPropIds, filterChannels, sortBy, sortOrder]);
+  }, [viewMode, period, navOffset, customFrom, customTo, page, keyword, filterPropIds, filterChannels, sortBy, sortOrder]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,7 +225,7 @@ export default function Reservations() {
       fetch(`${API_URL}/transactions/channels`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : null),
     ]).then(([propData, chData]) => {
       if (propData) {
-        const list = (propData.properties || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }));
+        const list = (propData.properties || []).map((p: { id: number; name: string; display_name?: string }) => ({ id: p.id, name: p.display_name || p.name }));
         setPropOptions(list.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
       }
       if (chData) setChannelOptions(chData || []);
@@ -183,9 +234,12 @@ export default function Reservations() {
 
   // 각 탭별 카운트 로드
   useEffect(() => {
+    const navGroup = getNavGroup(period);
     const range = period === "custom"
       ? { from: customFrom, to: customTo }
-      : getDateRange(period);
+      : navGroup
+        ? getDateRangeWithOffset(navGroup, navOffset)
+        : getDateRange(period);
     if (!range.from || !range.to) return;
 
     const token = localStorage.getItem("token");
@@ -207,10 +261,22 @@ export default function Reservations() {
       results.forEach((r) => { counts[r.mode] = r.count; });
       setViewCounts(counts);
     });
-  }, [period, customFrom, customTo]);
+  }, [period, navOffset, customFrom, customTo]);
 
   const handleViewChange = (v: ViewMode) => { setViewMode(v); setPage(1); };
-  const handlePeriodChange = (p: PeriodPreset) => { setPeriod(p); setPage(1); };
+  const handlePeriodChange = (p: PeriodPreset) => {
+    setPeriod(p);
+    // preset 매핑: "어제" → day -1, "지난주" → week -1 등
+    const presetOffsets: Partial<Record<PeriodPreset, number>> = {
+      today: 0, yesterday: -1,
+      this_week: 0, last_week: -1,
+      this_month: 0, last_month: -1,
+      this_quarter: 0, last_quarter: -1,
+      this_year: 0, last_year: -1,
+    };
+    setNavOffset(presetOffsets[p] ?? 0);
+    setPage(1);
+  };
   const handleSort = (col: string) => {
     if (sortBy === col) {
       if (sortOrder === "desc") setSortOrder("asc");
@@ -222,9 +288,12 @@ export default function Reservations() {
   };
 
   const aiContext = useMemo(() => {
+    const navGroup = getNavGroup(period);
     const range = period === "custom"
       ? { from: customFrom, to: customTo }
-      : getDateRange(period);
+      : navGroup
+        ? getDateRangeWithOffset(navGroup, navOffset)
+        : getDateRange(period);
     return {
       page: "reservations",
       view_mode: viewMode,
@@ -235,7 +304,7 @@ export default function Reservations() {
       sum_rate: sumRate,
       sum_nights: sumNights,
     };
-  }, [viewMode, period, customFrom, customTo, total, sumRate, sumNights]);
+  }, [viewMode, period, navOffset, customFrom, customTo, total, sumRate, sumNights]);
 
   const formatWon = (value: number) => value.toLocaleString("ko-KR") + "원";
   const getChannelLabel = (r: Reservation) => {
@@ -259,19 +328,15 @@ export default function Reservations() {
     { value: "cancelled", label: "취소" },
   ];
 
-  const periodPresets: { value: PeriodPreset; label: string }[] = [
-    { value: "today", label: "오늘" },
-    { value: "yesterday", label: "어제" },
-    { value: "this_week", label: "이번주" },
-    { value: "last_week", label: "지난주" },
-    { value: "this_month", label: "이번달" },
-    { value: "last_month", label: "지난달" },
-    { value: "this_quarter", label: "이번 분기" },
-    { value: "last_quarter", label: "지난 분기" },
-    { value: "this_year", label: "올해" },
-    { value: "last_year", label: "작년" },
-    { value: "custom", label: "기간설정" },
+  const periodGroups: { group: NavGroup; label: string; presets: PeriodPreset[] }[] = [
+    { group: "day", label: "일", presets: ["today", "yesterday"] },
+    { group: "week", label: "주", presets: ["this_week", "last_week"] },
+    { group: "month", label: "월", presets: ["this_month", "last_month"] },
+    { group: "quarter", label: "분기", presets: ["this_quarter", "last_quarter"] },
+    { group: "year", label: "년", presets: ["this_year", "last_year"] },
   ];
+  const activeNavGroup = getNavGroup(period);
+  const navLabel = activeNavGroup ? getNavLabel(activeNavGroup, navOffset) : "";
 
   return (
     <div>
@@ -307,74 +372,42 @@ export default function Reservations() {
         <GuestList />
       ) : (
       <>
-      <div className="mb-4">
-        <div className="mt-2 flex flex-wrap gap-4 text-sm">
-          <span className="text-gray-500">총 <strong className="text-gray-900">{total}건</strong></span>
-          <span className="text-gray-500">총 <strong className="text-gray-900">{sumNights.toLocaleString()}박</strong></span>
-          <span className="text-gray-500">매출 <strong className="text-blue-600">{sumRate.toLocaleString("ko-KR")}원</strong></span>
-        </div>
-      </div>
-
-      {/* View Mode Tabs */}
-      <div className="mb-3 flex gap-1">
+      {/* 1줄: ViewMode + 통계 */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         {viewModes.map((m) => (
-          <button
-            key={m.value}
-            onClick={() => handleViewChange(m.value)}
-            className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
-              viewMode === m.value
-                ? "bg-slate-800 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {m.label}
-            {viewCounts[m.value] != null && (
-              <span className="ml-1 opacity-70">({viewCounts[m.value]})</span>
-            )}
-          </button>
+          <button key={m.value} onClick={() => handleViewChange(m.value)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${viewMode === m.value ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          >{m.label}{viewCounts[m.value] != null && <span className="ml-1 opacity-60">{viewCounts[m.value]}</span>}</button>
         ))}
+        <span className="ml-auto text-sm text-gray-500">{total}건 · {sumNights.toLocaleString()}박 · <span className="text-blue-600 font-medium">{sumRate.toLocaleString("ko-KR")}원</span></span>
       </div>
-
-      {/* Period Presets */}
-      <div className="mb-3 flex flex-wrap items-center gap-1">
-        {periodPresets.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => handlePeriodChange(p.value)}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              period === p.value
-                ? "bg-blue-600 text-white"
-                : "bg-gray-50 text-gray-500 hover:bg-gray-100"
-            }`}
-          >
-            {p.label}
-          </button>
+      {/* 2줄: Period + Navigator */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {periodGroups.map((g) => (
+          <button key={g.group} onClick={() => handlePeriodChange(g.presets[0])}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeNavGroup === g.group ? "bg-blue-600 text-white" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
+          >{g.label}</button>
         ))}
-      </div>
-
-      {/* Custom Date Range */}
-      {period === "custom" && (
-        <div className="mb-3 flex items-center gap-2">
-          <input
-            type="date"
-            value={customFrom}
-            onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-          />
+        <button onClick={() => handlePeriodChange("custom")}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${period === "custom" ? "bg-blue-600 text-white" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}
+        >기간</button>
+        {activeNavGroup && (<>
+          <span className="mx-1 text-gray-300">|</span>
+          <button onClick={() => { setNavOffset((o) => o - 1); setPage(1); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 text-base">‹</button>
+          <button onClick={() => { setNavOffset(0); setPage(1); }} className="px-2 py-1 text-sm font-semibold text-gray-700 hover:text-blue-600 min-w-[120px] text-center">{navLabel}</button>
+          <button onClick={() => { setNavOffset((o) => o + 1); setPage(1); }} className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 text-base">›</button>
+        </>)}
+        {period === "custom" && (<>
+          <input type="date" value={customFrom} onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }} className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
           <span className="text-gray-400">~</span>
-          <input
-            type="date"
-            value={customTo}
-            onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-          />
-        </div>
-      )}
+          <input type="date" value={customTo} onChange={(e) => { setCustomTo(e.target.value); setPage(1); }} className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
+        </>)}
+      </div>
 
-      {/* 숙소/채널 필터 + 검색 + 내보내기 */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* 필터 */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <MultiSelect
-          options={propOptions.map((p) => ({ value: String(p.id), label: p.name }))}
+          options={propOptions.map((p) => ({ value: String(p.id), label: p.display_name || p.name }))}
           selected={filterPropIds}
           onChange={(v) => { setFilterPropIds(v); setPage(1); }}
           placeholder="전체 숙소"
@@ -469,7 +502,7 @@ export default function Reservations() {
                         </span>
                       </Td>
                       <Td>
-                        <p className="text-sm font-medium text-gray-900">{r.guest_name || "-"}</p>
+                        <p className="text-sm font-medium text-gray-900">{r.guest_name_clean || r.guest_name || "-"}</p>
                         {r.guest_phone && <p className="text-xs text-gray-400">{r.guest_phone}</p>}
                       </Td>
                       <Td>

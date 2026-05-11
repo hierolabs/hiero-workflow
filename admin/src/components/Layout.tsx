@@ -27,6 +27,7 @@ const DEFAULT_NAV: NavGroup[] = [
       { to: "/calendar", label: "운영 캘린더", iconName: "CalendarIcon" },
       { to: "/price-calendar", label: "가격 캘린더", iconName: "RevenueIcon" },
       { to: "/reservations", label: "예약 관리", iconName: "ReservationsIcon" },
+      { to: "/guest-analytics", label: "게스트 분석", iconName: "ReservationsIcon" },
       { to: "/messages", label: "게스트 메시지", iconName: "MessagesIcon" },
       { to: "/cleaning", label: "청소 관리", iconName: "CleaningIcon" },
       { to: "/issues", label: "민원/하자", iconName: "IssuesIcon" },
@@ -37,6 +38,7 @@ const DEFAULT_NAV: NavGroup[] = [
     items: [
       { to: "/leads", label: "성장 관리", iconName: "LeadsIcon" },
       { to: "/properties", label: "공간 관리", iconName: "PropertiesIcon" },
+      { to: "/listing-studio", label: "Listing Studio", iconName: "PropertiesIcon" },
       { to: "/diagnosis", label: "사업 진단", iconName: "DiagnosisIcon" },
     ],
   },
@@ -63,6 +65,7 @@ const DEFAULT_NAV: NavGroup[] = [
     items: [
       { to: "/chat", label: "팀 채팅", iconName: "MessagesIcon" },
       { to: "/wiki", label: "Hestory", iconName: "DiagnosisIcon" },
+      { to: "/growth-story", label: "성장 스토리", iconName: "DiagnosisIcon" },
       { to: "/org-docs", label: "조직문서", iconName: "DiagnosisIcon" },
       { to: "/hostex", label: "Hostex 연동", iconName: "HostexIcon" },
       { to: "/settings", label: "설정", iconName: "SettingsIcon" },

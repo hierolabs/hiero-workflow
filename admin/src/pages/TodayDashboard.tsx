@@ -15,7 +15,7 @@ interface Issue {
   issue_type: string; assignee_name: string; property_name: string; created_at: string;
 }
 interface Detection {
-  id: number; conversation_id: string; guest_name: string; property_name: string;
+  id: number; conversation_id: string; guest_name: string; guest_name_clean?: string; property_name: string;
   detected_category: string; detected_keywords: string; severity: string;
   message_content: string; status: string; assigned_to: string; ai_assisted: boolean;
   created_at: string; responded_at: string | null; resolved_at: string | null;
@@ -530,7 +530,7 @@ export default function TodayDashboard() {
                           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                             {DET_CAT[d.detected_category] || d.detected_category}
                           </span>
-                          <span className="text-sm text-gray-900">{d.guest_name}</span>
+                          <span className="text-sm text-gray-900">{d.guest_name_clean || d.guest_name}</span>
                           {d.property_name && <span className="text-xs text-gray-400">{d.property_name}</span>}
                         </div>
                       </div>
@@ -587,7 +587,7 @@ export default function TodayDashboard() {
                           {d.resolution_type === 'guide' ? '안내' : '조치'}
                         </span>
                         <span className="text-sm text-gray-900 truncate">
-                          {d.guest_name} · {DET_CAT[d.detected_category] || d.detected_category}
+                          {d.guest_name_clean || d.guest_name} · {DET_CAT[d.detected_category] || d.detected_category}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -797,8 +797,8 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
         const res = await fetch(`${API_URL}/daily-tasks/checkin-targets?date=${today}`, { headers: h });
         const d = await res.json();
         const manual = d.reservations || [];
-        rawItems = manual.map((r: {id:number;guest_name:string;channel_name:string;property_name:string;conversation_id:string}) => ({
-          id: r.id, label: `${r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
+        rawItems = manual.map((r: {id:number;guest_name:string;guest_name_clean?:string;channel_name:string;property_name:string;conversation_id:string}) => ({
+          id: r.id, label: `${r.guest_name_clean || r.guest_name} — ${r.channel_name}`, sub: r.property_name || '',
           done: !!r.conversation_id, link: '/messages',
         }));
       } else if (taskKey === 'cleaning') {
@@ -822,8 +822,8 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
         const res = await fetch(`${API_URL}/issue-detections`, { headers: h });
         const d = await res.json();
         const dets = (d.detections || []).filter((x: {status:string}) => x.status === 'pending' || x.status === 'responding');
-        rawItems = dets.map((x: {id:number;guest_name:string;detected_category:string;property_name:string;status:string}) => ({
-          id: x.id, label: `${x.guest_name} — ${x.detected_category}`, sub: x.property_name || '',
+        rawItems = dets.map((x: {id:number;guest_name:string;guest_name_clean?:string;detected_category:string;property_name:string;status:string}) => ({
+          id: x.id, label: `${x.guest_name_clean || x.guest_name} — ${x.detected_category}`, sub: x.property_name || '',
           done: x.status !== 'pending', link: '/issue-detections',
         }));
       } else if (taskKey === 'early_late') {
@@ -832,9 +832,9 @@ function TaskDetail({ taskKey, navigate }: { taskKey: string; pulse: PulseItem; 
         const items = (d.items || []).filter((x: {detected_category:string;detected_keywords:string}) =>
           x.detected_category === 'checkin' || (x.detected_keywords || '').includes('연장') || (x.detected_keywords || '').includes('레이트')
         );
-        rawItems = items.map((x: {id:number;guest_name:string;detected_keywords:string;property_name:string;status:string;message_content:string}) => ({
+        rawItems = items.map((x: {id:number;guest_name:string;guest_name_clean?:string;detected_keywords:string;property_name:string;status:string;message_content:string}) => ({
           id: x.id,
-          label: `${x.guest_name} — ${x.detected_keywords}`,
+          label: `${x.guest_name_clean || x.guest_name} — ${x.detected_keywords}`,
           sub: x.property_name || '',
           done: x.status === 'resolved',
           link: '/messages',

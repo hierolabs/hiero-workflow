@@ -302,7 +302,11 @@ func (s *ReservationService) List(query ReservationListQuery) (ReservationListRe
 	for i, r := range reservations {
 		if r.InternalPropID != nil {
 			if p, ok := propMap[*r.InternalPropID]; ok {
-				reservations[i].PropertyName = p.Name
+				name := p.DisplayName
+				if name == "" {
+					name = p.Name
+				}
+				reservations[i].PropertyName = name
 				reservations[i].PropertyCode = p.Code
 			}
 		}

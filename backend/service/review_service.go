@@ -73,7 +73,10 @@ func (s *ReviewService) upsertReview(r hostex.HostexReview) {
 	var prop models.Property
 	if err := config.DB.Where("hostex_id = ?", r.PropertyID).First(&prop).Error; err == nil {
 		internalPropID = &prop.ID
-		propName = prop.Name
+		propName = prop.DisplayName
+		if propName == "" {
+			propName = prop.Name
+		}
 	}
 
 	review := models.Review{

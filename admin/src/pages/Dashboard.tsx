@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ActionDispatchModal, { type DispatchAction } from "../components/ActionDispatchModal";
 import OperationManual from "../components/OperationManual";
+import PeriodFilter, { type PeriodKey, calcRange } from "../components/PeriodFilter";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const PUBLIC_API_URL = API_URL.replace("/admin", "/api");
@@ -162,16 +163,19 @@ export default function Dashboard() {
   const [checklistSummary, setChecklistSummary] = useState<{ total: number; completed: number; rate: number } | null>(null);
   const [showManual, setShowManual] = useState(false);
 
-  // 기간 필터 상태
-  const [preset, setPreset] = useState<PresetKey>("today");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  // 통합 기간 필터
+  const [period, setPeriod] = useState<PeriodKey>("today");
+  const [filterStart, setFilterStart] = useState(() => calcRange("today")[0]);
+  const [filterEnd, setFilterEnd] = useState(() => calcRange("today")[1]);
+
+  function onPeriodChange(p: PeriodKey, start: string, end: string) {
+    setPeriod(p);
+    setFilterStart(start);
+    setFilterEnd(end);
+  }
 
   const getDateRange = () => {
-    if (preset === "custom" && customStart && customEnd) {
-      return { start: customStart, end: customEnd };
-    }
-    return getPresetDates(preset);
+    return { start: filterStart, end: filterEnd };
   };
 
   const fetch_ = async () => {
@@ -218,10 +222,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    // custom 모드에서 날짜 미입력 시 fetch 안 함
-    if (preset === "custom" && (!customStart || !customEnd)) return;
-    fetch_();
-  }, [preset, customStart, customEnd]);
+    if (filterStart && filterEnd) fetch_();
+  }, [filterStart, filterEnd]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -282,38 +284,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 기간 프리셋 */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPreset(p.key)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                preset === p.key
-                  ? "bg-gray-900 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-          {preset === "custom" && (
-            <div className="flex items-center gap-1.5 ml-2">
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs"
-              />
-              <span className="text-xs text-gray-400">~</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs"
-              />
-            </div>
-          )}
+        {/* 통합 기간 필터 */}
+        <div className="mt-3">
+          <PeriodFilter value={period} onChange={onPeriodChange} />
         </div>
       </div>
 

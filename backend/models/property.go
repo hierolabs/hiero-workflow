@@ -107,7 +107,8 @@ type Property struct {
 
 	// 식별
 	Code string `gorm:"uniqueIndex;size:50;not null" json:"code"`
-	Name string `gorm:"size:100;not null" json:"name"`
+	Name        string `gorm:"size:100;not null" json:"name"`
+	DisplayName string `gorm:"size:100;default:''" json:"display_name"`
 
 	// Hostex 연동 (0 = 미연결)
 	HostexID int64 `gorm:"index;default:0" json:"hostex_id"`

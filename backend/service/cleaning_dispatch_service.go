@@ -138,7 +138,10 @@ func (s *CleaningDispatchService) ParseAssignmentText(text string, dateOverride 
 			if prop, ok := propMap[code]; ok {
 				a.PropertyID = prop.ID
 				a.PropertyMatch = true
-				a.PropertyName = prop.Name
+				a.PropertyName = prop.DisplayName
+				if a.PropertyName == "" {
+					a.PropertyName = prop.Name
+				}
 			}
 
 			// CleaningTask 매칭

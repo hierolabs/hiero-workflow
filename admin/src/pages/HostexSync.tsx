@@ -202,7 +202,7 @@ function MappingTab() {
                           <option value={0}>공간 선택...</option>
                           {unmapped.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.code} - {p.name}
+                              {p.code} - {p.display_name || p.name}
                             </option>
                           ))}
                         </select>

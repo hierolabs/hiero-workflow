@@ -42,7 +42,7 @@ export function useCalendarFilters(
       // Search filter (property name)
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const nameMatch = p.name.toLowerCase().includes(q);
+        const nameMatch = (p.display_name || p.name).toLowerCase().includes(q);
         // Also search guest names in reservations for this property
         const guestMatch = reservations.some(
           (r) =>

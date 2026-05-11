@@ -170,12 +170,16 @@ func (h *CleaningRecordsHandler) LinkedInfo(c *gin.Context) {
 	result := LinkedResult{Record: record}
 
 	// property 찾기
-	type propRow struct { ID uint; Name string }
+	type propRow struct { ID uint; Name string; DisplayName string }
 	var prop propRow
-	config.DB.Table("properties").Select("id, name").
+	config.DB.Table("properties").Select("id, name, display_name").
 		Where("name LIKE ?", record.PropertyCode+"%").First(&prop)
 	result.PropertyID = prop.ID
-	result.PropertyName = prop.Name
+	if prop.DisplayName != "" {
+		result.PropertyName = prop.DisplayName
+	} else {
+		result.PropertyName = prop.Name
+	}
 
 	// 예약 찾기 (체크아웃 = 청소일)
 	if prop.ID > 0 {

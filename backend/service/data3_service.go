@@ -92,7 +92,7 @@ func (s *Data3Service) GetData3Records(startDate, endDate, dateField string, pro
 			r.id as reservation_id,
 			r.reservation_code,
 			r.internal_prop_id as property_id,
-			COALESCE(p.name, '') as property_name,
+			COALESCE(p.display_name, p.name, '') as property_name,
 			r.channel_name,
 			r.channel_type,
 			LEFT(r.booked_at, 10) as reservation_date,

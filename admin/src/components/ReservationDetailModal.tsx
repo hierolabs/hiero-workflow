@@ -5,6 +5,7 @@ export interface ReservationData {
   id: number;
   reservation_code: string;
   guest_name: string;
+  guest_name_clean?: string;
   guest_phone: string;
   guest_email: string;
   channel_type: string;
@@ -146,7 +147,7 @@ export default function ReservationDetailModal({ reservationId, onClose }: Props
               {(d as Record<string,unknown>).property_name && (
                 <p className="text-xs font-medium text-gray-500">{(d as Record<string,unknown>).property_name as string}</p>
               )}
-              <p className="text-xl font-bold text-gray-900">{d.guest_name || "-"}</p>
+              <p className="text-xl font-bold text-gray-900">{d.guest_name_clean || d.guest_name || "-"}</p>
 
               {/* Info Grid */}
               <div className="grid grid-cols-2 gap-3">

@@ -63,8 +63,8 @@ export default function PropertyRow({
       >
         <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${statusColor.dot}`} title={getStatusLabel(property.today_status )} />
         <div className="min-w-0">
-          <div className="truncate font-medium text-gray-800" style={{ fontSize: 11 }} title={property.name}>
-            {shortTitle(property.name)}
+          <div className="truncate font-medium text-gray-800" style={{ fontSize: 11 }} title={property.display_name || property.name}>
+            {shortTitle(property.display_name || property.name)}
           </div>
           <div className={`truncate ${statusColor.text}`} style={{ fontSize: 9 }}>
             {getStatusLabel(property.today_status )}

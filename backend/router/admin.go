@@ -59,6 +59,7 @@ func registerAdminRoutes(r *gin.Engine) {
 	schedulerHandler := handler.NewSchedulerHandler(schedulerInstance)
 	guestHandler := handler.NewGuestHandler()
 	onboardingHandler := handler.NewOnboardingHandler()
+	ttfrHandler := handler.NewTTFRAnalysisHandler()
 	devProjectHandler := handler.NewDevProjectHandler()
 
 	admin := r.Group("/admin")
@@ -126,6 +127,8 @@ func registerAdminRoutes(r *gin.Engine) {
 
 			// 게스트 관리
 			protected.GET("/guests", guestHandler.List)
+			protected.GET("/guests/export", guestHandler.ExportCSV)
+			protected.GET("/guests/analytics", guestHandler.Analytics)
 			protected.GET("/guests/:name", guestHandler.Detail)
 
 			// 숙소 온보딩 워크플로우
@@ -227,6 +230,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.POST("/messages/sync", messageHandler.SyncMessages)
 			protected.POST("/messages/sync-all", messageHandler.SyncAllMessages)
 			protected.GET("/messages/analysis", messageHandler.AnalyzeMessages)
+			protected.GET("/messages/insight", messageHandler.AnalyzeInsight)
 			protected.GET("/messages/stats", messageHandler.Stats)
 			protected.POST("/messages/sync-reviews", messageHandler.SyncReviews)
 			protected.POST("/messages/conversations/:conversation_id/requests", messageHandler.CreateGuestRequest)
@@ -363,6 +367,9 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/etf-board/cfo/financial", etfBoardHandler.CFOFinancial)
 			protected.GET("/etf-board/cross-activity", etfBoardHandler.CrossActivity)
 			protected.GET("/etf-board/got", etfBoardHandler.GOTSummary)
+
+			// TTFR 선행지표 분석
+			protected.GET("/analysis/ttfr", ttfrHandler.Analyze)
 
 			// 개발 프로젝트 추적
 			protected.GET("/dev-projects", devProjectHandler.List)

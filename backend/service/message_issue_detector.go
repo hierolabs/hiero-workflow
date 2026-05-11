@@ -128,7 +128,10 @@ func (s *IssueDetectorService) DetectFromMessage(msg models.Message, conv models
 		if conv.InternalPropID != nil {
 			var prop models.Property
 			if err := config.DB.First(&prop, *conv.InternalPropID).Error; err == nil {
-				propName = prop.Name
+				propName = prop.DisplayName
+				if propName == "" {
+					propName = prop.Name
+				}
 			}
 		}
 

@@ -4,6 +4,8 @@ const API = import.meta.env.VITE_API_URL;
 
 interface GuestSummary {
   guest_name: string;
+  guest_name_clean?: string;
+  all_names: string;
   guest_phone: string;
   guest_email: string;
   total_visits: number;
@@ -13,6 +15,7 @@ interface GuestSummary {
   last_visit: string;
   last_property: string;
   channels: string;
+  channel_group: string;
   properties: string;
   avg_nights: number;
 }
@@ -22,6 +25,14 @@ interface Stats {
   total_reservations: number;
   total_revenue: number;
   repeat_guests: number;
+}
+
+interface ChannelGroupSummary {
+  group: string;
+  guest_count: number;
+  reservations: number;
+  nights: number;
+  revenue: number;
 }
 
 interface Reservation {
@@ -76,6 +87,7 @@ export default function GuestList() {
   const [guests, setGuests] = useState<GuestSummary[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [channels, setChannels] = useState<string[]>([]);
+  const [channelGroups, setChannelGroups] = useState<ChannelGroupSummary[]>([]);
   const [search, setSearch] = useState("");
   const [channel, setChannel] = useState("");
   const [period, setPeriod] = useState<PeriodPreset>("all");
@@ -115,6 +127,7 @@ export default function GuestList() {
         setGuests(data.guests || []);
         setStats(data.stats || null);
         setChannels(data.channels || []);
+        setChannelGroups(data.channel_groups || []);
       }
     } catch { /* */ }
     setLoading(false);
@@ -219,6 +232,41 @@ export default function GuestList() {
         </div>
       )}
 
+      {/* 채널 그룹별 집계 */}
+      {channelGroups.length > 0 && (
+        <div className="bg-white rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50 text-xs text-gray-500">
+                <th className="px-4 py-2 text-left">채널 그룹</th>
+                <th className="px-4 py-2 text-right">게스트</th>
+                <th className="px-4 py-2 text-right">예약건수</th>
+                <th className="px-4 py-2 text-right">숙박일수</th>
+                <th className="px-4 py-2 text-right">매출</th>
+              </tr>
+            </thead>
+            <tbody>
+              {channelGroups.map(cg => (
+                <tr key={cg.group} className="border-b hover:bg-gray-50">
+                  <td className="px-4 py-2 font-medium">
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      cg.group === 'OTA글로벌' ? 'bg-blue-100 text-blue-800' :
+                      cg.group === '국내플랫폼' ? 'bg-emerald-100 text-emerald-800' :
+                      cg.group === '개인입금' ? 'bg-amber-100 text-amber-800' :
+                      'bg-purple-100 text-purple-800'
+                    }`}>{cg.group}</span>
+                  </td>
+                  <td className="px-4 py-2 text-right">{fmt(cg.guest_count)}명</td>
+                  <td className="px-4 py-2 text-right">{fmt(cg.reservations)}건</td>
+                  <td className="px-4 py-2 text-right">{fmt(cg.nights)}박</td>
+                  <td className="px-4 py-2 text-right font-medium text-green-700">{fmt(cg.revenue)}원</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* 검색 + 필터 */}
       <div className="bg-white rounded-lg border p-4">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
@@ -250,6 +298,22 @@ export default function GuestList() {
           >
             검색
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (search) params.set("search", search);
+              if (channel) params.set("channel", channel);
+              const range = period === "custom" ? { from: customFrom, to: customTo } : getDateRange(period);
+              if (range.from) params.set("from", range.from);
+              if (range.to) params.set("to", range.to);
+              params.set("token", token || "");
+              window.open(`${API}/guests/export?${params}`, "_blank");
+            }}
+            className="rounded-md border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+          >
+            CSV 다운로드
+          </button>
         </form>
       </div>
 
@@ -275,15 +339,16 @@ export default function GuestList() {
                 <th className="px-4 py-3 cursor-pointer hover:text-gray-700" onClick={() => toggleSort("last_visit")}>
                   최근 방문 <SortIcon field="last_visit" />
                 </th>
+                <th className="px-4 py-3">채널그룹</th>
                 <th className="px-4 py-3">채널</th>
                 <th className="px-4 py-3">최근 숙소</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">로딩 중...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">로딩 중...</td></tr>
               ) : guests.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">게스트가 없습니다</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">게스트가 없습니다</td></tr>
               ) : (
                 guests.map((g) => (
                   <tr
@@ -292,7 +357,7 @@ export default function GuestList() {
                     className="border-b hover:bg-blue-50/50 cursor-pointer transition"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{g.guest_name}</div>
+                      <div className="font-medium text-gray-900">{g.guest_name_clean || g.guest_name}</div>
                       {g.total_visits > 1 && (
                         <span className="inline-block mt-0.5 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                           재방문 {g.total_visits}회
@@ -310,6 +375,14 @@ export default function GuestList() {
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-green-700">{fmt(g.total_spent)}원</td>
                     <td className="px-4 py-3 text-gray-600">{g.last_visit}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        g.channel_group === 'OTA글로벌' ? 'bg-blue-100 text-blue-800' :
+                        g.channel_group === '국내플랫폼' ? 'bg-emerald-100 text-emerald-800' :
+                        g.channel_group === '개인입금' ? 'bg-amber-100 text-amber-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>{g.channel_group}</span>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {g.channels.split(", ").filter(Boolean).map((ch) => (

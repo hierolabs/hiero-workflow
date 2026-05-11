@@ -18,6 +18,7 @@ interface Conversation {
   reservation_code: string;
   property_id: number;
   guest_name: string;
+  guest_name_clean?: string;
   channel_type: string;
   last_message_at: string;
   last_message_preview: string;
@@ -57,7 +58,7 @@ interface Detection {
   id: number; message_id: number; conversation_id: string; reservation_code: string;
   detected_category: string; severity: string;
   detected_keywords: string; message_content: string; status: string;
-  guest_name: string; property_name: string; created_at: string;
+  guest_name: string; guest_name_clean?: string; property_name: string; created_at: string;
   response_time_sec: number; assigned_to: string; resolution_type: string; resolution_note: string;
 }
 
@@ -501,7 +502,7 @@ export default function Messages() {
                 } ${conv.max_severity === 'critical' ? 'border-l-2 border-l-red-500' : conv.max_severity === 'high' ? 'border-l-2 border-l-orange-400' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-semibold text-sm text-gray-900 truncate">{conv.guest_name || "게스트"}</span>
+                    <span className="font-semibold text-sm text-gray-900 truncate">{conv.guest_name_clean || conv.guest_name || "게스트"}</span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {conv.unread_count > 0 && (
@@ -707,7 +708,7 @@ export default function Messages() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-gray-900">
-                    {convDetail?.guest_name || "게스트"}
+                    {convDetail?.guest_name_clean || convDetail?.guest_name || "게스트"}
                   </span>
                   {convDetail?.channel_type && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{convDetail.channel_type}</span>
@@ -1239,7 +1240,7 @@ export default function Messages() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <span className={`text-sm ${isResolved ? 'grayscale opacity-50' : ''}`}>{icons.join('')}</span>
-                              <span className="text-xs font-medium text-gray-900">{d.guest_name || '-'}</span>
+                              <span className="text-xs font-medium text-gray-900">{d.guest_name_clean || d.guest_name || '-'}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               {respTime && (

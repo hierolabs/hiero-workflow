@@ -37,10 +37,13 @@ import TeamChat from "./pages/TeamChat";
 import IssueDetections from "./pages/IssueDetections";
 import TodayDashboard from "./pages/TodayDashboard";
 import KnowledgeBase from "./pages/wiki/KnowledgeBase";
+import GrowthStory from "./pages/wiki/GrowthStory";
 import MyPage from "./pages/MyPage";
 import PriceCalendar from "./pages/PriceCalendar";
 import OrgDocs from "./pages/OrgDocs";
 import PropertyOnboarding from "./pages/onboarding/PropertyOnboarding";
+import GuestAnalytics from "./pages/GuestAnalytics";
+import ListingStudio from "./pages/ListingStudio";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -55,6 +58,11 @@ function RoleGuard({ allowed, children }: { allowed: string[]; children: React.R
       const user = JSON.parse(raw);
       const layer = user.role_layer || "";
       const role = user.role_title || "";
+      const userRole = user.role || "";
+      // founder 또는 super_admin은 모든 페이지 접근 가능
+      if (layer === "founder" || userRole === "super_admin") {
+        return <>{children}</>;
+      }
       if (allowed.includes(layer) || allowed.includes(role)) {
         return <>{children}</>;
       }
@@ -100,6 +108,7 @@ function App() {
             <Route path="/chat" element={<TeamChat />} />
             <Route path="/issue-detections" element={<IssueDetections />} />
             <Route path="/wiki" element={<KnowledgeBase />} />
+            <Route path="/growth-story" element={<GrowthStory />} />
             <Route path="/org-docs" element={<OrgDocs />} />
             <Route path="/mypage" element={<MyPage />} />
             <Route path="/dashboard-old" element={<Dashboard />} />
@@ -108,8 +117,10 @@ function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/checklist" element={<Checklist />} />
             <Route path="/properties" element={<Properties />} />
+            <Route path="/listing-studio" element={<ListingStudio />} />
             <Route path="/properties/:id/onboarding" element={<PropertyOnboarding />} />
             <Route path="/reservations" element={<Reservations />} />
+            <Route path="/guest-analytics" element={<GuestAnalytics />} />
             <Route path="/hostex" element={<HostexSync />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/messages/analysis" element={<MessageAnalysis />} />

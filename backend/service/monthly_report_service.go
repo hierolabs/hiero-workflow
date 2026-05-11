@@ -37,11 +37,15 @@ func (s *MonthlyReportService) GenerateMonth(month string) (int, error) {
 
 	// 숙소 조회
 	var properties []models.Property
-	config.DB.Select("id, name").Find(&properties)
+	config.DB.Select("id, name, display_name").Find(&properties)
 
 	inserted := 0
 	for _, prop := range properties {
-		report := s.buildReport(prop.ID, prop.Name, month, monthStart, monthEnd, daysInMonth)
+		pName := prop.DisplayName
+		if pName == "" {
+			pName = prop.Name
+		}
+		report := s.buildReport(prop.ID, pName, month, monthStart, monthEnd, daysInMonth)
 		if report == nil {
 			continue
 		}
