@@ -222,6 +222,10 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/transactions/export", transactionHandler.ExportTransactions)
 
 			// 게스트 메시지 (채팅)
+			// 종합 분석 퍼널
+			funnelHandler := handler.NewFunnelHandler()
+			protected.GET("/analysis/funnel", funnelHandler.Analyze)
+
 			protected.GET("/messages/conversations", messageHandler.ListConversations)
 			protected.GET("/messages/conversations/:conversation_id", messageHandler.GetConversation)
 			protected.POST("/messages/conversations/:conversation_id/messages", messageHandler.SendMessage)
