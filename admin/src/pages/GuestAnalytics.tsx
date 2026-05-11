@@ -2126,82 +2126,334 @@ const ISSUE_COLORS: Record<string, string> = {
   "칭찬": "bg-green-100 text-green-800",
 };
 
+/* ════════════════════════════════════════════════
+   비앤비 메시지 — 5단계 종합 분석 퍼널
+   전원도시 → 기능주의 → 뉴어바니즘 → OS → HIERO
+   ════════════════════════════════════════════════ */
+
+interface FunnelData {
+  period: { from: string; to: string; prev_from: string; prev_to: string };
+  stage1: {
+    trends: { month: string; channel_type: string; cnt: number }[];
+    prev_trends: { month: string; channel_type: string; cnt: number }[];
+    prop_changes: { property_name: string; current: number; previous: number; change: number }[];
+  };
+  stage2: {
+    by_category: { category: string; tag_type: string; cnt: number }[];
+    by_property: { property_name: string; category: string; cnt: number }[];
+  };
+  stage3: {
+    cases: { conversation_id: string; guest_name: string; property_name: string; channel_type: string; check_in: string; check_out: string; nights: number; total_rate: number; first_message: string; message_count: number; is_repeat: boolean }[];
+    case_count: number;
+  };
+  stage4: {
+    patterns: { name: string; count: number; description: string }[];
+  };
+}
+
 function AirbnbInsight({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
-  const [data, setData] = useState<InsightData | null>(null);
+  const [funnel, setFunnel] = useState<FunnelData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filterCat, setFilterCat] = useState<string | null>(null);
+  const [openStage, setOpenStage] = useState<number>(1);
+  const token = localStorage.getItem("token");
 
-  useEffect(() => { loadData(); }, [dateFrom, dateTo]);
+  useEffect(() => { loadFunnel(); }, [dateFrom, dateTo]);
 
-  async function loadData() {
+  async function loadFunnel() {
     setLoading(true);
     try {
-      const ins = await getMessageInsight(dateFrom, dateTo);
-      setData(ins);
+      const API = import.meta.env.VITE_API_URL;
+      const res = await fetch(`${API}/analysis/funnel?from=${dateFrom}&to=${dateTo}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setFunnel(await res.json());
     } catch { /* */ }
     setLoading(false);
   }
 
-  if (loading && !data) return <div className="py-12 text-center text-gray-400">로딩 중...</div>;
-  if (!data) return <div className="py-12 text-center text-gray-400">데이터 없음</div>;
+  if (loading && !funnel) return <div className="py-12 text-center text-gray-400">로딩 중...</div>;
+  if (!funnel) return <div className="py-12 text-center text-gray-400">데이터 없음</div>;
 
-  const items = data.items || [];
-  const reasons = data.top_reasons || [];
-  const totalHits = reasons.reduce((a, b) => a + b.count, 0);
-  const filtered = filterCat ? items.filter(i => i.category === filterCat) : items;
+  const stages = [
+    { num: 1, title: "문제 정의", sub: "전원도시", desc: "지금 뭐가 안 되고 있는가" },
+    { num: 2, title: "기능 분류", sub: "기능주의", desc: "메시지를 구조화하고 분류한다" },
+    { num: 3, title: "맥락 연결", sub: "뉴어바니즘", desc: "대화 단위로 여정을 걷는다" },
+    { num: 4, title: "패턴 감지", sub: "OS", desc: "반복되면 패턴이다" },
+    { num: 5, title: "발견", sub: "HIERO", desc: "4개 렌즈를 겹쳐서 본다" },
+  ];
+
+  // Stage 1 계산
+  const s1 = funnel.stage1;
+  const channelTotals: Record<string, number> = {};
+  const prevChannelTotals: Record<string, number> = {};
+  for (const t of s1.trends) channelTotals[t.channel_type] = (channelTotals[t.channel_type] || 0) + t.cnt;
+  for (const t of s1.prev_trends) prevChannelTotals[t.channel_type] = (prevChannelTotals[t.channel_type] || 0) + t.cnt;
+  const totalCurrent = Object.values(channelTotals).reduce((a, b) => a + b, 0);
+  const totalPrev = Object.values(prevChannelTotals).reduce((a, b) => a + b, 0);
+
+  // Stage 2 계산
+  const insightCats = funnel.stage2.by_category.filter(c => c.tag_type === "insight").sort((a, b) => b.cnt - a.cnt);
+  const issueCats = funnel.stage2.by_category.filter(c => c.tag_type === "issue").sort((a, b) => b.cnt - a.cnt);
+
+  // Stage 1 하락 숙소
+  const declining = [...s1.prop_changes].filter(p => p.change < 0).sort((a, b) => a.change - b.change).slice(0, 10);
+  const growing = [...s1.prop_changes].filter(p => p.change > 0).sort((a, b) => b.change - a.change).slice(0, 5);
 
   return (
-    <div className="space-y-4">
-      {/* 요약 한 줄 */}
-      <div className="flex items-center gap-4 text-sm text-gray-500">
-        <span>{data.start_date} ~ {data.end_date}</span>
-        <span>전체 {data.total_messages.toLocaleString()}건</span>
-        <span>게스트 {data.total_guest.toLocaleString()}건</span>
-        <span>감지 {totalHits}건</span>
-      </div>
+    <div className="space-y-3">
+      {/* 기간 표시 */}
+      <div className="text-xs text-gray-400">{funnel.period.from} ~ {funnel.period.to} (비교: {funnel.period.prev_from} ~ {funnel.period.prev_to})</div>
 
-      {/* 카테고리 필터 */}
-      <div className="flex flex-wrap gap-1.5">
-        <button onClick={() => setFilterCat(null)}
-          className={`px-3 py-1 text-xs rounded-full border ${!filterCat ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200"}`}>
-          전체 ({totalHits})
-        </button>
-        {reasons.map(r => (
-          <button key={r.category} onClick={() => setFilterCat(filterCat === r.category ? null : r.category)}
-            className={`px-3 py-1 text-xs rounded-full border ${
-              filterCat === r.category ? INSIGHT_COLORS[r.category] || "bg-gray-200" : "bg-white text-gray-600 border-gray-200"
-            }`}>{r.category} ({r.count})</button>
+      {/* 5단계 탭 */}
+      <div className="flex gap-1">
+        {stages.map(s => (
+          <button key={s.num} onClick={() => setOpenStage(s.num)}
+            className={`flex-1 py-2 text-center rounded-lg text-xs font-medium transition ${
+              openStage === s.num ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}>
+            <div>{s.num}. {s.title}</div>
+            <div className="text-[10px] opacity-60">{s.sub}</div>
+          </button>
         ))}
       </div>
 
-      {/* 메시지 피드 — 드릴다운 가능 */}
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-sm text-gray-900">
-            {filtered.length}건
-            {filterCat && <span className="ml-2 text-gray-400 font-normal">— {filterCat}</span>}
-          </h3>
-        </div>
-        <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
-          {filtered.map((item, idx) => (
-            <div key={idx} className="px-4 py-2.5 hover:bg-gray-50">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${INSIGHT_COLORS[item.category] || "bg-gray-100"}`}>{item.category}</span>
-                <span className="text-xs text-gray-400">{new Date(item.sent_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
-                <span className="text-[10px] text-gray-400">{item.channel_type}</span>
-                <Link to={`/messages?conv=${item.conversation_id}`}
-                  className="ml-auto text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100">대화 원문</Link>
+      {/* ═══ Stage 1: 문제 정의 ═══ */}
+      {openStage === 1 && (
+        <div className="space-y-4">
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-1">예약 추이</h3>
+            <p className="text-xs text-gray-400 mb-3">현재 기간 vs 이전 기간 채널별 비교</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <SummaryCard label="현재 총 예약" value={`${totalCurrent}건`} />
+              <SummaryCard label="이전 기간" value={`${totalPrev}건`} />
+              <SummaryCard label="증감" value={`${totalCurrent - totalPrev > 0 ? "+" : ""}${totalCurrent - totalPrev}건`} />
+              <SummaryCard label="변화율" value={totalPrev > 0 ? `${((totalCurrent - totalPrev) / totalPrev * 100).toFixed(0)}%` : "-"} />
+            </div>
+            <div className="space-y-2">
+              {Object.entries(channelTotals).sort((a, b) => b[1] - a[1]).map(([ch, cnt]) => {
+                const prev = prevChannelTotals[ch] || 0;
+                const change = cnt - prev;
+                return (
+                  <div key={ch} className="flex items-center gap-3">
+                    <span className="w-28 text-right text-sm text-gray-700">{ch}</span>
+                    <span className="w-16 text-right font-bold">{cnt}</span>
+                    <span className={`w-20 text-right text-xs ${change > 0 ? "text-green-600" : change < 0 ? "text-red-500" : "text-gray-400"}`}>
+                      {change > 0 ? "+" : ""}{change} ({prev > 0 ? `${(change / prev * 100).toFixed(0)}%` : "new"})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {declining.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-red-800 mb-2">하락 숙소 TOP {declining.length}</h3>
+              <div className="space-y-1">
+                {declining.map(p => (
+                  <div key={p.property_name} className="flex items-center gap-2 text-sm">
+                    <Link to={`/reservations?keyword=${encodeURIComponent(p.property_name)}`} className="text-red-700 hover:underline font-medium">{p.property_name}</Link>
+                    <span className="text-red-500 text-xs">{p.current}건 (이전 {p.previous}건, {p.change})</span>
+                  </div>
+                ))}
               </div>
-              <p className="text-sm text-gray-900 line-clamp-2">{item.content}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Link to={`/messages?conv=${item.conversation_id}`} className="text-xs text-gray-600 hover:text-blue-600 hover:underline">{item.guest_name_clean || item.guest_name}</Link>
-                {item.property_name && <Link to={`/reservations?keyword=${encodeURIComponent(item.property_name)}`} className="text-xs text-gray-400 hover:text-blue-600 hover:underline">· {item.property_name}</Link>}
+              <p className="text-xs text-red-600 mt-2 font-medium">→ 2단계에서 이 숙소들의 메시지를 분류합니다</p>
+            </div>
+          )}
+
+          {growing.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-green-800 mb-2">성장 숙소 TOP {growing.length}</h3>
+              <div className="space-y-1">
+                {growing.map(p => (
+                  <div key={p.property_name} className="flex items-center gap-2 text-sm">
+                    <span className="text-green-700 font-medium">{p.property_name}</span>
+                    <span className="text-green-600 text-xs">+{p.change} ({p.current}건)</span>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-          {filtered.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">메시지가 없습니다</div>}
+          )}
+
+          <button onClick={() => setOpenStage(2)} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm">
+            → 2단계: 이 숙소들의 메시지 분류로
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* ═══ Stage 2: 기능 분류 ═══ */}
+      {openStage === 2 && (
+        <div className="space-y-4">
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-1">인사이트 카테고리</h3>
+            <p className="text-xs text-gray-400 mb-3">"왜 왔는가" 키워드 매칭 — 기능주의적 분류. 참고만.</p>
+            <div className="space-y-1.5">
+              {insightCats.slice(0, 10).map(c => {
+                const mx = insightCats[0]?.cnt || 1;
+                return (
+                  <div key={c.category} className="flex items-center gap-2">
+                    <span className={`w-28 text-right text-xs px-2 py-0.5 rounded-full ${INSIGHT_COLORS[c.category] || "bg-gray-100"}`}>{c.category}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                      <div className="bg-blue-400 h-full rounded-full" style={{ width: `${c.cnt / mx * 100}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs text-gray-500">{c.cnt}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-1">이슈 카테고리</h3>
+            <div className="space-y-1.5">
+              {issueCats.slice(0, 8).map(c => {
+                const mx = issueCats[0]?.cnt || 1;
+                return (
+                  <div key={c.category} className="flex items-center gap-2">
+                    <span className={`w-28 text-right text-xs px-2 py-0.5 rounded-full ${ISSUE_COLORS[c.category] || "bg-gray-100"}`}>{c.category}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                      <div className={`h-full rounded-full ${c.category === "칭찬" ? "bg-green-400" : "bg-red-300"}`} style={{ width: `${c.cnt / mx * 100}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs text-gray-500">{c.cnt}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-700">이 숫자는 단어 빈도입니다. 맥락 없는 집계. 3단계에서 실제 대화를 봐야 의미가 생깁니다.</p>
+          </div>
+
+          <button onClick={() => setOpenStage(3)} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm">
+            → 3단계: 실제 대화 맥락으로
+          </button>
+        </div>
+      )}
+
+      {/* ═══ Stage 3: 맥락 연결 ═══ */}
+      {openStage === 3 && (
+        <div className="space-y-4">
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-1">대화 케이스 ({funnel.stage3.case_count}건)</h3>
+            <p className="text-xs text-gray-400 mb-3">게스트 + 숙소 + 예약 + 첫 메시지 = 하나의 케이스. 거리를 걸으세요.</p>
+          </div>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {funnel.stage3.cases.map((c, idx) => (
+              <div key={idx} className="bg-white border rounded-xl p-4 hover:border-blue-300 transition">
+                <div className="flex items-center gap-2 mb-2">
+                  {c.property_name && (
+                    <Link to={`/reservations?keyword=${encodeURIComponent(c.property_name)}`}
+                      className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600">{c.property_name}</Link>
+                  )}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{c.channel_type}</span>
+                  {c.nights > 0 && <span className="text-xs text-gray-500">{c.nights}박</span>}
+                  {c.is_repeat && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">재방문</span>}
+                  {c.total_rate > 0 && <span className="text-xs text-gray-400">{(c.total_rate / 10000).toFixed(0)}만원</span>}
+                  <Link to={`/messages?conv=${c.conversation_id}`}
+                    className="ml-auto text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100">대화 원문</Link>
+                </div>
+                {c.first_message ? (
+                  <p className="text-sm text-gray-900 line-clamp-2">{c.first_message}</p>
+                ) : (
+                  <p className="text-sm text-gray-300 italic">첫 메시지 없음</p>
+                )}
+                <div className="flex items-center gap-2 mt-1">
+                  <Link to={`/messages?conv=${c.conversation_id}`} className="text-xs text-gray-600 hover:text-blue-600">{c.guest_name}</Link>
+                  {c.check_in && <span className="text-[10px] text-gray-400">{c.check_in} ~ {c.check_out}</span>}
+                  <span className="text-[10px] text-gray-400">메시지 {c.message_count}건</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setOpenStage(4)} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm">
+            → 4단계: 이 케이스들에서 패턴 찾기
+          </button>
+        </div>
+      )}
+
+      {/* ═══ Stage 4: 패턴 감지 ═══ */}
+      {openStage === 4 && (
+        <div className="space-y-4">
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-3">감지된 패턴</h3>
+            <div className="space-y-3">
+              {funnel.stage4.patterns.map((p, idx) => (
+                <div key={idx} className="border rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-800">{p.name.replace(/_/g, " ")}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{p.count}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{p.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs text-amber-700">패턴은 시스템이 감지합니다. 하지만 "왜"는 사람이 판단합니다. 3단계 케이스를 다시 보면서 패턴의 원인을 찾으세요.</p>
+          </div>
+
+          <button onClick={() => setOpenStage(5)} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm">
+            → 5단계: 종합 발견으로
+          </button>
+        </div>
+      )}
+
+      {/* ═══ Stage 5: 발견 (HIERO) ═══ */}
+      {openStage === 5 && (
+        <div className="space-y-4">
+          <div className="bg-gray-900 text-white rounded-xl p-5">
+            <h3 className="text-sm font-bold mb-2">HIERO — 종합 발견</h3>
+            <p className="text-xs opacity-70 mb-4">1~4단계를 관통해서 보이는 것. 시스템이 제시하는 것이 아니라, 당신이 걸으면서 발견하는 것.</p>
+
+            <div className="space-y-3">
+              {/* 1단계 요약 */}
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-[10px] text-white/50 mb-1">1. 문제</div>
+                <p className="text-sm">예약 {totalCurrent}건 (이전 {totalPrev}건, {totalCurrent - totalPrev > 0 ? "+" : ""}{totalCurrent - totalPrev})</p>
+                {declining.length > 0 && <p className="text-xs opacity-70 mt-1">하락 숙소 {declining.length}개: {declining.slice(0, 3).map(p => p.property_name).join(", ")}</p>}
+              </div>
+
+              {/* 2단계 요약 */}
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-[10px] text-white/50 mb-1">2. 분류</div>
+                <p className="text-sm">인사이트 TOP: {insightCats.slice(0, 3).map(c => `${c.category}(${c.cnt})`).join(" · ")}</p>
+                <p className="text-xs opacity-70 mt-1">이슈 TOP: {issueCats.filter(c => c.category !== "칭찬").slice(0, 3).map(c => `${c.category}(${c.cnt})`).join(" · ")}</p>
+              </div>
+
+              {/* 3단계 요약 */}
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-[10px] text-white/50 mb-1">3. 맥락</div>
+                <p className="text-sm">{funnel.stage3.case_count}개 대화 케이스</p>
+                {(() => {
+                  const repeats = funnel.stage3.cases.filter(c => c.is_repeat).length;
+                  const avgNights = funnel.stage3.cases.filter(c => c.nights > 0);
+                  const avg = avgNights.length > 0 ? (avgNights.reduce((a, c) => a + c.nights, 0) / avgNights.length).toFixed(1) : "-";
+                  return <p className="text-xs opacity-70 mt-1">재방문 {repeats}명 · 평균 {avg}박</p>;
+                })()}
+              </div>
+
+              {/* 4단계 요약 */}
+              <div className="bg-white/10 rounded-lg p-3">
+                <div className="text-[10px] text-white/50 mb-1">4. 패턴</div>
+                {funnel.stage4.patterns.map((p, i) => (
+                  <p key={i} className="text-xs">{p.name.replace(/_/g, " ")}: {p.description}</p>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-white/20">
+              <p className="text-xs opacity-50">5단계는 위 4개를 겹쳐서 읽는 당신의 판단입니다.</p>
+              <p className="text-xs opacity-50">새 질문이 생기면 → 기간을 바꾸고 1단계부터 다시 시작하세요.</p>
+            </div>
+          </div>
+
+          <button onClick={() => setOpenStage(1)} className="w-full py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
+            ↺ 1단계로 돌아가기 (새 질문으로)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
