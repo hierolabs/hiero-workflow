@@ -118,6 +118,17 @@ func (h *MarketDataHandler) GetSummary(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": summary})
 }
 
+// GET /admin/market/vacancy — 공실 분석 대시보드
+func (h *MarketDataHandler) GetVacancyAnalysis(c *gin.Context) {
+	result, err := h.svc.GetVacancyAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
+}
+
 // GET /admin/market/jobs?limit=20
 func (h *MarketDataHandler) GetJobs(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))

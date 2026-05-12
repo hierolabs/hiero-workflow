@@ -118,6 +118,7 @@ func registerAdminRoutes(r *gin.Engine) {
 			protected.GET("/market/compare", marketDataHandler.GetComparison)
 			protected.GET("/market/summary", marketDataHandler.GetSummary)
 			protected.GET("/market/jobs", marketDataHandler.GetJobs)
+			protected.GET("/market/vacancy", marketDataHandler.GetVacancyAnalysis)
 
 			// 예약 관리
 			protected.GET("/reservations", reservationHandler.List)

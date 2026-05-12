@@ -9,6 +9,7 @@ import {
   importMarketContracts,
 } from "../api/marketApi";
 import type { MarketSummary, MarketCompareResult, MarketPrice, CrawlJob } from "../types/market";
+import MarketAnalysisPopup from "./MarketAnalysisPopup";
 
 function formatWon(n: number): string {
   if (!n) return "-";
@@ -129,6 +130,9 @@ export default function MarketDataPanel({ onBack }: { onBack?: () => void }) {
   // 결과 뷰
   const [activeTab, setActiveTab] = useState<"compare" | "prices" | "jobs">("compare");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  // 시장 분석 팝업
+  const [analysisPopup, setAnalysisPopup] = useState<{ open: boolean; district?: string }>({ open: false });
 
   // 데이터 로드
   const loadData = useCallback(async () => {
@@ -557,18 +561,39 @@ export default function MarketDataPanel({ onBack }: { onBack?: () => void }) {
           {/* 지역별 요약 */}
           {summary && summary.by_region.length > 0 && (
             <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <h3 className="text-xs font-semibold text-gray-700 mb-2">지역별 시장 요약</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-gray-700">지역별 시장 요약</h3>
+                <button
+                  onClick={() => setAnalysisPopup({ open: true })}
+                  className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                >
+                  시장 분석
+                </button>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {summary.by_region.map(r => (
-                  <div key={r.region} className="rounded-lg border border-gray-100 p-2 text-xs">
+                  <div
+                    key={r.region}
+                    onClick={() => setAnalysisPopup({ open: true, district: r.region || undefined })}
+                    className="rounded-lg border border-gray-100 p-2 text-xs cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition"
+                  >
                     <div className="font-medium text-gray-800">{r.region || "미분류"} <span className="text-gray-400">({r.count}실)</span></div>
                     <div className="text-gray-500 mt-0.5">
                       평균 {formatWon(r.avg_rent_weekly)} · {formatWon(r.min_rent_weekly)}~{formatWon(r.max_rent_weekly)}
                     </div>
+                    <div className="text-[10px] text-emerald-600 mt-1">클릭하여 시장 분석 →</div>
                   </div>
                 ))}
               </div>
             </div>
+          )}
+
+          {/* 시장 분석 팝업 */}
+          {analysisPopup.open && (
+            <MarketAnalysisPopup
+              district={analysisPopup.district}
+              onClose={() => setAnalysisPopup({ open: false })}
+            />
           )}
         </>
       )}
