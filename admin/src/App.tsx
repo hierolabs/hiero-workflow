@@ -44,6 +44,13 @@ import OrgDocs from "./pages/OrgDocs";
 import PropertyOnboarding from "./pages/onboarding/PropertyOnboarding";
 import GuestAnalytics from "./pages/GuestAnalytics";
 import ListingStudio from "./pages/ListingStudio";
+import SovereigntyDemo from "./pages/sovereignty/SovereigntyDemo";
+import SovereigntyIndex from "./pages/sovereignty/SovereigntyIndex";
+import DiscoverPage from "./pages/sovereignty/DiscoverPage";
+import ValuePage from "./pages/sovereignty/ValuePage";
+import StructurePage from "./pages/sovereignty/StructurePage";
+import FusionPage from "./pages/sovereignty/FusionPage";
+import ReportPage from "./pages/sovereignty/ReportPage";
 
 function PrivateRoute() {
   const token = localStorage.getItem("token");
@@ -137,6 +144,15 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/property-order" element={<PropertyOrder />} />
             <Route path="/settings/sidebar" element={<SidebarSettings />} />
+
+            {/* MORO */}
+            <Route path="/sovereignty" element={<SovereigntyIndex />} />
+            <Route path="/sovereignty/discover" element={<DiscoverPage />} />
+            <Route path="/sovereignty/value" element={<ValuePage />} />
+            <Route path="/sovereignty/structure" element={<StructurePage />} />
+            <Route path="/sovereignty/fusion" element={<FusionPage />} />
+            <Route path="/sovereignty/report" element={<ReportPage />} />
+            <Route path="/sovereignty/demo" element={<SovereigntyDemo />} />
           </Route>
         </Route>
       </Routes>

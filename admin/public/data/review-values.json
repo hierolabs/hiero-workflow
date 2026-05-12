@@ -1,0 +1,2555 @@
+{
+  "generatedAt": "2026-05-12",
+  "source": "Google Places API + 네이버 블로그 검색 + 카카오 로컬 API",
+  "summary": {
+    "totalAnalyzed": 50,
+    "avgRating": 0.0,
+    "totalReviews": 0,
+    "totalBlogPosts": 156648,
+    "hiddenGems": 0
+  },
+  "places": [
+    {
+      "name": "일자산허브천문공원",
+      "district": "강동구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 3258,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "힐링",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        },
+        {
+          "word": "숨은",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 3,258건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "일자산공원~허브천문공원 산책코스｜강동구 둔촌동 철쭉 꽃밭",
+          "blogger": "연바정 블로그 blog",
+          "date": "20260417"
+        },
+        {
+          "title": "32_(260303)강동구 구봉산, 길동생태공원, 일자산 허브천문공원",
+          "blogger": "독보적(讀읽고步걸은跡발자취) 지리사랑",
+          "date": "20260304"
+        },
+        {
+          "title": "서울 강동구 숨은 공원 | 일자산 허브천문공원, 허브향과 별을... ",
+          "blogger": "행복한 부동산",
+          "date": "20260506"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "정동길",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 3049,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "깔끔",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 3,049건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울 중구 정동길 분위기 좋은... 카페 라운드앤드 내돈내산 후기",
+          "blogger": "네이버클립 @easymom777",
+          "date": "20251208"
+        },
+        {
+          "title": "중구 정동길 예원학교 74평... 아이바닥 CTR97 500각 3T 후기",
+          "blogger": "장판나라",
+          "date": "20251218"
+        },
+        {
+          "title": "중구 ] 분위기 있는 정동길... 김치만두 | 온제육 솔직후기 및 꿀팁",
+          "blogger": "My dairy˚₊·⋆˚.•✩‧₊⋆",
+          "date": "20260506"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "가을단풍길(월드컵로)",
+      "district": "마포구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 16870,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 16,870건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "대상데코빌 임대주택 거주 후기, 마포구 월드컵로20길 생활권... ",
+          "blogger": "정말 필요한 부동산 정보",
+          "date": "20260402"
+        },
+        {
+          "title": "서울 난지천공원 가을산책 가을단풍정취",
+          "blogger": "내가 만드는 일상",
+          "date": "20251103"
+        },
+        {
+          "title": "빕스 합정역점 신규오픈 매장 방문 후기 마포구 맛집... ",
+          "blogger": "오늘도, 지구 여행",
+          "date": "20250801"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "허준근린공원",
+      "district": "강서구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 3131,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "또 가",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 3,131건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "여기저기 키즈카페 강서구 허준 근린공원 5세 후기",
+          "blogger": "잘 웃는 아기 진우",
+          "date": "20260421"
+        },
+        {
+          "title": "서울 강서구 아이와 가볼만한 곳 추천 '허준근린공원'(주차 팁)",
+          "blogger": "그런지박의 트래블로그",
+          "date": "20260510"
+        },
+        {
+          "title": "〔서울강서구〕황금내근린공원~허준근린공원(구암공원)... ",
+          "blogger": "검은돌의 하루하루",
+          "date": "20240516"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "위안부 '기억의 터'",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 6241,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 6,241건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "위안부 기억의터 옛 중앙정보부 제6별관 소릿길 서울 중구... ",
+          "blogger": "서울, 그곳이 알고 싶다",
+          "date": "20250105"
+        },
+        {
+          "title": "[일본군 위안부 기억의 터],Take a walk, 중구,서울",
+          "blogger": "신나요는 Seoul & Daegu 유랑중 ~",
+          "date": "20251214"
+        },
+        {
+          "title": "[서울 중구] 남산에 오르다 (1)... 조선신궁 터, 일본군 '위안부... ",
+          "blogger": "넌 그럴 자격 있어!!",
+          "date": "20251024"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "디지털미디어시티",
+      "district": "마포구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 7861,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 7,861건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "마포구/디지털미디어시티역... 상암점 상암 맛집 밥집 추천 후기",
+          "blogger": "부리부리 일상",
+          "date": "20260306"
+        },
+        {
+          "title": "메이븐커피로스터스, 디지털미디어시티역 근처 마포구 카페 후기",
+          "blogger": "☆ Important thing",
+          "date": "20260320"
+        },
+        {
+          "title": "[카페] 마포구 상암동 카페 디지털미디어시티역 상암동 디저트... ",
+          "blogger": "해보고싶어서하는블로그",
+          "date": "20250802"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "도산공원",
+      "district": "강남구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 17803,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 17,803건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "강남구청역 점심 맛집... 도산공원 저녁 데이트 후기",
+          "blogger": "오다다의 지구정복기",
+          "date": "20260325"
+        },
+        {
+          "title": "도산공원 맛집,강남구청 고기집 세화정육식당 솔직후기",
+          "blogger": "러블리포포, 행복일상♡",
+          "date": "20250714"
+        },
+        {
+          "title": "강남구청역 점심맛집 도산공원 깍둑등심 원조 도산뚝배기",
+          "blogger": "연꽃로그",
+          "date": "20260401"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "덕수궁",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 9462,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        },
+        {
+          "word": "깊은",
+          "category": "긍정"
+        },
+        {
+          "word": "멋진",
+          "category": "긍정"
+        },
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 9,462건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "중구 순화동 덕수궁 롯데캐슬 136 아파트",
+          "blogger": "부동산 재개발 연구소",
+          "date": "20260413"
+        },
+        {
+          "title": "서울 중구, 덕수궁 석조전ㅣ일반해설 관람후기",
+          "blogger": "Monologue",
+          "date": "20260313"
+        },
+        {
+          "title": "중구 정동전망대 덕수궁 뷰... 전망대 가볼만한 곳 주차 방문후기",
+          "blogger": "MJ의 방방곡곡",
+          "date": "20240902"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "북촌한옥마을",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 6574,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "조용",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 6,574건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[종로구/북촌한옥마을 맛집] 은설설렁탕ㅣ솔직후기, 안국역... ",
+          "blogger": "밝고 또렷하게, 마음에 닿는 기록 朗朗易知",
+          "date": "20250921"
+        },
+        {
+          "title": "서울 당일치기 여행 종로구 북촌한옥마을 카페 '차마시는 뜰'",
+          "blogger": "오늘도 엔쪼이",
+          "date": "20251003"
+        },
+        {
+          "title": "서울 종로구 북촌한옥마을... 시공 후기｜맞춤 제작 강화유리... ",
+          "blogger": "샤워부스 전문업체 승일샤워부스 010-3941-2816",
+          "date": "20260131"
+        }
+      ],
+      "valueScore": 40,
+      "isHiddenGem": false
+    },
+    {
+      "name": "익선동 한옥거리",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 48505,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 88,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "좋았",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "깔끔",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        },
+        {
+          "word": "멋진",
+          "category": "긍정"
+        },
+        {
+          "word": "꼭 가",
+          "category": "긍정"
+        },
+        {
+          "word": "짜",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 48,505건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "종로구 익선동 맛집 한옥거리 일식 데이트 어담익선",
+          "blogger": "찬뫼의 맛있는 인생",
+          "date": "20260412"
+        },
+        {
+          "title": "익선동 한옥거리 맛집 꼭 가봐야할 종로구 익선동 맛집",
+          "blogger": "위드블리스 제주 스냅",
+          "date": "20250911"
+        },
+        {
+          "title": "익선동 데이트 종로구 맛집 한옥거리 코스 스시 어담익선",
+          "blogger": "꽃과함께 여행네컷",
+          "date": "20260421"
+        }
+      ],
+      "valueScore": 38,
+      "isHiddenGem": false
+    },
+    {
+      "name": "종묘돌담길",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1853,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "좋았",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,853건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[서울 종로구] 종로 연말모임 추천 돌담길 감성 속에서 따뜻하게... ",
+          "blogger": "ALotLikeLove",
+          "date": "20251230"
+        },
+        {
+          "title": "와인바 종로3가역 창덕궁 창경궁 돌담길 분위기 좋은 곳 봉익동... ",
+          "blogger": "애구쟁이의 찐로그㋡",
+          "date": "20240925"
+        },
+        {
+          "title": "종로3가카페 종묘 돌담길 뷰 맛집 서순라길한옥카페 방문 후기",
+          "blogger": "최고의 맛집&멋집 이야기",
+          "date": "20251225"
+        }
+      ],
+      "valueScore": 38,
+      "isHiddenGem": false
+    },
+    {
+      "name": "순미네 행복게장",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 2433,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 1,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 80,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "최고",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "역사",
+          "category": "긍정"
+        },
+        {
+          "word": "짜",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 2,433건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "동대문 DDP 간장게장 맛집 순미네행복게장 암게장정식 후기",
+          "blogger": "무화과면 뭐든",
+          "date": "20260113"
+        },
+        {
+          "title": "동대문 DDP 간장게장 맛집 순미네행복게장",
+          "blogger": "La vida es bella",
+          "date": "20251123"
+        },
+        {
+          "title": "동대문 간장게장 맛집 순미네 행복게장 방문 후기",
+          "blogger": "서울쥐 놀고 먹는 이야기",
+          "date": "20250208"
+        }
+      ],
+      "valueScore": 36,
+      "isHiddenGem": false
+    },
+    {
+      "name": "돈의문 터(옛 서대문)",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1522,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,522건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울한양도성길 숭례문구간 돈의문터(서대문)-소의문터(서소문)... ",
+          "blogger": "뀰초아의 성장블로그",
+          "date": "20260404"
+        },
+        {
+          "title": "[종로구/서대문] #2 돈의문박물관마을 야외 미션 게임 기자수첩... ",
+          "blogger": "평범한 일상",
+          "date": "20241223"
+        },
+        {
+          "title": "[서울] 돈의문 터(옛 서대문)",
+          "blogger": "HAPPY DAY",
+          "date": "20191031"
+        }
+      ],
+      "valueScore": 35,
+      "isHiddenGem": false
+    },
+    {
+      "name": "경희궁",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 7471,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [
+        "네이버 블로그에 7,471건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[역세권] 종로구 '경희궁자이 3단지' 임장 후기",
+          "blogger": "바람처럼 쏘다닙니다",
+          "date": "20260404"
+        },
+        {
+          "title": "쁘띠몽드 경희궁자이점 종로구 독립문 키즈카페 솔직후기",
+          "blogger": "오늘의 지안",
+          "date": "20250929"
+        },
+        {
+          "title": "종로구콘센트설치 홍파동 경희궁자이 베란다 매립 시공 후기",
+          "blogger": "전기고래",
+          "date": "20260319"
+        }
+      ],
+      "valueScore": 34,
+      "isHiddenGem": false
+    },
+    {
+      "name": "창경궁",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 5267,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [
+        "네이버 블로그에 5,267건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "종로구 &quot;창경궁초밥&quot;내돈내산 방문후기(아기의자O)",
+          "blogger": "꽁줌마의 일상기록",
+          "date": "20260128"
+        },
+        {
+          "title": "서울특별시 종로구 창경궁 관람 후기입니다.(명정전, 춘당지... ",
+          "blogger": "The Fervor Time, Reason NextOne.",
+          "date": "20260323"
+        },
+        {
+          "title": "종로구 원남동 창경궁 150 돈까스 카레 혼밥 후기",
+          "blogger": "유별나게 굴러가는 블로그",
+          "date": "20260216"
+        }
+      ],
+      "valueScore": 34,
+      "isHiddenGem": false
+    },
+    {
+      "name": "해방촌 골목",
+      "district": "용산구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 2265,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 67,
+      "keywords": [
+        {
+          "word": "깔끔",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        },
+        {
+          "word": "좁",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 2,265건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "용산구 해방촌에서 간판 전쟁... 업체 세 곳에 견적 받은 후기",
+          "blogger": "브라운톤",
+          "date": "20260512"
+        },
+        {
+          "title": "[서울/용산구] 해방촌 맛집 noop 솔직후기 : 데이트 생파... ",
+          "blogger": "먹또니의 다이어리",
+          "date": "20260326"
+        },
+        {
+          "title": "[용산구/해방촌] 용산동맛집 데니스모아 피자 먹고 온 후기... ",
+          "blogger": "microcosmos",
+          "date": "20260316"
+        }
+      ],
+      "valueScore": 33,
+      "isHiddenGem": false
+    },
+    {
+      "name": "덕수궁돌담길",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 2422,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 60,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "아름다",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        },
+        {
+          "word": "짜",
+          "category": "부정"
+        },
+        {
+          "word": "냄새",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 2,422건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울 중구 걷기 좋은 길, 덕수궁돌담길, 정동길, 고종의길... ",
+          "blogger": "비바라기의 어제는, 크리스마스이브♧",
+          "date": "20251126"
+        },
+        {
+          "title": "중구 성탄 여행 ️ 서소문 성지·약현성당·덕수궁 돌담길... ",
+          "blogger": "바쁘디 바쁜 현대사회인 소리의 블로그",
+          "date": "20260215"
+        },
+        {
+          "title": "[서울/중구] 덕수궁 돌담길 가을 단풍 데이트 코스 추천",
+          "blogger": "우리 오늘 뭐하지?",
+          "date": "20241110"
+        }
+      ],
+      "valueScore": 32,
+      "isHiddenGem": false
+    },
+    {
+      "name": "피규어뮤지엄W",
+      "district": "강남구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1244,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,244건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "피규어 뮤지엄 w 방문 후기 추천",
+          "blogger": "하얀이의 기록",
+          "date": "20260409"
+        },
+        {
+          "title": "압구정로데오 데이트 추천, 키덜트들의 천국! 피규어뮤지엄w",
+          "blogger": "아름다운 시절 기록",
+          "date": "20240821"
+        },
+        {
+          "title": "압구정 피규어뮤지엄W 서울 겨울 실내 가볼만한곳 관람후기",
+          "blogger": "허스키의 Travel-log",
+          "date": "20241221"
+        }
+      ],
+      "valueScore": 32,
+      "isHiddenGem": false
+    },
+    {
+      "name": "창의문",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1136,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,136건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "세검정 정자 종로구 창의문",
+          "blogger": "재밌게 살자 :) 다 해보기",
+          "date": "20250216"
+        },
+        {
+          "title": "종로구 창의문 위치 방문 후기",
+          "blogger": "유적과 여행",
+          "date": "20250515"
+        },
+        {
+          "title": "여행 306. 서울시 종로구(윤동주문학관&amp;창의문) 여행(결과 &amp; 후기)",
+          "blogger": "슬기로운 백수생활 시즌2",
+          "date": "20250604"
+        }
+      ],
+      "valueScore": 31,
+      "isHiddenGem": false
+    },
+    {
+      "name": "풍납토성",
+      "district": "송파구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 784,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 784건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "풍납토성 근처 풍납동맛집 형민참치 골드 포장 후기",
+          "blogger": "여행같은 산행을 떠나요",
+          "date": "20240912"
+        },
+        {
+          "title": "서울시민과 함께하는 풍납토성 어울림 축제 방문 후기... ",
+          "blogger": "재테크 독서하는 장터쟁이 레인맨",
+          "date": "20250921"
+        },
+        {
+          "title": "[후기] 백제의 도성 ‘풍납토성’ 현장답사",
+          "blogger": "Starbucks Youth Leaders_청년인재 대학생활 블로그",
+          "date": "20260107"
+        }
+      ],
+      "valueScore": 28,
+      "isHiddenGem": false
+    },
+    {
+      "name": "서대문형무소역사관",
+      "district": "서대문구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 784,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        },
+        {
+          "word": "꼭 가",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 784건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울특별시 서대문구 서대문형무소역사관 관람 후기입니다.... ",
+          "blogger": "The Fervor Time, Reason NextOne.",
+          "date": "20250822"
+        },
+        {
+          "title": "[서대문구]3.1절에 꼭 가봐야... 여행지:서대문형무소 역사관... ",
+          "blogger": "시화/반월 공장중개 한부장",
+          "date": "20260301"
+        },
+        {
+          "title": "서울 서대문구 현저동 (서대문형무소역사관) 관람 후기",
+          "blogger": "許 宗 勳 story",
+          "date": "20260208"
+        }
+      ],
+      "valueScore": 28,
+      "isHiddenGem": false
+    },
+    {
+      "name": "세운상가",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1437,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 67,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "숨은",
+          "category": "긍정"
+        },
+        {
+          "word": "짜",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,437건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[종로구]세운상가 맛집 숨은... 동해루 간짜장 + 탕수육 찐후기",
+          "blogger": "미식가 투자노트 「미식 재테크」",
+          "date": "20260417"
+        },
+        {
+          "title": "종로구 예지동 스카이차 / 고소작업차 전문! 세운상가... ",
+          "blogger": "\"스카이차\"문의☎️010-9059-0588",
+          "date": "20251119"
+        },
+        {
+          "title": "○ Alpaka's 맛집 탐방 Ep27 - 서울 종로구(을지로) 세운상가... ",
+          "blogger": "PipelinesTeam",
+          "date": "20251012"
+        }
+      ],
+      "valueScore": 28,
+      "isHiddenGem": false
+    },
+    {
+      "name": "사직단",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 693,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 693건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울시 종로구(이회영기념관, 사직단) 여행(결과 &amp; 후기)",
+          "blogger": "슬기로운 백수생활 시즌2",
+          "date": "20250404"
+        },
+        {
+          "title": "서울 사직단 종로구 가볼만한곳 안향청 복원공사 제단 인왕산",
+          "blogger": "상상 밖 세상 이야기",
+          "date": "20250419"
+        },
+        {
+          "title": "종로 가볼 만한 곳 사직단부터 황학정까지 역사 산책 코스",
+          "blogger": "로컬 여행 편집부",
+          "date": "20260202"
+        }
+      ],
+      "valueScore": 27,
+      "isHiddenGem": false
+    },
+    {
+      "name": "닭곰탕",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 445,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "깊은",
+          "category": "긍정"
+        },
+        {
+          "word": "진한",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 445건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[서울] 종로구, 광화문)사발... 홍초계냉국수, 능이버섯 닭곰탕",
+          "blogger": "강뱁새의 기록끼룩",
+          "date": "20250621"
+        },
+        {
+          "title": "경복궁 맛집 닭찜 닭곰탕이 맛있는 블루리본 무구옥",
+          "blogger": "on/off",
+          "date": "20260418"
+        },
+        {
+          "title": "진한 닭곰탕 오징어닭무침 주말 웨이팅 내돈내산 솔직후기",
+          "blogger": "zzyongimda",
+          "date": "20250404"
+        }
+      ],
+      "valueScore": 24,
+      "isHiddenGem": false
+    },
+    {
+      "name": "노아이디어피자",
+      "district": "동작구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 186,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 186건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "이수 맛집 노아이디어피자... 불제육피자 후기(사당데이트... ",
+          "blogger": "수잔의 웰빙스토리",
+          "date": "20260313"
+        },
+        {
+          "title": "서울 동작구 이수역 노아이디어피자 이수본점(크리스피... ",
+          "blogger": "kelshi님의 블로그",
+          "date": "20241002"
+        },
+        {
+          "title": "데이트 맛집 :: 사당동 노아이디어피자 먹고 온 만족스러운 후기",
+          "blogger": "기획자의 데일리로그 일기장",
+          "date": "20260309"
+        }
+      ],
+      "valueScore": 22,
+      "isHiddenGem": false
+    },
+    {
+      "name": "세운청계상가",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 135,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "힐링",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 135건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "세운청계상가 을지로맛집 이멜다분식 방문후기",
+          "blogger": "그리핑의 기록",
+          "date": "20250309"
+        },
+        {
+          "title": "[청계상가] 서울정원문화힐링... 프로그램 후기 (feat. 예약... ",
+          "blogger": "반려식물과 함께하는 하루",
+          "date": "20260425"
+        },
+        {
+          "title": "서울 중구 세운청계상가 빠우 도나스 솔직후기",
+          "blogger": "something_log",
+          "date": "20210812"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "봉황각",
+      "district": "강북구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 96,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "좋았",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "강북구 가볼 만한 곳 봉황각 손병희 묘소 천도교 중앙 총부",
+          "blogger": "유적과 여행",
+          "date": "20250610"
+        },
+        {
+          "title": "북한산볼거리 근대역사가 숨쉬는 봉황각",
+          "blogger": "MD 커플의 팔도 유람기",
+          "date": "20240604"
+        },
+        {
+          "title": "북한산 코스 둘러보기 좋은 손병희 봉황각",
+          "blogger": "서울 에세이",
+          "date": "20241126"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "ECC(Ewha Campus Complex)",
+      "district": "서대문구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 94,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "역사",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[서울] ECC(Ewha Campus Complex)",
+          "blogger": "HAPPY DAY",
+          "date": "20191024"
+        },
+        {
+          "title": "이화여대 ECC (Ewha Campus Complex) 소개 해주고 싶어 !",
+          "blogger": "미키 do it in love",
+          "date": "20221120"
+        },
+        {
+          "title": "[한국]이화여자대학교(Ewha Womans University)/입학일정... ",
+          "blogger": "어디서든, 무엇이든!",
+          "date": "20251213"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "옥상정원 (The Roof)",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 77,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "완벽",
+          "category": "긍정"
+        },
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "인천 영종도 메이드림 카페 늦은 저녁 방문 후기",
+          "blogger": "계절따라의 꿈꾸는 다락방",
+          "date": "20260224"
+        },
+        {
+          "title": "명동 더 루프 서울(The Roof Seoul) 방문 후기(내돈내산)... ",
+          "blogger": "Minjun Day",
+          "date": "20250419"
+        },
+        {
+          "title": "도쿄 야경 명소 도쿄역 킷테 6층 무료 전망대 마루노우치 광장",
+          "blogger": "더홍 미도구리 홍의성 Midoguri The Hong",
+          "date": "20251129"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "손기정기념관",
+      "district": "중구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 89,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "산책",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울특별시 중구 손기정기념관 관람 후기입니다.(베를린 마라톤... ",
+          "blogger": "The Fervor Time, Reason NextOne.",
+          "date": "20250321"
+        },
+        {
+          "title": "서울 중구 산책. 손기정 기념관, 손기정어린이도서관",
+          "blogger": "담백하게",
+          "date": "20250805"
+        },
+        {
+          "title": "[서울 중구] 만리동2가 &quot;손기정 기념관에서 무료로 각인 받은... ",
+          "blogger": "Record, my favorite things.",
+          "date": "20251201"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "방이옥",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 146,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 146건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "종로구 방이옥 종로점 방문후기",
+          "blogger": "jun mom blog",
+          "date": "20250409"
+        },
+        {
+          "title": "내돈내산 방이옥 종로점 후기 | 종로 점심으로 뼈해장국 한... ",
+          "blogger": "일상블로그",
+          "date": "20260512"
+        },
+        {
+          "title": "종로구, 종로고기집ㅣ방이옥... 돈마호크 삼겹살 예약방문 후기",
+          "blogger": "모래네 일상 발자국",
+          "date": "20250906"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "(주) 플로라에프앤비",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 83,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 1,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "터줏대감 레스토랑 * 삼청동 데이트코스 ♩(구 플로라 레스토랑)",
+          "blogger": "스쳐간 것들의 기록",
+          "date": "20150726"
+        },
+        {
+          "title": "삼청동맛집 - 플로라... 피자맛집 / 4.4일 정독도서관벚꽃후기",
+          "blogger": "우당탕탕지나가는일상",
+          "date": "20240405"
+        },
+        {
+          "title": "5월 마지막 주말 일상 feat. 북촌 한옥마을, 플로라",
+          "blogger": "Eat Pray Love,",
+          "date": "20220530"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "마라홀릭",
+      "district": "강남구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 146,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 1,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 146건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "한티역 근처맛집에서 즐긴 대치동 점심 마라홀릭 후기",
+          "blogger": "달.달 dal.dal",
+          "date": "20260331"
+        },
+        {
+          "title": "한티역 대치동 마라탕 맛집 마라홀릭 매장식사 후기",
+          "blogger": "sparkle_ming blog",
+          "date": "20250523"
+        },
+        {
+          "title": "[강남/대치] 한티역 마라탕 맛집 마라홀릭 한국브랜드 방문후기",
+          "blogger": "일상을 마요르카처럼♪",
+          "date": "20251118"
+        }
+      ],
+      "valueScore": 21,
+      "isHiddenGem": false
+    },
+    {
+      "name": "합덕슈퍼",
+      "district": "용산구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 8,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "좋았",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "파티룸 추천 : 브라이덜샤워 한남동 스페이스앤 1호점 이용후기",
+          "blogger": "zzyongimda",
+          "date": "20190324"
+        },
+        {
+          "title": "폴뉴아 한남 매장 후기 (가방, 원피스) 느좋 디자이너브랜드... ",
+          "blogger": "D!BS magazine © jay 딥스 매거진 패션,뷰티 블로그",
+          "date": "20250702"
+        },
+        {
+          "title": "[이태원/한남동] 당일치기 브라이덜샤워! 스페이스앤... ",
+          "blogger": "La vida cotidiana",
+          "date": "20200816"
+        }
+      ],
+      "valueScore": 20,
+      "isHiddenGem": false
+    },
+    {
+      "name": "라플루마앤보헤미안",
+      "district": "성북구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 21,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "라플루마앤보헤미안 고려대 인근 커피애호가를 위한 공간",
+          "blogger": "멜로우트립",
+          "date": "20240306"
+        },
+        {
+          "title": "가진 핸드드립 로스터리 - 라플루마앤보헤미안/안암 카페추천",
+          "blogger": "안나의 취향전시관",
+          "date": "20240525"
+        },
+        {
+          "title": "라플루마앤보헤미안, 안암 커피 원톱!",
+          "blogger": "자두 아카이빙",
+          "date": "20220816"
+        }
+      ],
+      "valueScore": 20,
+      "isHiddenGem": false
+    },
+    {
+      "name": "카페리빈",
+      "district": "강동구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 4,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "분위기",
+          "category": "긍정"
+        },
+        {
+          "word": "조용",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "천호역카페 오뜨르베이커리 조용하고 빵까지 맛있는 곳!",
+          "blogger": "데일리빈의 맛집•여행기록",
+          "date": "20230201"
+        },
+        {
+          "title": "올림픽공원 카페 카페인공감 와플이 맛있는 성내동카페",
+          "blogger": "데일리빈의 맛집•여행기록",
+          "date": "20231012"
+        },
+        {
+          "title": "천호역카페 러브올디저트 아기자기한 분위기에 맛있는... ",
+          "blogger": "데일리빈의 맛집•여행기록",
+          "date": "20230530"
+        }
+      ],
+      "valueScore": 20,
+      "isHiddenGem": false
+    },
+    {
+      "name": "자연향",
+      "district": "성북구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 17,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 99,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "아름다",
+          "category": "긍정"
+        },
+        {
+          "word": "숨은",
+          "category": "긍정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "티비출현 성북구 맛집 북한산 국립공원 한식 쌈밥 자연향 무료... ",
+          "blogger": "매일, 일희˙ᵕ˙",
+          "date": "20260421"
+        },
+        {
+          "title": "[성북구 맛집]북한산 쌈밥 자연향 오리우렁쌈밥 후기",
+          "blogger": "나의 모든것을 기록",
+          "date": "20260328"
+        },
+        {
+          "title": "성북구 맛집, 북한산 쌈밥과 항아리바베큐를 즐길 수 있는 자연향",
+          "blogger": "오늘도 빈석부부",
+          "date": "20260201"
+        }
+      ],
+      "valueScore": 20,
+      "isHiddenGem": false
+    },
+    {
+      "name": "상상오리 오금점",
+      "district": "송파구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 361,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [
+        "블로그 후기 361건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "상상오리 오금점 훈제 오리 바베큐 후기",
+          "blogger": "제이앤이님의블로그",
+          "date": "20251221"
+        },
+        {
+          "title": "송파구 오금동 고기집 상상오리 오금점... ",
+          "blogger": "좋은 곳을 추천드려요!",
+          "date": "20240511"
+        },
+        {
+          "title": "송파구 장난감도서관 오금점... 예약 대여 방법, 주차장 후기",
+          "blogger": "꿀벌일기",
+          "date": "20250720"
+        }
+      ],
+      "valueScore": 18,
+      "isHiddenGem": false
+    },
+    {
+      "name": "살곶이다리（전곶교）",
+      "district": "성동구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 344,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [
+        "블로그 후기 344건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울기행 Ħ. 성동구 전곶교 (살곶이 다리), 옛 다리의 정취",
+          "blogger": "카바르Ð Twilight HOBBY LAND",
+          "date": "20201016"
+        },
+        {
+          "title": "[서울/성동구] 살곶이다리 (전곶교)",
+          "blogger": "일요일 맑음",
+          "date": "20161003"
+        },
+        {
+          "title": "살곶이 다리 (전곶교)",
+          "blogger": "이야기가 있는 걷기",
+          "date": "20090322"
+        }
+      ],
+      "valueScore": 17,
+      "isHiddenGem": false
+    },
+    {
+      "name": "송월동 일대",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 53,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "1912년 종로구 송월동, 근대의 문턱 위에 서 있던 서울의... ",
+          "blogger": "서울 문화유산 발굴조사",
+          "date": "20251107"
+        },
+        {
+          "title": "종로구 송월동 누수탐지 현장후기",
+          "blogger": "zoch",
+          "date": "20251209"
+        },
+        {
+          "title": "종로구 송월동 스카이차, 안전한 스카이차로 바가지차... ",
+          "blogger": "왕바우스카이차 010-3019-1011",
+          "date": "20251215"
+        }
+      ],
+      "valueScore": 15,
+      "isHiddenGem": false
+    },
+    {
+      "name": "흑석동 효사길",
+      "district": "동작구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 0,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 3,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "푸라닭 하계점",
+      "district": "노원구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 0,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "배꼽시계",
+      "district": "중랑구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 29,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 1,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[중랑구] 망우동, 겸재삼거리 분식집 배꼽시계 내돈내산 후기",
+          "blogger": "민미히, 솔직담백리뷰",
+          "date": "20220128"
+        },
+        {
+          "title": "망우동 맛집 중랑구의 축복! 용마해장국 일요일 저녁 방문 후기",
+          "blogger": "bboolog",
+          "date": "20260309"
+        },
+        {
+          "title": "[중랑구] 천지연불한증막스파... 즐긴 내돈내산 찜질방 후기",
+          "blogger": "자유로운 사람의 일기",
+          "date": "20260426"
+        }
+      ],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "쿡스",
+      "district": "서대문구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 3,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "여행크리에이터, 여행작가 봄비(김혜민) 포트폴리오... ",
+          "blogger": "여행작가 봄비",
+          "date": "20181112"
+        },
+        {
+          "title": "음식료 관련주 &amp; 음식료주 총정리",
+          "blogger": "경제와 유아독존",
+          "date": "20210816"
+        },
+        {
+          "title": "도서관, 이집트 대박물관, 홍승혜, Martin Margiela, 백색... ",
+          "blogger": "[성문출판사]",
+          "date": "20230209"
+        }
+      ],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "Cafe Comfy 카페 콤피",
+      "district": "송파구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 42,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 70,
+      "keywords": [],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "여유로운 잠실카페 • 카페 콤피 Cafe Comfy",
+          "blogger": "◔ • •••",
+          "date": "20220804"
+        },
+        {
+          "title": "잠실 카페콤피 cafe comfy, 비엔나커피와 스콘",
+          "blogger": "less but better",
+          "date": "20210204"
+        },
+        {
+          "title": "잠실역 애견동반카페 | 카페콤피 흑임자라떼 &amp; 에그타르트 맛집",
+          "blogger": "I like you just as you are ღ",
+          "date": "20260511"
+        }
+      ],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "탕화쿵푸 마라탕",
+      "district": "강남구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 85,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 67,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "별로",
+          "category": "부정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "압구정로데오 맛집 마라탕 신상 탕화쿵푸마라탕 후기",
+          "blogger": "오늘의 뜌루",
+          "date": "20260314"
+        },
+        {
+          "title": "압구정로데오 맛집 탕화쿵푸마라탕 압구정직영점 신상 오픈",
+          "blogger": "댄싱피나의 맛있는 춤",
+          "date": "20260318"
+        },
+        {
+          "title": "역삼 맛집 탕화쿵푸마라탕 역삼점 진하고 칼칼한 마라탕에... ",
+          "blogger": "릴리랄라 행복한 일상❤ 여행x미식×요리",
+          "date": "20251231"
+        }
+      ],
+      "valueScore": 14,
+      "isHiddenGem": false
+    },
+    {
+      "name": "남산서울타워",
+      "district": "용산구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 1239,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 0,
+      "keywords": [
+        {
+          "word": "오래",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "네이버 블로그에 1,239건의 후기가 있는 인기 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "[서울 용산구] 남산타워(N서울타워) 아이와 함께한 방문 후기... ",
+          "blogger": "스텔라엄마의 인생 2막 1장",
+          "date": "20250821"
+        },
+        {
+          "title": "[서울/용산구] N서울타워 전망대 후기/일출,노을 보기 좋은 남산... ",
+          "blogger": "세상은 무궁무진!",
+          "date": "20251226"
+        },
+        {
+          "title": "[용산구] 남산서울타워(aka N서울타워) 방문 후기",
+          "blogger": "달토링GO",
+          "date": "20240927"
+        }
+      ],
+      "valueScore": 12,
+      "isHiddenGem": false
+    },
+    {
+      "name": "한신옹기",
+      "district": "용산구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 29,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 0,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 50,
+      "keywords": [
+        {
+          "word": "추천",
+          "category": "긍정"
+        },
+        {
+          "word": "오래",
+          "category": "부정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "서울 미래유산 한신옹기 반백년 옹기 가게",
+          "blogger": "유적과 여행",
+          "date": "20241211"
+        },
+        {
+          "title": "[오래가게 서포터즈_서수민] 시간을 담는 그릇, 해방촌 한신옹기",
+          "blogger": "서울 오래가게",
+          "date": "20251222"
+        },
+        {
+          "title": "가볼만한곳 - 크리스피포크타운, 르카페, 한신옹기",
+          "blogger": "취향 아카이브",
+          "date": "20251106"
+        }
+      ],
+      "valueScore": 10,
+      "isHiddenGem": false
+    },
+    {
+      "name": "홍짜장",
+      "district": "강남구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 26,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 50,
+      "keywords": [
+        {
+          "word": "맛있",
+          "category": "긍정"
+        },
+        {
+          "word": "짜",
+          "category": "부정"
+        }
+      ],
+      "identity": [],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "11월 : 밀린 일기",
+          "blogger": "ᵐ ⁱ ⁿ ᵍ ˡ ᵒ ᵍ",
+          "date": "20191203"
+        },
+        {
+          "title": "맺음과 시작(퇴사/이직/스노우ai프로필/강서구 맛집/ 용인맛집)",
+          "blogger": "홈순이",
+          "date": "20230610"
+        },
+        {
+          "title": "ㅡ北‘廣野Bear熊의 麥판다곰GM情大田‘味THE本‘擴張性와... ",
+          "blogger": "전화통화 신분확인.말을못해서 말을하지않는게아니다",
+          "date": "20260202"
+        }
+      ],
+      "valueScore": 10,
+      "isHiddenGem": false
+    },
+    {
+      "name": "삼청동 골목길",
+      "district": "종로구",
+      "address": "",
+      "category": "",
+      "rating": 0,
+      "reviewCount": 0,
+      "blogCount": 825,
+      "phone": "",
+      "website": "",
+      "googleUrl": "",
+      "kakaoUrl": "",
+      "hasDigitalPresence": false,
+      "gapCount": 2,
+      "dataSource": "google+naver+kakao",
+      "sentimentScore": 0,
+      "keywords": [
+        {
+          "word": "좁",
+          "category": "부정"
+        },
+        {
+          "word": "오래",
+          "category": "부정"
+        }
+      ],
+      "identity": [
+        "블로그 후기 825건 — 입소문이 퍼지고 있는 장소"
+      ],
+      "reviews": [],
+      "blogPosts": [
+        {
+          "title": "종로구 삼청동 사무실 철거 50평 옛 인쇄소의 고군분투기",
+          "blogger": "별빛 아래 잠든 시간",
+          "date": "20260510"
+        },
+        {
+          "title": "서울 종로구 삼청동 청와대 옆... 솔직 후기 &lt;PKM가든 레스토랑... ",
+          "blogger": "윈디",
+          "date": "20241226"
+        },
+        {
+          "title": "종로구 삼청동 자동차 사고 보상처리 꼼꼼하게 해결한 후기",
+          "blogger": "ymtransition님의 블로그",
+          "date": "20260209"
+        }
+      ],
+      "valueScore": 8,
+      "isHiddenGem": false
+    }
+  ],
+  "keywords": {
+    "추천": 23,
+    "맛있": 10,
+    "분위기": 9,
+    "역사": 9,
+    "산책": 8,
+    "짜": 5,
+    "좋았": 4,
+    "숨은": 3,
+    "깔끔": 3,
+    "오래": 3,
+    "힐링": 2,
+    "깊은": 2,
+    "멋진": 2,
+    "조용": 2,
+    "꼭 가": 2,
+    "좁": 2,
+    "아름다": 2,
+    "또 가": 1,
+    "최고": 1,
+    "냄새": 1,
+    "진한": 1,
+    "완벽": 1,
+    "별로": 1
+  },
+  "districtValues": {
+    "강동구": {
+      "count": 2,
+      "totalReviews": 0,
+      "totalBlogs": 3262,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "중구": {
+      "count": 8,
+      "totalReviews": 0,
+      "totalBlogs": 23908,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "마포구": {
+      "count": 2,
+      "totalReviews": 0,
+      "totalBlogs": 24731,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "강서구": {
+      "count": 1,
+      "totalReviews": 0,
+      "totalBlogs": 3131,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "강남구": {
+      "count": 5,
+      "totalReviews": 0,
+      "totalBlogs": 19304,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "종로구": {
+      "count": 14,
+      "totalReviews": 0,
+      "totalBlogs": 76010,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "용산구": {
+      "count": 4,
+      "totalReviews": 0,
+      "totalBlogs": 3541,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "송파구": {
+      "count": 3,
+      "totalReviews": 0,
+      "totalBlogs": 1187,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "서대문구": {
+      "count": 3,
+      "totalReviews": 0,
+      "totalBlogs": 881,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "동작구": {
+      "count": 2,
+      "totalReviews": 0,
+      "totalBlogs": 186,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "강북구": {
+      "count": 1,
+      "totalReviews": 0,
+      "totalBlogs": 96,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "성북구": {
+      "count": 2,
+      "totalReviews": 0,
+      "totalBlogs": 38,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "성동구": {
+      "count": 1,
+      "totalReviews": 0,
+      "totalBlogs": 344,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "노원구": {
+      "count": 1,
+      "totalReviews": 0,
+      "totalBlogs": 0,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    },
+    "중랑구": {
+      "count": 1,
+      "totalReviews": 0,
+      "totalBlogs": 29,
+      "hiddenGems": 0,
+      "avgRating": 0.0
+    }
+  }
+}

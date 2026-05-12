@@ -24,3 +24,5 @@ Thumbs.db
 backend/main
 scripts/samsam_collect.js # 안 올릴 거면
 backend/main
+admin/public/data/restaurants.json
+admin/public/data/frozen-100.json

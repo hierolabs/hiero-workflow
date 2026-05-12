@@ -62,14 +62,15 @@ const DEFAULT_NAV: NavGroup[] = [
     ],
   },
   {
-    label: '데이터 주권',
+    label: 'MORO',
     items: [
-      { to: "/sovereignty", label: "주권 대시보드", iconName: "DashboardIcon" },
-      { to: "/sovereignty/discover", label: "잃어버린 데이터 찾기", iconName: "MapPinIcon" },
-      { to: "/sovereignty/value", label: "후기에서 가치 발견", iconName: "DiagnosisIcon" },
-      { to: "/sovereignty/ops", label: "운영 OS 접목", iconName: "ChecklistIcon" },
-      { to: "/sovereignty/fusion", label: "이종 데이터 결합", iconName: "MoroIcon" },
-      { to: "/sovereignty/report", label: "주권 회복 리포트", iconName: "RevenueIcon" },
+      { to: "/sovereignty", label: "대시보드", iconName: "DashboardIcon" },
+      { to: "/sovereignty/discover", label: "1. 장소 발견", iconName: "MapPinIcon" },
+      { to: "/sovereignty/value", label: "2. 가치 발견", iconName: "DiagnosisIcon" },
+      { to: "/sovereignty/structure", label: "3. 구조화", iconName: "ChecklistIcon" },
+      { to: "/sovereignty/fusion", label: "4. 데이터 결합", iconName: "MoroIcon" },
+      { to: "/sovereignty/report", label: "5. 리포트", iconName: "RevenueIcon" },
+      { to: "/sovereignty/demo", label: "DEMO", iconName: "MoroIcon" },
     ],
   },
   {
