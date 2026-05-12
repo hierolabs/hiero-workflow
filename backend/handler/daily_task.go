@@ -101,17 +101,28 @@ func (h *DailyTaskHandler) CheckinTargets(c *gin.Context) {
 	config.DB.Where("check_in_date = ? AND status != 'cancelled' AND (channel_name LIKE '%삼삼엠투%' OR channel_name LIKE '%리브%' OR channel_name LIKE '%Agoda%' OR channel_name LIKE '%개인%')", date).
 		Find(&reservations)
 
-	// property_name 매핑
+	// property_name 일괄 매핑
+	propIDs := []uint{}
+	for _, r := range reservations {
+		if r.InternalPropID != nil {
+			propIDs = append(propIDs, *r.InternalPropID)
+		}
+	}
+	propNameMap := map[uint]string{}
+	if len(propIDs) > 0 {
+		var props []models.Property
+		config.DB.Select("id, name, display_name").Where("id IN ?", propIDs).Find(&props)
+		for _, p := range props {
+			if p.DisplayName != "" {
+				propNameMap[p.ID] = p.DisplayName
+			} else {
+				propNameMap[p.ID] = p.Name
+			}
+		}
+	}
 	for i := range reservations {
 		if reservations[i].InternalPropID != nil {
-			var prop models.Property
-			if err := config.DB.First(&prop, *reservations[i].InternalPropID).Error; err == nil {
-				name := prop.DisplayName
-				if name == "" {
-					name = prop.Name
-				}
-				reservations[i].PropertyName = name
-			}
+			reservations[i].PropertyName = propNameMap[*reservations[i].InternalPropID]
 		}
 	}
 

@@ -53,34 +53,118 @@ func (h *AdminUserHandler) TeamStats(c *gin.Context) {
 		} `json:"stats"`
 	}
 
+	// 사용자 이름/ID 목록 추출
+	names := make([]string, 0, len(users))
+	userIDs := make([]uint, 0, len(users))
+	roleTitles := make([]string, 0, len(users))
+	for _, u := range users {
+		names = append(names, u.Name)
+		userIDs = append(userIDs, u.ID)
+		roleTitles = append(roleTitles, u.RoleTitle)
+	}
+
+	// ── 일괄 조회 1: 이슈 통계 (assignee_name별 상태+기간 집계) ──
+	type issueAgg struct {
+		AssigneeName string
+		OpenCnt      int64
+		TodayCnt     int64
+		WeekCnt      int64
+		MonthCnt     int64
+		AvgHours     *float64
+	}
+	var issueAggs []issueAgg
+	config.DB.Model(&models.Issue{}).
+		Select(`assignee_name,
+			SUM(CASE WHEN status IN ('open','in_progress') THEN 1 ELSE 0 END) as open_cnt,
+			SUM(CASE WHEN status IN ('resolved','closed') AND resolved_at >= ? THEN 1 ELSE 0 END) as today_cnt,
+			SUM(CASE WHEN status IN ('resolved','closed') AND resolved_at >= ? THEN 1 ELSE 0 END) as week_cnt,
+			SUM(CASE WHEN status IN ('resolved','closed') AND resolved_at >= ? THEN 1 ELSE 0 END) as month_cnt,
+			AVG(CASE WHEN status IN ('resolved','closed') AND resolved_at IS NOT NULL THEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) END) as avg_hours`,
+			today, weekAgo, monthAgo).
+		Where("assignee_name IN ?", names).
+		Group("assignee_name").Find(&issueAggs)
+	issueMap := map[string]issueAgg{}
+	for _, ia := range issueAggs {
+		issueMap[ia.AssigneeName] = ia
+	}
+
+	// ── 일괄 조회 2: 에스컬레이트 (escalated_from별) ──
+	type escAgg struct {
+		EscalatedFrom string
+		Cnt           int64
+	}
+	var escAggs []escAgg
+	config.DB.Model(&models.Issue{}).
+		Select("escalated_from, COUNT(*) as cnt").
+		Where("escalated_from IN ? AND escalation_level IN (?,?)", roleTitles, "etf", "founder").
+		Group("escalated_from").Find(&escAggs)
+	escMap := map[string]int64{}
+	for _, ea := range escAggs {
+		escMap[ea.EscalatedFrom] = ea.Cnt
+	}
+
+	// ── 일괄 조회 3: 업무지시 (activity_log에서 이름 매칭) ──
+	type delegAgg struct {
+		TargetName string
+		Cnt        int64
+	}
+	delegMap := map[string]int64{}
+	for _, n := range names {
+		var cnt int64
+		config.DB.Model(&models.ActivityLog{}).Where("action = ? AND detail LIKE ?", models.ActionIssueAssigned, "%→ "+n+"%").Count(&cnt)
+		if cnt > 0 {
+			delegMap[n] = cnt
+		}
+	}
+
+	// ── 일괄 조회 4: 주간 활동 (user_name별) ──
+	type actAgg struct {
+		UserName string
+		Cnt      int64
+	}
+	var actAggs []actAgg
+	config.DB.Model(&models.ActivityLog{}).
+		Select("user_name, COUNT(*) as cnt").
+		Where("user_name IN ? AND created_at >= ?", names, weekAgo).
+		Group("user_name").Find(&actAggs)
+	actMap := map[string]int64{}
+	for _, aa := range actAggs {
+		actMap[aa.UserName] = aa.Cnt
+	}
+
+	// ── 일괄 조회 5: 읽지않은 알림 (user_id별) ──
+	type notifAgg struct {
+		UserID uint
+		Cnt    int64
+	}
+	var notifAggs []notifAgg
+	config.DB.Model(&models.Notification{}).
+		Select("user_id, COUNT(*) as cnt").
+		Where("user_id IN ? AND is_read = ?", userIDs, false).
+		Group("user_id").Find(&notifAggs)
+	notifMap := map[uint]int64{}
+	for _, na := range notifAggs {
+		notifMap[na.UserID] = na.Cnt
+	}
+
+	// ── 조립 ──
 	results := make([]UserStat, 0, len(users))
 	for _, u := range users {
 		s := UserStat{UserID: u.ID, Name: u.Name, LoginID: u.LoginID, RoleTitle: u.RoleTitle, RoleLayer: u.RoleLayer}
 
-		// 미처리 이슈
-		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?)", u.Name, "open", "in_progress").Count(&s.Stats.OpenIssues)
-		// 오늘 해결
-		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", today).Count(&s.Stats.ResolvedToday)
-		// 주간 해결
-		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", weekAgo).Count(&s.Stats.ResolvedWeek)
-		// 월간 해결
-		config.DB.Model(&models.Issue{}).Where("assignee_name = ? AND status IN (?,?) AND resolved_at >= ?", u.Name, "resolved", "closed", monthAgo).Count(&s.Stats.ResolvedMonth)
-		// 에스컬레이트 (이 사람이 올린 건)
-		config.DB.Model(&models.Issue{}).Where("escalated_from = ? AND escalation_level IN (?,?)", u.RoleTitle, "etf", "founder").Count(&s.Stats.EscalatedUp)
-		// 업무지시 (이 사람에게 내려온 건)
-		config.DB.Model(&models.ActivityLog{}).Where("action = ? AND detail LIKE ?", models.ActionIssueAssigned, "%→ "+u.Name+"%").Count(&s.Stats.DelegatedDown)
-		// 평균 해결시간 (시간)
-		var avgHours *float64
-		config.DB.Model(&models.Issue{}).Select("AVG(TIMESTAMPDIFF(HOUR, created_at, resolved_at))").
-			Where("assignee_name = ? AND status IN (?,?) AND resolved_at IS NOT NULL", u.Name, "resolved", "closed").
-			Row().Scan(&avgHours)
-		if avgHours != nil {
-			s.Stats.AvgResolveHours = math.Round(*avgHours*10) / 10
+		if ia, ok := issueMap[u.Name]; ok {
+			s.Stats.OpenIssues = ia.OpenCnt
+			s.Stats.ResolvedToday = ia.TodayCnt
+			s.Stats.ResolvedWeek = ia.WeekCnt
+			s.Stats.ResolvedMonth = ia.MonthCnt
+			if ia.AvgHours != nil {
+				s.Stats.AvgResolveHours = math.Round(*ia.AvgHours*10) / 10
+			}
 		}
-		// 주간 활동
-		config.DB.Model(&models.ActivityLog{}).Where("user_name = ? AND created_at >= ?", u.Name, weekAgo).Count(&s.Stats.ActivityWeek)
-		// 읽지않은 알림
-		config.DB.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", u.ID, false).Count(&s.Stats.UnreadNotifs)
+		s.Stats.EscalatedUp = escMap[u.RoleTitle]
+		s.Stats.DelegatedDown = delegMap[u.Name]
+		s.Stats.ActivityWeek = actMap[u.Name]
+		s.Stats.UnreadNotifs = notifMap[u.ID]
 
 		results = append(results, s)
 	}

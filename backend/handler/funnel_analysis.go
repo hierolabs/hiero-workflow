@@ -130,51 +130,120 @@ func (h *FunnelHandler) Analyze(c *gin.Context) {
 		IsRepeat       bool    `json:"is_repeat"`
 	}
 
-	// 최근 대화 + 예약 조인 (기간 내 메시지가 있는 대화)
+	// 최근 대화 conversation_id 목록 (기간 내 게스트 메시지가 있는 대화)
 	var convIDs []string
 	config.DB.Model(&models.Message{}).
 		Where("sent_at >= ? AND sent_at <= ? AND sender_type = 'guest'", from, to+" 23:59:59").
 		Distinct("conversation_id").Limit(200).
 		Pluck("conversation_id", &convIDs)
 
+	if len(convIDs) == 0 {
+		convIDs = []string{"__none__"}
+	}
+
+	// 일괄 조회 1: conversations
+	var convList []models.Conversation
+	config.DB.Where("conversation_id IN ?", convIDs).Find(&convList)
+	convMap := map[string]models.Conversation{}
+	for _, c := range convList {
+		convMap[c.ConversationID] = c
+	}
+
+	// 일괄 조회 2: 대화별 메시지 수
+	type msgCountRow struct {
+		ConversationID string
+		Cnt            int
+	}
+	var msgCounts []msgCountRow
+	config.DB.Model(&models.Message{}).
+		Select("conversation_id, COUNT(*) as cnt").
+		Where("conversation_id IN ?", convIDs).
+		Group("conversation_id").Find(&msgCounts)
+	msgCountMap := map[string]int{}
+	for _, mc := range msgCounts {
+		msgCountMap[mc.ConversationID] = mc.Cnt
+	}
+
+	// 일괄 조회 3: 대화별 첫 게스트 메시지 (서브쿼리로 MIN sent_at)
+	type firstMsgRow struct {
+		ConversationID string
+		Content        string
+	}
+	var firstMsgs []firstMsgRow
+	config.DB.Raw(`
+		SELECT m.conversation_id, m.content
+		FROM messages m
+		INNER JOIN (
+			SELECT conversation_id, MIN(sent_at) as min_sent
+			FROM messages
+			WHERE conversation_id IN ? AND sender_type = 'guest' AND CHAR_LENGTH(content) > 10
+			GROUP BY conversation_id
+		) sub ON m.conversation_id = sub.conversation_id AND m.sent_at = sub.min_sent
+		WHERE m.sender_type = 'guest' AND CHAR_LENGTH(m.content) > 10
+	`, convIDs).Find(&firstMsgs)
+	firstMsgMap := map[string]string{}
+	for _, fm := range firstMsgs {
+		firstMsgMap[fm.ConversationID] = fm.Content
+	}
+
+	// 일괄 조회 4: 예약 정보
+	var resList []models.Reservation
+	config.DB.Where("conversation_id IN ? AND status NOT IN ('cancelled','canceled')", convIDs).Find(&resList)
+	resMap := map[string]models.Reservation{}
+	for _, r := range resList {
+		if _, exists := resMap[r.ConversationID]; !exists {
+			resMap[r.ConversationID] = r
+		}
+	}
+
+	// 일괄 조회 5: 재방문 여부 (guest_name별 대화 수)
+	guestNames := []string{}
+	guestNameSet := map[string]bool{}
+	for _, c := range convList {
+		if c.GuestName != "" && !guestNameSet[c.GuestName] {
+			guestNames = append(guestNames, c.GuestName)
+			guestNameSet[c.GuestName] = true
+		}
+	}
+	repeatMap := map[string]bool{}
+	if len(guestNames) > 0 {
+		type guestConvCount struct {
+			GuestName string
+			Cnt       int
+		}
+		var gcc []guestConvCount
+		config.DB.Model(&models.Conversation{}).
+			Select("guest_name, COUNT(DISTINCT conversation_id) as cnt").
+			Where("guest_name IN ?", guestNames).
+			Group("guest_name").Having("cnt > 1").
+			Find(&gcc)
+		for _, g := range gcc {
+			repeatMap[g.GuestName] = true
+		}
+	}
+
+	// 케이스 조립
 	var cases []conversationCase
 	for _, cid := range convIDs {
-		var conv models.Conversation
-		if err := config.DB.Where("conversation_id = ?", cid).First(&conv).Error; err != nil {
+		if cid == "__none__" {
 			continue
 		}
-
-		// 첫 게스트 메시지 (길이 10 이상)
-		var firstMsg models.Message
-		config.DB.Where("conversation_id = ? AND sender_type = 'guest' AND CHAR_LENGTH(content) > 10", cid).
-			Order("sent_at ASC").First(&firstMsg)
-
-		// 메시지 수
-		var msgCount int64
-		config.DB.Model(&models.Message{}).Where("conversation_id = ?", cid).Count(&msgCount)
-
-		// 예약 정보
-		var res models.Reservation
-		config.DB.Where("conversation_id = ? AND status NOT IN ('cancelled','canceled')", cid).First(&res)
+		conv, ok := convMap[cid]
+		if !ok {
+			continue
+		}
 
 		propName := ""
 		if conv.InternalPropID != nil {
 			propName = propNames[*conv.InternalPropID]
 		}
 
-		// 재방문 여부
-		var prevCount int64
-		if conv.GuestName != "" {
-			config.DB.Model(&models.Conversation{}).
-				Where("guest_name = ? AND conversation_id != ?", conv.GuestName, cid).
-				Count(&prevCount)
-		}
-
-		firstContent := firstMsg.Content
+		firstContent := firstMsgMap[cid]
 		if len([]rune(firstContent)) > 200 {
 			firstContent = string([]rune(firstContent)[:200]) + "…"
 		}
 
+		res := resMap[cid]
 		cases = append(cases, conversationCase{
 			ConversationID: cid,
 			GuestName:      conv.GuestName,
@@ -185,8 +254,8 @@ func (h *FunnelHandler) Analyze(c *gin.Context) {
 			Nights:         res.Nights,
 			TotalRate:      res.TotalRate,
 			FirstMessage:   firstContent,
-			MessageCount:   int(msgCount),
-			IsRepeat:       prevCount > 0,
+			MessageCount:   msgCountMap[cid],
+			IsRepeat:       repeatMap[conv.GuestName],
 		})
 
 		if len(cases) >= 50 {

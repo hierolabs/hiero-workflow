@@ -650,16 +650,28 @@ func (h *GuestHandler) Detail(c *gin.Context) {
 	var reservations []models.Reservation
 	query.Order("check_in_date DESC").Find(&reservations)
 
+	// 숙소 이름 일괄 조회
+	propIDs := []uint{}
+	for _, r := range reservations {
+		if r.InternalPropID != nil {
+			propIDs = append(propIDs, *r.InternalPropID)
+		}
+	}
+	propNameMap := map[uint]string{}
+	if len(propIDs) > 0 {
+		var props []models.Property
+		db.Select("id, name, display_name").Where("id IN ?", propIDs).Find(&props)
+		for _, p := range props {
+			if p.DisplayName != "" {
+				propNameMap[p.ID] = p.DisplayName
+			} else {
+				propNameMap[p.ID] = p.Name
+			}
+		}
+	}
 	for i, r := range reservations {
 		if r.InternalPropID != nil {
-			var prop models.Property
-			if db.First(&prop, *r.InternalPropID).Error == nil {
-				name := prop.DisplayName
-				if name == "" {
-					name = prop.Name
-				}
-				reservations[i].PropertyName = name
-			}
+			reservations[i].PropertyName = propNameMap[*r.InternalPropID]
 		}
 	}
 

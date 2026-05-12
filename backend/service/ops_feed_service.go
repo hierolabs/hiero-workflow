@@ -35,16 +35,42 @@ func (s *OpsFeedService) GetTodayFeed() []FeedItem {
 	config.DB.Select("id, guest_name, check_in_date, status, internal_prop_id").
 		Where("check_in_date = ? AND status = ?", today, "accepted").
 		Find(&checkIns)
+
+	// 2. 오늘 체크아웃
+	var checkOuts []models.Reservation
+	config.DB.Select("id, guest_name, check_out_date, status, internal_prop_id").
+		Where("check_out_date = ? AND status = ?", today, "accepted").
+		Find(&checkOuts)
+
+	// 숙소 이름 일괄 조회 (체크인+체크아웃 합산)
+	propIDs := []uint{}
+	for _, r := range checkIns {
+		if r.InternalPropID != nil {
+			propIDs = append(propIDs, *r.InternalPropID)
+		}
+	}
+	for _, r := range checkOuts {
+		if r.InternalPropID != nil {
+			propIDs = append(propIDs, *r.InternalPropID)
+		}
+	}
+	propNameMap := map[uint]string{}
+	if len(propIDs) > 0 {
+		var props []models.Property
+		config.DB.Select("id, name, display_name").Where("id IN ?", propIDs).Find(&props)
+		for _, p := range props {
+			if p.DisplayName != "" {
+				propNameMap[p.ID] = p.DisplayName
+			} else {
+				propNameMap[p.ID] = p.Name
+			}
+		}
+	}
+
 	for _, r := range checkIns {
 		propName := ""
 		if r.InternalPropID != nil {
-			var p models.Property
-			if config.DB.Select("name, display_name").First(&p, *r.InternalPropID).Error == nil {
-				propName = p.DisplayName
-				if propName == "" {
-					propName = p.Name
-				}
-			}
+			propName = propNameMap[*r.InternalPropID]
 		}
 		items = append(items, FeedItem{
 			Type:    "checkin",
@@ -57,21 +83,10 @@ func (s *OpsFeedService) GetTodayFeed() []FeedItem {
 		})
 	}
 
-	// 2. 오늘 체크아웃
-	var checkOuts []models.Reservation
-	config.DB.Select("id, guest_name, check_out_date, status, internal_prop_id").
-		Where("check_out_date = ? AND status = ?", today, "accepted").
-		Find(&checkOuts)
 	for _, r := range checkOuts {
 		propName := ""
 		if r.InternalPropID != nil {
-			var p models.Property
-			if config.DB.Select("name, display_name").First(&p, *r.InternalPropID).Error == nil {
-				propName = p.DisplayName
-				if propName == "" {
-					propName = p.Name
-				}
-			}
+			propName = propNameMap[*r.InternalPropID]
 		}
 		items = append(items, FeedItem{
 			Type:    "checkout",

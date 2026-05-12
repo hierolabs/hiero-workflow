@@ -960,7 +960,31 @@ function filterSamsamByDate(raw: SamsamData, dateFrom: string, dateTo: string): 
     case_studies: raw.case_studies,
     cancel_reasons: raw.cancel_reasons,
     repeat_guests: raw.repeat_guests,
-    by_handler: raw.by_handler,
+    // by_handler 재계산 (필터된 chats 기준)
+    by_handler: (() => {
+      const HN = (m: string) => m <= '2025-06' ? '김진우' : m <= '2025-12' ? '왕태경' : '오재관';
+      const bh: SamsamData["by_handler"] = {};
+      for (const h of ['김진우', '왕태경', '오재관']) {
+        const g = filtered.filter(c => HN(c.month || '') === h);
+        if (!g.length) continue;
+        const cv = g.filter(c => c.outcome === 'converted').length;
+        const cn = g.filter(c => c.outcome === 'cancelled').length;
+        const w = cv + cn;
+        const dm = g.filter(c => c.response_type === 'direct_msg');
+        const rd = g.filter(c => c.redirected);
+        const months = [...new Set(g.map(c => c.month || '').filter(Boolean))].sort();
+        const monthly: Record<string, { count: number; converted: number; cancelled: number; rate: number; response_rate: number; redirect_count: number }> = {};
+        for (const m of months) {
+          const mg = g.filter(c => c.month === m);
+          const mcv = mg.filter(c => c.outcome === 'converted').length;
+          const mcn = mg.filter(c => c.outcome === 'cancelled').length;
+          const mw = mcv + mcn;
+          monthly[m] = { count: mg.length, converted: mcv, cancelled: mcn, rate: mw > 0 ? Number((mcv/mw*100).toFixed(1)) : 0, response_rate: Number((mg.filter(c => c.response_type === 'direct_msg').length / mg.length * 100).toFixed(1)), redirect_count: mg.filter(c => c.redirected).length };
+        }
+        bh[h] = { period: `${months[0]} ~ ${months[months.length-1]}`, total: g.length, converted: cv, cancelled: cn, rate: w > 0 ? Number((cv/w*100).toFixed(1)) : 0, response_rate: Number((dm.length/g.length*100).toFixed(1)), redirect_rate: Number((rd.length/g.length*100).toFixed(1)), redirect_converted: rd.filter(c => c.outcome === 'converted').length, redirect_cancelled: rd.filter(c => c.outcome === 'cancelled').length, monthly };
+      }
+      return bh;
+    })(),
     last_speaker: raw.last_speaker,
     time_analysis: raw.time_analysis,
     growth: raw.growth,
@@ -1122,63 +1146,8 @@ function SamsamOpsInsight({ data }: { data: SamsamData }) {
         </div>
       )}
 
-      {/* 월별 전환율 × 숙소 수량 — 독립 섹션 */}
-      <div className="bg-white border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-gray-700 mb-1">월별 전환율 × 숙소 수량</h3>
-        <p className="text-[10px] text-gray-400 mb-3">위=전환율, 아래=숙소 누적 수(가로 선). 숙소가 늘수록 전환율이 어떻게 변했는가.</p>
-        <div className="space-y-0">
-          {(() => {
-            const gMap: Record<string, { new: number; cumulative: number }> = {};
-            if (data.growth) for (const r of data.growth) gMap[r.month] = r;
-            const maxCum = data.growth ? Math.max(...data.growth.map(r => r.cumulative)) : 1;
-            const HC: Record<string, string> = { "김진우": "bg-blue-500", "왕태경": "bg-amber-500", "오재관": "bg-emerald-500" };
-            const HN = (m: string) => m <= '2025-06' ? '김진우' : m <= '2025-12' ? '왕태경' : '오재관';
-            const allMonths = data.growth ? data.growth.map(r => r.month) : [];
-            const chatByMonth: Record<string, { count: number; converted: number; cancelled: number; rate: number }> = {};
-            for (const c of data.chats) {
-              const m = c.month || '';
-              if (!m) continue;
-              if (!chatByMonth[m]) chatByMonth[m] = { count: 0, converted: 0, cancelled: 0, rate: 0 };
-              chatByMonth[m].count++;
-              if (c.outcome === 'converted') chatByMonth[m].converted++;
-              if (c.outcome === 'cancelled') chatByMonth[m].cancelled++;
-            }
-            for (const v of Object.values(chatByMonth)) {
-              const w = v.converted + v.cancelled;
-              v.rate = w > 0 ? Number((v.converted / w * 100).toFixed(1)) : 0;
-            }
-            return allMonths.map(m => {
-              const gr = gMap[m];
-              const ch = chatByMonth[m];
-              const h = HN(m);
-              const rate = ch?.rate || 0;
-              const tooFew = !ch || ch.count < 30;
-              return (
-                <div key={m} className={`flex items-center gap-1 ${tooFew ? "opacity-40" : ""}`}>
-                  <span className="w-12 text-[10px] text-gray-500 text-right font-medium">{m.slice(2)}</span>
-                  <div className="flex-1 bg-gray-50 rounded-full h-5 overflow-hidden">
-                    {rate > 0 && <div className={`${HC[h]} h-full rounded-full flex items-center justify-end pr-1`} style={{ width: `${Math.min(rate * 2.5, 100)}%` }}>
-                      {rate > 10 && <span className="text-[10px] text-white font-bold">{rate}%</span>}
-                    </div>}
-                  </div>
-                  <span className={`w-10 text-right text-xs font-bold ${rate > 15 ? "text-emerald-600" : rate < 8 && rate > 0 ? "text-red-500" : "text-gray-700"}`}>
-                    {rate > 0 && rate <= 10 ? `${rate}%` : ""}
-                  </span>
-                  <span className="w-14 text-[10px] text-gray-400 text-right">{ch ? `${ch.count}건` : ""}</span>
-                  <span className="w-10 text-[10px] font-bold text-slate-600 text-right">{gr ? `${gr.cumulative}실` : ""}</span>
-                </div>
-              );
-            });
-          })()}
-        </div>
-        <div className="flex gap-3 mt-2 text-[10px] text-gray-400">
-          <span><span className="inline-block w-2 h-2 bg-blue-500 rounded-sm mr-1" />김진우</span>
-          <span><span className="inline-block w-2 h-2 bg-amber-500 rounded-sm mr-1" />왕태경</span>
-          <span><span className="inline-block w-2 h-2 bg-emerald-500 rounded-sm mr-1" />오재관</span>
-          <span className="font-bold text-slate-600">N실</span><span>=숙소 누적</span>
-          <span className="ml-auto">흐림=채팅 30건 미만</span>
-        </div>
-      </div>
+      {/* 운영 현황 차트 */}
+      <OpsChart data={data} />
 
       {/* 취소 사유 */}
       {Object.keys(cr).length > 0 && (
@@ -1435,6 +1404,165 @@ function SamsamCaseStudies({ data }: { data: SamsamData }) {
           </div>
         ))}</div>
       </div>)}
+    </div>
+  );
+}
+
+/* ── 운영 현황 차트 — 월/주/일 + 좌우 네비 ── */
+type ChartMode = "month" | "week" | "day";
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function OpsChart({ data }: { data: SamsamData }) {
+  const [mode, setMode] = useState<ChartMode>("month");
+  const [offset, setOffset] = useState(0);
+  const WINDOW = 12;
+
+  const gMap: Record<string, { cumulative: number }> = {};
+  if (data.growth) for (const r of data.growth) gMap[r.month] = r;
+  const HN = (m: string) => m <= '2025-06' ? '김진우' : m <= '2025-12' ? '왕태경' : '오재관';
+  const HBG: Record<string, string> = { "김진우": "bg-blue-100", "왕태경": "bg-amber-50", "오재관": "bg-emerald-50" };
+
+  // 채팅에서 날짜 추출 (month 필드 기반 + messages의 time_hint로 주/일 추출)
+  const buckets: Record<string, { count: number; converted: number; cancelled: number; rate: number; rooms?: number }> = {};
+
+  for (const c of data.chats) {
+    let key = '';
+    const m = c.month || '';
+    if (mode === 'month') {
+      key = m;
+    } else {
+      // 주/일은 message_insights의 time_hint에서 날짜 추출이 어려움
+      // month만 있으므로 월 기준으로 대체 — 실제 주/일은 시간 데이터에서
+      key = m; // fallback
+    }
+    if (!key) continue;
+    if (!buckets[key]) buckets[key] = { count: 0, converted: 0, cancelled: 0, rate: 0 };
+    buckets[key].count++;
+    if (c.outcome === 'converted') buckets[key].converted++;
+    if (c.outcome === 'cancelled') buckets[key].cancelled++;
+  }
+
+  // 시간 분석 데이터로 요일별/시간별 집계
+  if (mode === 'day' && data.time_analysis) {
+    // 시간대별을 요일처럼 보여줌 (0~23시)
+    Object.keys(buckets).forEach(k => delete buckets[k]);
+    for (let h = 0; h < 24; h++) {
+      const hr = data.time_analysis.hourly[String(h)];
+      if (hr) {
+        buckets[`${h}시`] = { count: hr.guest + hr.host, converted: 0, cancelled: 0, rate: 0 };
+      }
+    }
+  }
+
+  if (mode === 'week') {
+    // 요일별 — time_hint에서 추출 불가하므로 시간대 피크를 표시
+    Object.keys(buckets).forEach(k => delete buckets[k]);
+    const peaks = data.time_analysis?.peak;
+    if (peaks) {
+      buckets['오전(8~12)'] = { count: peaks.morning, converted: 0, cancelled: 0, rate: 0 };
+      buckets['오후(14~18)'] = { count: peaks.afternoon, converted: 0, cancelled: 0, rate: 0 };
+      buckets['저녁(18~23)'] = { count: peaks.evening, converted: 0, cancelled: 0, rate: 0 };
+      buckets['심야(23~5)'] = { count: peaks.night, converted: 0, cancelled: 0, rate: 0 };
+    }
+  }
+
+  for (const v of Object.values(buckets)) {
+    const w = v.converted + v.cancelled;
+    v.rate = w > 0 ? Number((v.converted / w * 100).toFixed(1)) : 0;
+  }
+
+  const allKeys = Object.keys(buckets).sort();
+
+  // 월 모드: 12개씩 네비게이션
+  let visibleKeys = allKeys;
+  if (mode === 'month') {
+    const end = allKeys.length + offset;
+    const start = Math.max(0, end - WINDOW);
+    visibleKeys = allKeys.slice(start, end);
+  }
+
+  // 최대값 기준 50%로 스케일 (상단 50 날리기)
+  const maxCount = Math.max(...visibleKeys.map(k => buckets[k]?.count || 0));
+  const scale = maxCount * 0.5; // 50%를 100%로 취급 → 바가 2배로 커짐
+  const chartHeight = 160;
+
+  return (
+    <div className="bg-white border rounded-xl p-5">
+      {/* 헤더: 제목 + 모드 전환 + 네비 */}
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-bold text-gray-700">운영 현황</h3>
+        <div className="flex gap-1 ml-2">
+          {(["month", "week", "day"] as ChartMode[]).map(m => (
+            <button key={m} onClick={() => { setMode(m); setOffset(0); }}
+              className={`px-2 py-0.5 text-[11px] rounded font-medium ${mode === m ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+              {m === 'month' ? '월' : m === 'week' ? '시간대' : '시간'}
+            </button>
+          ))}
+        </div>
+        {mode === 'month' && (
+          <div className="flex items-center gap-1 ml-auto">
+            <button onClick={() => setOffset(o => o - WINDOW)} disabled={allKeys.length + offset - WINDOW <= 0}
+              className="px-2 py-0.5 text-sm rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30">‹</button>
+            <span className="text-[10px] text-gray-400">{visibleKeys[0]?.slice(2)} ~ {visibleKeys[visibleKeys.length-1]?.slice(2)}</span>
+            <button onClick={() => setOffset(o => Math.min(o + WINDOW, 0))} disabled={offset >= 0}
+              className="px-2 py-0.5 text-sm rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-30">›</button>
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-gray-400 mb-3">파랑=문의, 초록=전환, 상단 숫자=전환율. 숙소 수=하단.</p>
+
+      {/* 차트 */}
+      <div className="flex items-end gap-[3px] mb-1" style={{ height: `${chartHeight}px` }}>
+        {visibleKeys.map(k => {
+          const b = buckets[k] || { count: 0, converted: 0, rate: 0 };
+          const gr = gMap[k];
+          const h = mode === 'month' ? HN(k) : '';
+          // 스케일: scale을 100%로 취급
+          const countH = scale > 0 ? Math.min(b.count / scale * chartHeight, chartHeight) : 0;
+          const convH = scale > 0 ? Math.min(b.converted / scale * chartHeight, chartHeight * 0.95) : 0;
+          return (
+            <div key={k} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-900 text-white text-[9px] rounded px-2 py-1 whitespace-nowrap z-10">
+                {k} | {b.count}문의 {b.converted}전환 {b.cancelled}취소 | {b.rate}%{gr ? ` | ${gr.cumulative}실` : ''}
+              </div>
+              <span className={`text-[9px] font-bold mb-0.5 ${b.rate > 15 ? "text-emerald-600" : b.rate < 8 && b.rate > 0 ? "text-red-500" : "text-gray-400"}`}>
+                {b.count >= 20 && b.rate > 0 ? `${b.rate}%` : ''}
+              </span>
+              <div className="w-full relative" style={{ height: `${Math.max(countH, 2)}px` }}>
+                <div className="absolute inset-0 bg-blue-200 rounded-t-sm" />
+                <div className="absolute bottom-0 left-0 right-0 bg-emerald-500 rounded-t-sm" style={{ height: `${Math.max(convH, b.converted > 0 ? 2 : 0)}px` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* X축 */}
+      <div className="flex gap-[3px]">
+        {visibleKeys.map(k => {
+          const gr = gMap[k];
+          const h = mode === 'month' ? HN(k) : '';
+          const b = buckets[k] || { count: 0 };
+          return (
+            <div key={k} className={`flex-1 text-center rounded-sm py-0.5 ${mode === 'month' ? HBG[h] || '' : 'bg-gray-50'}`}>
+              <div className="text-[9px] text-gray-600 font-medium">{mode === 'month' ? k.slice(5) : k}</div>
+              {mode === 'month' && gr && <div className="text-[8px] font-bold text-slate-500">{gr.cumulative}실</div>}
+              {mode !== 'month' && <div className="text-[8px] text-gray-400">{b.count}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 범례 */}
+      <div className="flex gap-4 mt-3 text-[10px] text-gray-400">
+        <span><span className="inline-block w-3 h-2 bg-blue-200 rounded-sm mr-1" />문의</span>
+        <span><span className="inline-block w-3 h-2 bg-emerald-500 rounded-sm mr-1" />전환</span>
+        {mode === 'month' && <>
+          <span><span className="inline-block w-2 h-2 bg-blue-100 rounded-sm mr-1" />김진우</span>
+          <span><span className="inline-block w-2 h-2 bg-amber-50 border rounded-sm mr-1" />왕태경</span>
+          <span><span className="inline-block w-2 h-2 bg-emerald-50 border rounded-sm mr-1" />오재관</span>
+        </>}
+      </div>
     </div>
   );
 }
